@@ -1,0 +1,145 @@
+@page "/releases/new"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@inject IReleaseService ReleaseService
+
+<PageTitle>Add Release</PageTitle>
+
+<div class="release-details-page">
+    <a class="back-link" href="/releases">Back to Releases</a>
+
+    @if (!string.IsNullOrWhiteSpace(Error))
+    {
+        <div class="alert alert-danger" role="alert">@Error</div>
+    }
+
+    <section class="admin-edit-panel">
+        <div class="admin-edit-header">
+            <p class="eyebrow">Admin</p>
+            <h1>Add Release</h1>
+        </div>
+
+        <form method="post" action="/releases/create" enctype="multipart/form-data" class="admin-edit-form">
+            <AntiforgeryToken />
+
+            <div class="form-grid">
+                <div>
+                    <label class="form-label" for="title">Title</label>
+                    <input
+                        class="form-control"
+                        id="title"
+                        name="Title"
+                        value="@Title"
+                        @oninput="HandleTitleInputAsync"
+                        required />
+                </div>
+
+                <div>
+                    <label class="form-label" for="slug">Slug</label>
+                    <input
+                        class="form-control"
+                        id="slug"
+                        name="Slug"
+                        value="@CreateSlug"
+                        @oninput="HandleSlugInputAsync"
+                        required />
+                </div>
+
+                <div>
+                    <label class="form-label" for="releaseDate">Release Date</label>
+                    <input class="form-control" id="releaseDate" name="ReleaseDate" type="date" value="@ReleaseDate" required />
+                </div>
+
+                <div>
+                    <label class="form-label" for="coverImageUrl">Cover Image Url</label>
+                    <input class="form-control" id="coverImageUrl" name="CoverImageUrl" value="@CoverImageUrl" />
+                    <div class="form-text">Paste an external image URL or upload a new image file below.</div>
+                </div>
+
+                <div>
+                    <label class="form-label" for="coverImageFile">Upload Cover Image</label>
+                    <input
+                        class="form-control"
+                        id="coverImageFile"
+                        name="CoverImageFile"
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" for="shortDescription">Short Description</label>
+                <textarea
+                    class="form-control"
+                    id="shortDescription"
+                    name="ShortDescription"
+                    rows="4"
+                    required>@ShortDescription</textarea>
+            </div>
+
+            <div class="form-check mb-3">
+                <input
+                    class="form-check-input"
+                    id="isPublished"
+                    name="IsPublished"
+                    type="checkbox"
+                    value="true"
+                    checked="@(IsPublished ?? true)" />
+                <label class="form-check-label" for="isPublished">Published</label>
+            </div>
+
+            <button class="btn btn-primary" type="submit">Create Release</button>
+        </form>
+    </section>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Error { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Title { get; set; }
+
+    [SupplyParameterFromQuery(Name = "slug")]
+    public string? CreateSlug { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? ReleaseDate { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? CoverImageUrl { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? ShortDescription { get; set; }
+
+    [SupplyParameterFromQuery]
+    public bool? IsPublished { get; set; }
+
+    private bool slugManuallyEdited;
+
+    protected override void OnParametersSet()
+    {
+        slugManuallyEdited = !string.IsNullOrWhiteSpace(CreateSlug);
+        IsPublished ??= true;
+    }
+
+    private async Task HandleTitleInputAsync(ChangeEventArgs eventArgs)
+    {
+        Title = eventArgs.Value?.ToString();
+
+        if (slugManuallyEdited)
+        {
+            return;
+        }
+
+        CreateSlug = await ReleaseService.GenerateUniqueSlugAsync(Title);
+        StateHasChanged();
+    }
+
+    private async Task HandleSlugInputAsync(ChangeEventArgs eventArgs)
+    {
+        slugManuallyEdited = true;
+        CreateSlug = await ReleaseService.GenerateUniqueSlugAsync(eventArgs.Value?.ToString());
+        StateHasChanged();
+    }
+}

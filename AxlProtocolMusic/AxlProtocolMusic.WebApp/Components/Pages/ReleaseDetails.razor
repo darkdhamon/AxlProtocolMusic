@@ -1,0 +1,171 @@
+@page "/releases/{Slug}"
+@inject IReleaseService ReleaseService
+
+<PageTitle>Release Details</PageTitle>
+
+@if (isLoading)
+{
+    <p><em>Loading release details...</em></p>
+}
+else if (release is null)
+{
+    <h1>Release Not Found</h1>
+    <p>The release you requested could not be found.</p>
+    <a class="btn btn-outline-primary" href="/releases">Back to Releases</a>
+}
+else
+{
+    <div class="release-details-page">
+        <a class="back-link" href="/releases">Back to Releases</a>
+
+        @if (!string.IsNullOrWhiteSpace(Error))
+        {
+            <div class="alert alert-danger" role="alert">@Error</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Success))
+        {
+            <div class="alert alert-success" role="alert">@Success</div>
+        }
+
+        <section class="release-hero">
+            <div class="release-hero-copy">
+                <p class="eyebrow">Release Details</p>
+                <h1>@release.Title</h1>
+                <p class="release-date">@release.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
+                <p class="release-summary">@release.ShortDescription</p>
+            </div>
+
+            <div class="release-hero-artwork">
+                @if (!string.IsNullOrWhiteSpace(release.CoverImageUrl))
+                {
+                    <img src="@release.CoverImageUrl" alt="@release.Title cover art" />
+                }
+                else
+                {
+                    <div class="release-artwork placeholder">
+                        <span>@release.Title</span>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <section class="release-placeholder-content">
+            <h2>More Release Content Coming Soon</h2>
+            <p>
+                This page is where streaming links, story details, credits, and expanded release information will live.
+            </p>
+        </section>
+
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                <section class="admin-edit-panel">
+                    <div class="admin-edit-header">
+                        <p class="eyebrow">Admin</p>
+                        <h2>Edit Release Details</h2>
+                    </div>
+
+                    <form method="post" action="/releases/update" enctype="multipart/form-data" class="admin-edit-form">
+                        <AntiforgeryToken />
+                        <input type="hidden" name="OriginalSlug" value="@release.Slug" />
+
+                        <div class="form-grid">
+                            <div>
+                                <label class="form-label" for="title">Title</label>
+                                <input class="form-control" id="title" name="Title" value="@release.Title" required />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="slug">Slug</label>
+                                <input class="form-control" id="slug" name="Slug" value="@release.Slug" required />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="releaseDate">Release Date</label>
+                                <input
+                                    class="form-control"
+                                    id="releaseDate"
+                                    name="ReleaseDate"
+                                    type="date"
+                                    value="@release.ReleaseDateUtc.ToString("yyyy-MM-dd")"
+                                    required />
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="coverImageUrl">Cover Image Url</label>
+                                <input
+                                    class="form-control"
+                                    id="coverImageUrl"
+                                    name="CoverImageUrl"
+                                    value="@release.CoverImageUrl" />
+                                <div class="form-text">Paste an external image URL or upload a new image file below.</div>
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="coverImageFile">Upload Cover Image</label>
+                                <input
+                                    class="form-control"
+                                    id="coverImageFile"
+                                    name="CoverImageFile"
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" />
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="shortDescription">Short Description</label>
+                            <textarea
+                                class="form-control"
+                                id="shortDescription"
+                                name="ShortDescription"
+                                rows="4"
+                                required>@release.ShortDescription</textarea>
+                        </div>
+
+                        <div class="form-check mb-3">
+                            <input
+                                class="form-check-input"
+                                id="isPublished"
+                                name="IsPublished"
+                                type="checkbox"
+                                value="true"
+                                checked="@release.IsPublished" />
+                            <label class="form-check-label" for="isPublished">Published</label>
+                        </div>
+
+                        <button class="btn btn-primary" type="submit">Save Release</button>
+                    </form>
+                </section>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Slug { get; set; } = string.Empty;
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Error { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Success { get; set; }
+
+    private ReleaseDetailsViewModel? release;
+    private bool isLoading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        isLoading = true;
+        var authenticationState = AuthenticationStateTask is null
+            ? null
+            : await AuthenticationStateTask;
+
+        var includeUnpublished = authenticationState?.User.IsInRole("Admin") == true;
+        release = await ReleaseService.GetReleaseBySlugAsync(Slug, includeUnpublished);
+        isLoading = false;
+    }
+}

@@ -21,10 +21,13 @@ public static class ServiceCollectionExtensions
     {
         services.Configure<MongoDbSettings>(
             configuration.GetSection(MongoDbSettings.SectionName));
+        services.Configure<ImageStorageSettings>(
+            configuration.GetSection(ImageStorageSettings.SectionName));
 
         services.AddSingleton<IMongoDbService, MongoDbService>();
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
         services.AddScoped<IReleaseService, ReleaseService>();
+        services.AddScoped<IImageStorageService, DiskImageStorageService>();
 
         return services;
     }
