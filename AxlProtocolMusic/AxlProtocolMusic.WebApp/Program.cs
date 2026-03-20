@@ -1,10 +1,12 @@
 using AxlProtocolMusic.WebApp.Components;
+using AxlProtocolMusic.WebApp.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+builder.Services.AddMongoDataAccess(builder.Configuration);
 
 var app = builder.Build();
 

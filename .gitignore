@@ -212,6 +212,9 @@ PublishScripts/
 *.nupkg
 # NuGet Symbol Packages
 *.snupkg
+/\.dotnet/
+/\.nuget/
+/NuGet.Config
 # The packages folder can be ignored because of Package Restore
 **/[Pp]ackages/*
 # except build/, which is used as an MSBuild target.
