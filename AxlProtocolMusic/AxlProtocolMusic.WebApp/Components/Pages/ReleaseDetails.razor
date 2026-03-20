@@ -1,4 +1,5 @@
 @page "/releases/{Slug}"
+@rendermode InteractiveServer
 @inject IReleaseService ReleaseService
 
 <PageTitle>Release Details</PageTitle>
@@ -34,6 +35,42 @@ else
                 <h1>@release.Title</h1>
                 <p class="release-date">@release.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
                 <p class="release-summary">@release.ShortDescription</p>
+
+                @if (release.Tags.Count > 0)
+                {
+                    <div class="tag-list">
+                        @foreach (var tag in release.Tags)
+                        {
+                            <span class="tag-chip">@tag</span>
+                        }
+                    </div>
+                }
+
+                <section class="release-meta-panel">
+                    <h2>Release Info</h2>
+
+                    <p class="release-type-line"><strong>Type:</strong> @release.ReleaseType</p>
+
+                    @if (release.Credits.Count > 0)
+                    {
+                        <ul class="credits-list credits-list-inline">
+                            @foreach (var credit in release.Credits)
+                            {
+                                <li>
+                                    <span class="credit-name">@credit.Name</span>
+                                    @if (credit.Roles.Count > 0)
+                                    {
+                                        <span class="credit-role">@string.Join(", ", credit.Roles)</span>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p class="content-empty-state">Credits have not been added yet.</p>
+                    }
+                </section>
             </div>
 
             <div class="release-hero-artwork">
@@ -50,11 +87,62 @@ else
             </div>
         </section>
 
-        <section class="release-placeholder-content">
-            <h2>More Release Content Coming Soon</h2>
-            <p>
-                This page is where streaming links, story details, credits, and expanded release information will live.
-            </p>
+        @if (release.Links.Count > 0)
+        {
+            <section class="release-links-panel">
+                <h2>Listen And Buy</h2>
+                <div class="release-links-list">
+                    @foreach (var link in release.Links)
+                    {
+                        <a class="release-link-button" href="@link.Url" target="_blank" rel="noopener noreferrer">@link.PlatformName</a>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (release.Tracks.Count > 1)
+        {
+            <section class="track-list-panel">
+                <h2>Track List</h2>
+                <ol class="track-list">
+                    @foreach (var track in release.Tracks.Select((item, index) => new { item, index }))
+                    {
+                        <li>
+                            <span class="track-title">@track.item.Title</span>
+                            @if (!string.IsNullOrWhiteSpace(track.item.Duration))
+                            {
+                                <span class="track-duration">@track.item.Duration</span>
+                            }
+                        </li>
+                    }
+                </ol>
+            </section>
+        }
+
+        <section class="release-content-grid">
+            <section class="release-content-card">
+                <h2>Story Behind The Release</h2>
+                @if (!string.IsNullOrWhiteSpace(release.Story))
+                {
+                    <MarkdownRenderer Content="@release.Story" CssClass="release-rich-text markdown-content" />
+                }
+                else
+                {
+                    <p class="content-empty-state">The story behind this release will appear here.</p>
+                }
+            </section>
+
+            <section class="release-content-card">
+                <h2>Lyrics</h2>
+                @if (!string.IsNullOrWhiteSpace(release.Lyrics))
+                {
+                    <div class="lyrics-block">@release.Lyrics</div>
+                }
+                else
+                {
+                    <p class="content-empty-state">Lyrics have not been published for this release yet.</p>
+                }
+            </section>
         </section>
 
         <AuthorizeView Roles="Admin">
@@ -122,6 +210,240 @@ else
                                 required>@release.ShortDescription</textarea>
                         </div>
 
+                        <div class="mb-3">
+                            <label class="form-label" for="story">Story Behind The Release</label>
+                            <MarkdownEditor
+                                Id="story"
+                                InputName="Story"
+                                Rows="10"
+                                EditorClass="form-control"
+                                @bind-Value="Story" />
+                        </div>
+
+            <div class="mb-3">
+                <label class="form-label" for="lyrics">Lyrics</label>
+                <textarea
+                    class="form-control lyrics-editor"
+                    id="lyrics"
+                                name="Lyrics"
+                    rows="10">@Lyrics</textarea>
+            </div>
+
+            <div class="dynamic-panel mb-3">
+                <div class="dynamic-panel-header">
+                    <div>
+                        <label class="form-label">Credits</label>
+                        <div class="form-text">Add one person, then assign multiple roles as needed.</div>
+                    </div>
+
+                    <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddCredit">Add Credit</button>
+                </div>
+
+                            @if (Credits.Count == 0)
+                            {
+                                <p class="dynamic-panel-empty">No credits added yet.</p>
+                            }
+                            else
+                            {
+                    @for (var index = 0; index < Credits.Count; index++)
+                    {
+                        var currentIndex = index;
+                        var credit = Credits[index];
+
+                        <div class="dynamic-row">
+                                        <div class="dynamic-row-grid">
+                                            <div>
+                                                <label class="form-label" for="@($"credit-name-{index}")">Name</label>
+                                                <input
+                                                    class="form-control"
+                                                    id="@($"credit-name-{index}")"
+                                                    name="@($"Credits[{index}].Name")"
+                                                    value="@credit.Name"
+                                                    @oninput="eventArgs => credit.Name = eventArgs.Value?.ToString() ?? string.Empty" />
+                                </div>
+
+                                <div>
+                                    <label class="form-label" for="@($"credit-role-input-{index}")">Roles</label>
+                                    <div class="role-entry-row">
+                                        <input
+                                            class="form-control"
+                                            id="@($"credit-role-input-{index}")"
+                                            list="known-credit-roles"
+                                            value="@credit.RoleInput"
+                                            @oninput="eventArgs => credit.RoleInput = eventArgs.Value?.ToString() ?? string.Empty" />
+                                        <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => AddRoleToCredit(credit)">Add Role</button>
+                                    </div>
+                                    <div class="role-chip-list">
+                                        @for (var roleIndex = 0; roleIndex < credit.Roles.Count; roleIndex++)
+                                        {
+                                            var currentRoleIndex = roleIndex;
+                                            <input type="hidden" name="@($"Credits[{currentIndex}].Roles[{currentRoleIndex}]")" value="@credit.Roles[currentRoleIndex]" />
+                                            <button class="role-chip-edit" type="button" @onclick="() => RemoveRoleFromCredit(credit, currentRoleIndex)">@credit.Roles[currentRoleIndex] x</button>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => RemoveCredit(currentIndex)">Remove</button>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="dynamic-panel mb-3">
+                <div class="dynamic-panel-header">
+                    <div>
+                        <label class="form-label">Tracks</label>
+                        <div class="form-text">Track count determines Single, EP, or Album unless you set an override.</div>
+                    </div>
+
+                    <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddTrack">Add Track</button>
+                </div>
+
+                <div class="release-type-summary">
+                    <span>Computed type: <strong>@ComputedReleaseType</strong></span>
+                </div>
+
+                <div>
+                    <label class="form-label" for="releaseTypeOverride">Release Type Override</label>
+                    <select class="form-select" id="releaseTypeOverride" name="ReleaseTypeOverride" @bind="ReleaseTypeOverride">
+                        <option value="">Auto</option>
+                        <option value="Single">Single</option>
+                        <option value="EP">EP</option>
+                        <option value="Album">Album</option>
+                    </select>
+                </div>
+
+                @if (Tracks.Count == 0)
+                {
+                    <p class="dynamic-panel-empty">No tracks added yet. With zero or one track, the release is treated as a single.</p>
+                }
+                else
+                {
+                    @for (var index = 0; index < Tracks.Count; index++)
+                    {
+                        var currentIndex = index;
+                        var track = Tracks[index];
+
+                        <div class="dynamic-row">
+                            <div class="track-row-grid">
+                                <div class="track-number-chip">Track @(index + 1)</div>
+                                <div>
+                                    <label class="form-label" for="@($"track-title-{index}")">Title</label>
+                                    <input
+                                        class="form-control"
+                                        id="@($"track-title-{index}")"
+                                        name="@($"Tracks[{currentIndex}].Title")"
+                                        value="@track.Title"
+                                        @oninput="eventArgs => track.Title = eventArgs.Value?.ToString() ?? string.Empty" />
+                                </div>
+                                <div>
+                                    <label class="form-label" for="@($"track-duration-{index}")">Duration</label>
+                                    <input
+                                        class="form-control"
+                                        id="@($"track-duration-{index}")"
+                                        name="@($"Tracks[{currentIndex}].Duration")"
+                                        value="@track.Duration"
+                                        placeholder="3:42"
+                                        @oninput="eventArgs => track.Duration = eventArgs.Value?.ToString() ?? string.Empty" />
+                                </div>
+                            </div>
+
+                            <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => RemoveTrack(currentIndex)">Remove</button>
+                        </div>
+                    }
+                }
+            </div>
+
+            <div class="dynamic-panel mb-3">
+                <div class="dynamic-panel-header">
+                    <div>
+                        <label class="form-label">Streaming And Store Links</label>
+                        <div class="form-text">Add direct destinations for listening, streaming, or buying.</div>
+                    </div>
+
+                    <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddLink">Add Link</button>
+                </div>
+
+                @if (Links.Count == 0)
+                {
+                    <p class="dynamic-panel-empty">No release links added yet.</p>
+                }
+                else
+                {
+                    @for (var index = 0; index < Links.Count; index++)
+                    {
+                        var currentIndex = index;
+                        var link = Links[index];
+
+                        <div class="dynamic-row">
+                            <div class="dynamic-row-grid">
+                                <div>
+                                    <label class="form-label" for="@($"link-platform-{index}")">Platform</label>
+                                    <input
+                                        class="form-control"
+                                        id="@($"link-platform-{index}")"
+                                        list="known-release-platforms"
+                                        name="@($"Links[{currentIndex}].PlatformName")"
+                                        value="@link.PlatformName"
+                                        @oninput="eventArgs => link.PlatformName = eventArgs.Value?.ToString() ?? string.Empty" />
+                                </div>
+
+                                <div>
+                                    <label class="form-label" for="@($"link-url-{index}")">URL</label>
+                                    <input
+                                        class="form-control"
+                                        id="@($"link-url-{index}")"
+                                        name="@($"Links[{currentIndex}].Url")"
+                                        value="@link.Url"
+                                        @oninput="eventArgs => link.Url = eventArgs.Value?.ToString() ?? string.Empty" />
+                                </div>
+                            </div>
+
+                            <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => RemoveLink(currentIndex)">Remove</button>
+                        </div>
+                    }
+                }
+            </div>
+
+                        <div class="dynamic-panel mb-3">
+                            <div class="dynamic-panel-header">
+                                <div>
+                                    <label class="form-label">Tags</label>
+                                    <div class="form-text">Add tags to group themes, styles, or eras.</div>
+                                </div>
+
+                                <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddTagFromInput">Add Tag</button>
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="tag-input">Tag</label>
+                                <div class="role-entry-row">
+                                    <input
+                                        class="form-control"
+                                        id="tag-input"
+                                        list="known-tags"
+                                        value="@TagInput"
+                                        @oninput="eventArgs => TagInput = eventArgs.Value?.ToString() ?? string.Empty" />
+                                    <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddTagFromInput">Add Tag</button>
+                                </div>
+                            </div>
+
+                            <div class="role-chip-list">
+                                @for (var index = 0; index < Tags.Count; index++)
+                                {
+                                    var currentIndex = index;
+                                    <input type="hidden" name="@($"Tags[{currentIndex}]")" value="@Tags[currentIndex]" />
+                                    <button class="role-chip-edit" type="button" @onclick="() => RemoveTag(currentIndex)">@Tags[currentIndex] x</button>
+                                }
+                            </div>
+
+                            @if (Tags.Count == 0)
+                            {
+                                <p class="dynamic-panel-empty">No tags added yet.</p>
+                            }
+                        </div>
+
                         <div class="form-check mb-3">
                             <input
                                 class="form-check-input"
@@ -135,6 +457,27 @@ else
 
                         <button class="btn btn-primary" type="submit">Save Release</button>
                     </form>
+
+                    <datalist id="known-credit-roles">
+                        @foreach (var role in KnownCreditRoles)
+                        {
+                            <option value="@role"></option>
+                        }
+                    </datalist>
+
+                    <datalist id="known-release-platforms">
+                        @foreach (var platform in KnownPlatforms)
+                        {
+                            <option value="@platform"></option>
+                        }
+                    </datalist>
+
+                    <datalist id="known-tags">
+                        @foreach (var tag in KnownTags)
+                        {
+                            <option value="@tag"></option>
+                        }
+                    </datalist>
                 </section>
             </Authorized>
         </AuthorizeView>
@@ -156,16 +499,197 @@ else
 
     private ReleaseDetailsViewModel? release;
     private bool isLoading = true;
+    private string Story { get; set; } = string.Empty;
+    private string Lyrics { get; set; } = string.Empty;
+    private string ReleaseTypeOverride { get; set; } = string.Empty;
+    private List<EditableCredit> Credits { get; set; } = [];
+    private List<ReleaseTrack> Tracks { get; set; } = [];
+    private List<ReleaseLink> Links { get; set; } = [];
+    private List<string> Tags { get; set; } = [];
+    private IReadOnlyList<string> KnownCreditRoles { get; set; } = [];
+    private IReadOnlyList<string> KnownTags { get; set; } = [];
+    private static readonly IReadOnlyList<string> KnownPlatforms =
+    [
+        "Spotify",
+        "Apple Music",
+        "YouTube Music",
+        "Amazon Music",
+        "Bandcamp",
+        "iTunes",
+        "SoundCloud",
+        "Tidal"
+    ];
+
+    private string ComputedReleaseType => GetDisplayReleaseType(Tracks.Count, ReleaseTypeOverride);
 
     protected override async Task OnParametersSetAsync()
     {
         isLoading = true;
+        KnownCreditRoles = await ReleaseService.GetKnownCreditRolesAsync();
+        KnownTags = await ReleaseService.GetKnownTagsAsync();
         var authenticationState = AuthenticationStateTask is null
             ? null
             : await AuthenticationStateTask;
 
         var includeUnpublished = authenticationState?.User.IsInRole("Admin") == true;
         release = await ReleaseService.GetReleaseBySlugAsync(Slug, includeUnpublished);
+        SyncEditableState();
         isLoading = false;
     }
+
+    private void SyncEditableState()
+    {
+        if (release is null)
+        {
+            Story = string.Empty;
+            Lyrics = string.Empty;
+            Credits = [];
+            Tags = [];
+            return;
+        }
+
+        Story = release.Story;
+        Lyrics = release.Lyrics;
+        ReleaseTypeOverride = release.ReleaseTypeOverride;
+        Credits = release.Credits
+            .Select(credit => new ReleaseCredit
+            {
+                Name = credit.Name,
+                Roles = credit.Roles.ToList()
+            })
+            .Select(credit => new EditableCredit
+            {
+                Name = credit.Name,
+                Roles = credit.Roles.ToList()
+            })
+            .ToList();
+        Tracks = release.Tracks
+            .Select(track => new ReleaseTrack
+            {
+                Title = track.Title,
+                Duration = track.Duration
+            })
+            .ToList();
+        Links = release.Links
+            .Select(link => new ReleaseLink
+            {
+                PlatformName = link.PlatformName,
+                Url = link.Url
+            })
+            .ToList();
+        Tags = release.Tags.ToList();
+    }
+
+    private void AddCredit()
+    {
+        Credits.Add(new EditableCredit());
+    }
+
+    private void RemoveCredit(int index)
+    {
+        if (index >= 0 && index < Credits.Count)
+        {
+            Credits.RemoveAt(index);
+        }
+    }
+
+    private void AddRoleToCredit(EditableCredit credit)
+    {
+        var role = credit.RoleInput.Trim();
+        if (string.IsNullOrWhiteSpace(role))
+        {
+            return;
+        }
+
+        if (!credit.Roles.Contains(role, StringComparer.OrdinalIgnoreCase))
+        {
+            credit.Roles.Add(role);
+        }
+
+        credit.RoleInput = string.Empty;
+    }
+
+    private void RemoveRoleFromCredit(EditableCredit credit, int roleIndex)
+    {
+        if (roleIndex >= 0 && roleIndex < credit.Roles.Count)
+        {
+            credit.Roles.RemoveAt(roleIndex);
+        }
+    }
+
+    private void AddTrack()
+    {
+        Tracks.Add(new ReleaseTrack());
+    }
+
+    private void RemoveTrack(int index)
+    {
+        if (index >= 0 && index < Tracks.Count)
+        {
+            Tracks.RemoveAt(index);
+        }
+    }
+
+    private void AddLink()
+    {
+        Links.Add(new ReleaseLink());
+    }
+
+    private void RemoveLink(int index)
+    {
+        if (index >= 0 && index < Links.Count)
+        {
+            Links.RemoveAt(index);
+        }
+    }
+
+    private void AddTagFromInput()
+    {
+        var tag = TagInput.Trim();
+        if (string.IsNullOrWhiteSpace(tag))
+        {
+            return;
+        }
+
+        if (!Tags.Contains(tag, StringComparer.OrdinalIgnoreCase))
+        {
+            Tags.Add(tag);
+        }
+
+        TagInput = string.Empty;
+    }
+
+    private void RemoveTag(int index)
+    {
+        if (index >= 0 && index < Tags.Count)
+        {
+            Tags.RemoveAt(index);
+        }
+    }
+
+    private static string GetDisplayReleaseType(int trackCount, string? releaseTypeOverride)
+    {
+        if (!string.IsNullOrWhiteSpace(releaseTypeOverride))
+        {
+            return releaseTypeOverride;
+        }
+
+        return trackCount switch
+        {
+            <= 1 => "Single",
+            <= 6 => "EP",
+            _ => "Album"
+        };
+    }
+
+    private sealed class EditableCredit
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public List<string> Roles { get; set; } = [];
+
+        public string RoleInput { get; set; } = string.Empty;
+    }
+
+    private string TagInput { get; set; } = string.Empty;
 }

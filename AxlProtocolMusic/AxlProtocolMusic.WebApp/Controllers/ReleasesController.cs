@@ -129,6 +129,9 @@ public sealed class ReleasesController : Controller
                 : request.ReleaseDate.ToString("yyyy-MM-dd"),
             ["coverImageUrl"] = request.CoverImageUrl,
             ["shortDescription"] = request.ShortDescription,
+            ["story"] = request.Story,
+            ["lyrics"] = request.Lyrics,
+            ["releaseTypeOverride"] = request.ReleaseTypeOverride,
             ["isPublished"] = request.IsPublished.ToString()
         };
 

@@ -31,5 +31,11 @@ public interface IReleaseService
         string? value,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<string>> GetKnownCreditRolesAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<string>> GetKnownTagsAsync(
+        CancellationToken cancellationToken = default);
+
     bool IsManagedImageUrl(string? imageUrl);
 }

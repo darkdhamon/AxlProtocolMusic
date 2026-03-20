@@ -1,0 +1,44 @@
+.markdown-editor {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.markdown-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.markdown-preview {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: 0.9rem;
+    border: 1px solid rgba(17, 44, 114, 0.08);
+    background: rgba(17, 44, 114, 0.02);
+}
+
+.markdown-preview-header {
+    font-size: 0.875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(11, 23, 56, 0.72);
+}
+
+.markdown-preview-empty {
+    margin: 0;
+    color: rgba(11, 23, 56, 0.66);
+}
+
+.markdown-preview-body {
+    line-height: 1.7;
+}
+
+.markdown-preview-body > :first-child {
+    margin-top: 0;
+}
+
+.markdown-preview-body > :last-child {
+    margin-bottom: 0;
+}

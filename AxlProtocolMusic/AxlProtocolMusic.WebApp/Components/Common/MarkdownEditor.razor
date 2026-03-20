@@ -1,0 +1,78 @@
+@inject IJSRuntime JsRuntime
+@inject MarkdownService MarkdownService
+@implements IAsyncDisposable
+
+<div class="markdown-editor">
+    <div class="markdown-toolbar" role="toolbar" aria-label="Story formatting tools">
+        <button class="btn btn-outline-secondary btn-sm" type="button" @onclick='() => ApplyFormatAsync("heading")'>H</button>
+        <button class="btn btn-outline-secondary btn-sm" type="button" @onclick='() => ApplyFormatAsync("bold")'>Bold</button>
+        <button class="btn btn-outline-secondary btn-sm" type="button" @onclick='() => ApplyFormatAsync("italic")'>Italic</button>
+        <button class="btn btn-outline-secondary btn-sm" type="button" @onclick='() => ApplyFormatAsync("quote")'>Quote</button>
+        <button class="btn btn-outline-secondary btn-sm" type="button" @onclick='() => ApplyFormatAsync("unordered-list")'>List</button>
+        <button class="btn btn-outline-secondary btn-sm" type="button" @onclick='() => ApplyFormatAsync("link")'>Link</button>
+    </div>
+
+    <textarea
+        @ref="textareaReference"
+        class="@EditorClass"
+        id="@Id"
+        name="@InputName"
+        rows="@Rows"
+        @bind="Value"
+        @bind:event="oninput"></textarea>
+
+    <div class="form-text">
+        Supports Markdown. Use the toolbar for quick formatting, or type Markdown directly.
+    </div>
+
+    <div class="markdown-preview">
+        <div class="markdown-preview-header">Preview</div>
+        @if (string.IsNullOrWhiteSpace(Value))
+        {
+            <p class="markdown-preview-empty">Formatting preview will appear here.</p>
+        }
+        else
+        {
+            <div class="markdown-preview-body">
+                @((MarkupString)MarkdownService.ToHtml(Value))
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = $"markdown-editor-{Guid.NewGuid():N}";
+
+    [Parameter]
+    public string InputName { get; set; } = string.Empty;
+
+    [Parameter]
+    public int Rows { get; set; } = 10;
+
+    [Parameter]
+    public string EditorClass { get; set; } = "form-control";
+
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<string?> ValueChanged { get; set; }
+
+    private ElementReference textareaReference;
+    private IJSObjectReference? module;
+
+    private async Task ApplyFormatAsync(string format)
+    {
+        module ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "/js/markdownEditor.js");
+        await module.InvokeVoidAsync("applyMarkdownFormat", textareaReference, format);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            await module.DisposeAsync();
+        }
+    }
+}

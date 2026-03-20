@@ -131,6 +131,32 @@ public sealed class ReleaseService : IReleaseService
             Slug = release.Slug,
             ShortDescription = release.ShortDescription,
             CoverImageUrl = release.CoverImageUrl,
+            Story = release.Story,
+            Lyrics = release.Lyrics,
+            Credits = release.Credits
+                .Select(credit => new ReleaseCredit
+                {
+                    Name = credit.Name,
+                    Roles = credit.Roles.ToList()
+                })
+                .ToList(),
+            Tracks = release.Tracks
+                .Select(track => new ReleaseTrack
+                {
+                    Title = track.Title,
+                    Duration = track.Duration
+                })
+                .ToList(),
+            Links = release.Links
+                .Select(link => new ReleaseLink
+                {
+                    PlatformName = link.PlatformName,
+                    Url = link.Url
+                })
+                .ToList(),
+            ReleaseType = GetDisplayReleaseType(release),
+            ReleaseTypeOverride = release.ReleaseTypeOverride,
+            Tags = release.Tags.ToList(),
             ReleaseDateUtc = release.ReleaseDateUtc,
             IsPublished = release.IsPublished
         };
@@ -181,6 +207,13 @@ public sealed class ReleaseService : IReleaseService
         release.Slug = normalizedSlug;
         release.ShortDescription = request.ShortDescription.Trim();
         release.CoverImageUrl = request.CoverImageUrl?.Trim() ?? string.Empty;
+        release.Story = request.Story?.Trim() ?? string.Empty;
+        release.Lyrics = request.Lyrics?.Trim() ?? string.Empty;
+        release.Credits = NormalizeCredits(request.Credits);
+        release.Tracks = NormalizeTracks(request.Tracks);
+        release.Links = NormalizeLinks(request.Links);
+        release.ReleaseTypeOverride = NormalizeReleaseTypeOverride(request.ReleaseTypeOverride);
+        release.Tags = NormalizeTags(request.Tags);
         release.ReleaseDateUtc = new DateTimeOffset(
             DateTime.SpecifyKind(request.ReleaseDate.Date, DateTimeKind.Utc));
         release.IsPublished = request.IsPublished;
@@ -230,6 +263,13 @@ public sealed class ReleaseService : IReleaseService
             Slug = normalizedSlug,
             ShortDescription = request.ShortDescription.Trim(),
             CoverImageUrl = request.CoverImageUrl?.Trim() ?? string.Empty,
+            Story = request.Story?.Trim() ?? string.Empty,
+            Lyrics = request.Lyrics?.Trim() ?? string.Empty,
+            Credits = NormalizeCredits(request.Credits),
+            Tracks = NormalizeTracks(request.Tracks),
+            Links = NormalizeLinks(request.Links),
+            ReleaseTypeOverride = NormalizeReleaseTypeOverride(request.ReleaseTypeOverride),
+            Tags = NormalizeTags(request.Tags),
             ReleaseDateUtc = new DateTimeOffset(
                 DateTime.SpecifyKind(request.ReleaseDate.Date, DateTimeKind.Utc)),
             IsPublished = request.IsPublished
@@ -269,6 +309,31 @@ public sealed class ReleaseService : IReleaseService
         }
 
         return $"{datedSlug}-{suffix}";
+    }
+
+    public async Task<IReadOnlyList<string>> GetKnownCreditRolesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return (await _releaseRepository.GetAllAsync(cancellationToken))
+            .SelectMany(release => release.Credits)
+            .SelectMany(credit => credit.Roles)
+            .Select(role => role.Trim())
+            .Where(role => !string.IsNullOrWhiteSpace(role))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(role => role)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<string>> GetKnownTagsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return (await _releaseRepository.GetAllAsync(cancellationToken))
+            .SelectMany(release => release.Tags)
+            .Select(tag => tag.Trim())
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(tag => tag)
+            .ToList();
     }
 
     public bool IsManagedImageUrl(string? imageUrl)
@@ -316,5 +381,95 @@ public sealed class ReleaseService : IReleaseService
 
         var slug = slugBuilder.ToString().Trim('-');
         return string.IsNullOrWhiteSpace(slug) ? "release" : slug;
+    }
+
+    private static List<ReleaseCredit> NormalizeCredits(IEnumerable<ReleaseCredit>? credits)
+    {
+        if (credits is null)
+        {
+            return [];
+        }
+
+        return credits
+            .Select(credit => new ReleaseCredit
+            {
+                Name = credit.Name.Trim(),
+                Roles = credit.Roles
+                    .Select(role => role.Trim())
+                    .Where(role => !string.IsNullOrWhiteSpace(role))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+            })
+            .Where(credit => !string.IsNullOrWhiteSpace(credit.Name) || credit.Roles.Count > 0)
+            .ToList();
+    }
+
+    private static List<string> NormalizeTags(IEnumerable<string>? tags)
+    {
+        if (tags is null)
+        {
+            return [];
+        }
+
+        return tags
+            .Select(tag => tag.Trim())
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static List<ReleaseTrack> NormalizeTracks(IEnumerable<ReleaseTrack>? tracks)
+    {
+        if (tracks is null)
+        {
+            return [];
+        }
+
+        return tracks
+            .Select(track => new ReleaseTrack
+            {
+                Title = track.Title.Trim(),
+                Duration = track.Duration.Trim()
+            })
+            .Where(track => !string.IsNullOrWhiteSpace(track.Title) || !string.IsNullOrWhiteSpace(track.Duration))
+            .ToList();
+    }
+
+    private static List<ReleaseLink> NormalizeLinks(IEnumerable<ReleaseLink>? links)
+    {
+        if (links is null)
+        {
+            return [];
+        }
+
+        return links
+            .Select(link => new ReleaseLink
+            {
+                PlatformName = link.PlatformName.Trim(),
+                Url = link.Url.Trim()
+            })
+            .Where(link => !string.IsNullOrWhiteSpace(link.PlatformName) || !string.IsNullOrWhiteSpace(link.Url))
+            .ToList();
+    }
+
+    private static string NormalizeReleaseTypeOverride(string? releaseTypeOverride)
+    {
+        return releaseTypeOverride?.Trim() ?? string.Empty;
+    }
+
+    private static string GetDisplayReleaseType(Release release)
+    {
+        if (!string.IsNullOrWhiteSpace(release.ReleaseTypeOverride))
+        {
+            return release.ReleaseTypeOverride.Trim();
+        }
+
+        var trackCount = release.Tracks.Count;
+        return trackCount switch
+        {
+            <= 1 => "Single",
+            <= 6 => "EP",
+            _ => "Album"
+        };
     }
 }

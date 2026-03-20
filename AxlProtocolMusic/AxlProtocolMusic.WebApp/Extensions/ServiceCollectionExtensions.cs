@@ -28,6 +28,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
         services.AddScoped<IReleaseService, ReleaseService>();
         services.AddScoped<IImageStorageService, DiskImageStorageService>();
+        services.AddScoped<MarkdownService>();
 
         return services;
     }

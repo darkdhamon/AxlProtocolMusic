@@ -1,0 +1,16 @@
+@inject MarkdownService MarkdownService
+
+@if (!string.IsNullOrWhiteSpace(Content))
+{
+    <div class="@CssClass">
+        @((MarkupString)MarkdownService.ToHtml(Content))
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? Content { get; set; }
+
+    [Parameter]
+    public string CssClass { get; set; } = string.Empty;
+}

@@ -14,6 +14,20 @@ public sealed class Release : IEntity
 
     public string CoverImageUrl { get; set; } = string.Empty;
 
+    public string Story { get; set; } = string.Empty;
+
+    public string Lyrics { get; set; } = string.Empty;
+
+    public List<ReleaseCredit> Credits { get; set; } = [];
+
+    public List<ReleaseTrack> Tracks { get; set; } = [];
+
+    public List<ReleaseLink> Links { get; set; } = [];
+
+    public string ReleaseTypeOverride { get; set; } = string.Empty;
+
+    public List<string> Tags { get; set; } = [];
+
     public DateTimeOffset ReleaseDateUtc { get; set; }
 
     public bool IsPublished { get; set; }
