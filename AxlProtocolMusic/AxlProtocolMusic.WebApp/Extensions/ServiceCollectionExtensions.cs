@@ -1,8 +1,13 @@
+using AspNetCore.Identity.Mongo;
 using AxlProtocolMusic.WebApp.Configuration;
+using AxlProtocolMusic.WebApp.Models.Identity;
 using AxlProtocolMusic.WebApp.Repositories;
 using AxlProtocolMusic.WebApp.Repositories.Interfaces;
 using AxlProtocolMusic.WebApp.Services;
+using AxlProtocolMusic.WebApp.Services.Identity;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using Microsoft.AspNetCore.Identity;
+using MongoDB.Driver;
 
 namespace AxlProtocolMusic.WebApp.Extensions;
 
@@ -19,5 +24,68 @@ public static class ServiceCollectionExtensions
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
 
         return services;
+    }
+
+    public static IServiceCollection AddApplicationAuthentication(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var mongoSettings = configuration
+            .GetSection(MongoDbSettings.SectionName)
+            .Get<MongoDbSettings>()
+            ?? new MongoDbSettings();
+
+        services.Configure<AdminBootstrapSettings>(
+            configuration.GetSection(AdminBootstrapSettings.SectionName));
+
+        services
+            .AddIdentityMongoDbProvider<ApplicationUser, ApplicationRole, string>(
+                identity =>
+                {
+                    identity.Password.RequiredLength = 12;
+                    identity.Password.RequireDigit = true;
+                    identity.Password.RequireLowercase = true;
+                    identity.Password.RequireUppercase = true;
+                    identity.Password.RequireNonAlphanumeric = true;
+                    identity.User.RequireUniqueEmail = true;
+                },
+                mongo =>
+                {
+                    mongo.ConnectionString = BuildIdentityConnectionString(mongoSettings);
+                })
+            .AddDefaultTokenProviders();
+
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.LoginPath = "/login";
+            options.AccessDeniedPath = "/access-denied";
+            options.SlidingExpiration = true;
+        });
+
+        services.AddScoped<AdminIdentitySeeder>();
+        services.AddCascadingAuthenticationState();
+        services.AddAuthorization();
+
+        return services;
+    }
+
+    private static string BuildIdentityConnectionString(MongoDbSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.ConnectionString))
+        {
+            throw new InvalidOperationException("MongoDb:ConnectionString must be configured.");
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.DatabaseName))
+        {
+            throw new InvalidOperationException("MongoDb:DatabaseName must be configured.");
+        }
+
+        var mongoUrlBuilder = new MongoUrlBuilder(settings.ConnectionString)
+        {
+            DatabaseName = settings.DatabaseName
+        };
+
+        return mongoUrlBuilder.ToString();
     }
 }

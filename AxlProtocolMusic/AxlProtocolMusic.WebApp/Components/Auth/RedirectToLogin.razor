@@ -1,0 +1,28 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Navigation
+
+<p>Redirecting...</p>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || AuthenticationStateTask is null)
+        {
+            return;
+        }
+
+        var authenticationState = await AuthenticationStateTask;
+        var currentPath = "/" + Navigation.ToBaseRelativePath(Navigation.Uri);
+
+        if (authenticationState.User.Identity?.IsAuthenticated == true)
+        {
+            Navigation.NavigateTo("/access-denied", forceLoad: true);
+            return;
+        }
+
+        Navigation.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(currentPath)}", forceLoad: true);
+    }
+}

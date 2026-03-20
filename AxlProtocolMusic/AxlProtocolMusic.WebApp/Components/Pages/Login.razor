@@ -1,0 +1,69 @@
+@page "/login"
+@inject NavigationManager Navigation
+
+<PageTitle>Login</PageTitle>
+
+<h1>Admin Login</h1>
+
+@if (isAuthenticated)
+{
+    <p>You are already signed in.</p>
+    <p><a href="/admin">Go to the admin dashboard</a></p>
+}
+else
+{
+    if (!string.IsNullOrWhiteSpace(Error))
+    {
+        <div class="alert alert-danger" role="alert">@Error</div>
+    }
+
+    <form method="post" action="/account/login" class="mt-4">
+        <AntiforgeryToken />
+        <input type="hidden" name="ReturnUrl" value="@SafeReturnUrl" />
+
+        <div class="mb-3">
+            <label class="form-label" for="username">Username or Email</label>
+            <input class="form-control" id="username" name="UserNameOrEmail" autocomplete="username" required />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="password">Password</label>
+            <input class="form-control" id="password" name="Password" type="password" autocomplete="current-password" required />
+        </div>
+
+        <div class="form-check mb-3">
+            <input class="form-check-input" id="rememberMe" name="RememberMe" type="checkbox" value="true" />
+            <label class="form-check-label" for="rememberMe">Remember me</label>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Log In</button>
+    </form>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Error { get; set; }
+
+    private bool isAuthenticated;
+
+    private string SafeReturnUrl =>
+        !string.IsNullOrWhiteSpace(ReturnUrl) && Uri.IsWellFormedUriString(ReturnUrl, UriKind.Relative)
+            ? ReturnUrl
+            : "/admin";
+
+    protected override void OnParametersSet()
+    {
+        isAuthenticated = HttpContext.User.Identity?.IsAuthenticated == true;
+
+        if (isAuthenticated)
+        {
+            Navigation.NavigateTo(SafeReturnUrl, forceLoad: true);
+        }
+    }
+}
