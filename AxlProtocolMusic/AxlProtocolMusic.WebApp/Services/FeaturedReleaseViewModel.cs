@@ -1,0 +1,14 @@
+namespace AxlProtocolMusic.WebApp.Services;
+
+public sealed class FeaturedReleaseViewModel
+{
+    public string Title { get; init; } = string.Empty;
+
+    public string Slug { get; init; } = string.Empty;
+
+    public string ShortDescription { get; init; } = string.Empty;
+
+    public string CoverImageUrl { get; init; } = string.Empty;
+
+    public DateTimeOffset ReleaseDateUtc { get; init; }
+}

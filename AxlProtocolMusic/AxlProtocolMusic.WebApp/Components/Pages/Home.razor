@@ -1,7 +1,155 @@
-﻿@page "/"
+@page "/"
+@rendermode InteractiveServer
+@inject IReleaseService ReleaseService
 
 <PageTitle>Home</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="home-page">
+    <section class="hero-carousel">
+        @if (isLoading)
+        {
+            <div class="hero-shell">
+                <p><em>Loading featured releases...</em></p>
+            </div>
+        }
+        else if (featuredReleases.Count == 0)
+        {
+            <div class="hero-shell empty-state">
+                <div>
+                    <p class="eyebrow">Latest Releases</p>
+                    <h1>Axl Protocol Music</h1>
+                    <p>
+                        Featured releases will appear here as soon as published music is added to the catalog.
+                    </p>
+                    <a class="btn btn-light" href="/releases">Browse Releases</a>
+                </div>
+            </div>
+        }
+        else
+        {
+            var activeRelease = featuredReleases[activeSlideIndex];
 
-Welcome to your new app.
+            <div class="hero-shell">
+                <div class="hero-copy">
+                    <p class="eyebrow">Latest Releases</p>
+                    <h1>@activeRelease.Title</h1>
+                    <p class="hero-date">@activeRelease.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
+                    <p class="hero-description">@activeRelease.ShortDescription</p>
+                    <div class="hero-actions">
+                        <a class="btn btn-light" href="/releases">View Releases</a>
+                        <button class="btn btn-outline-light" type="button" @onclick="ShowNextSlide">
+                            Next Release
+                        </button>
+                    </div>
+                </div>
+
+                <div class="hero-artwork">
+                    @if (!string.IsNullOrWhiteSpace(activeRelease.CoverImageUrl))
+                    {
+                        <img src="@activeRelease.CoverImageUrl" alt="@activeRelease.Title cover art" />
+                    }
+                    else
+                    {
+                        <div class="cover-placeholder">
+                            <span>@activeRelease.Title</span>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (featuredReleases.Count > 1)
+            {
+                <div class="carousel-controls">
+                    <button class="carousel-arrow" type="button" @onclick="ShowPreviousSlide" aria-label="Previous release">
+                        Prev
+                    </button>
+
+                    <div class="carousel-indicators">
+                        @for (var index = 0; index < featuredReleases.Count; index++)
+                        {
+                            var slideIndex = index;
+                            <button
+                                type="button"
+                                class="indicator @(slideIndex == activeSlideIndex ? "active" : string.Empty)"
+                                @onclick="@(() => ShowSlide(slideIndex))"
+                                aria-label="Show release @(slideIndex + 1)">
+                            </button>
+                        }
+                    </div>
+
+                    <button class="carousel-arrow" type="button" @onclick="ShowNextSlide" aria-label="Next release">
+                        Next
+                    </button>
+                </div>
+            }
+        }
+    </section>
+
+    <section class="home-intro">
+        <div class="intro-card">
+            <p class="eyebrow">Artist and Label</p>
+            <h2>Axl Protocol and Axl Protocol Music</h2>
+            <p>
+                This site will be the official home for releases, artist context, and the stories behind the music.
+            </p>
+        </div>
+
+        <div class="intro-grid">
+            <a class="feature-card" href="/about-axl-protocol">
+                <p class="eyebrow">Story</p>
+                <h3>About Axl Protocol</h3>
+                <p>Learn about the artist, collaborators, and the life behind the project.</p>
+            </a>
+
+            <a class="feature-card" href="/news">
+                <p class="eyebrow">Updates</p>
+                <h3>News</h3>
+                <p>Follow announcements, release updates, and major milestones.</p>
+            </a>
+
+            <a class="feature-card" href="/timeline">
+                <p class="eyebrow">History</p>
+                <h3>Timeline</h3>
+                <p>Trace the defining moments, releases, and eras that shape the catalog.</p>
+            </a>
+        </div>
+    </section>
+</div>
+
+@code {
+    private IReadOnlyList<FeaturedReleaseViewModel> featuredReleases = [];
+    private int activeSlideIndex;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        featuredReleases = await ReleaseService.GetFeaturedReleasesAsync();
+        activeSlideIndex = 0;
+        isLoading = false;
+    }
+
+    private void ShowPreviousSlide()
+    {
+        if (featuredReleases.Count == 0)
+        {
+            return;
+        }
+
+        activeSlideIndex = (activeSlideIndex - 1 + featuredReleases.Count) % featuredReleases.Count;
+    }
+
+    private void ShowNextSlide()
+    {
+        if (featuredReleases.Count == 0)
+        {
+            return;
+        }
+
+        activeSlideIndex = (activeSlideIndex + 1) % featuredReleases.Count;
+    }
+
+    private void ShowSlide(int slideIndex)
+    {
+        activeSlideIndex = slideIndex;
+    }
+}

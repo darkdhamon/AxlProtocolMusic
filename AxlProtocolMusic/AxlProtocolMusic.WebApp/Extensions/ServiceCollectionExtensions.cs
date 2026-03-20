@@ -9,6 +9,7 @@ using AxlProtocolMusic.WebApp.Services.Identity;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using MongoDB.Driver;
+using System;
 
 namespace AxlProtocolMusic.WebApp.Extensions;
 
@@ -23,6 +24,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IMongoDbService, MongoDbService>();
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
+        services.AddScoped<IReleaseService, ReleaseService>();
 
         return services;
     }
@@ -60,10 +62,12 @@ public static class ServiceCollectionExtensions
         {
             options.LoginPath = "/login";
             options.AccessDeniedPath = "/access-denied";
+            options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
             options.SlidingExpiration = true;
         });
 
         services.AddScoped<AdminIdentitySeeder>();
+        services.AddScoped<ReleaseSeedService>();
         services.AddScoped<DevelopmentDatabaseResetService>();
         services.AddCascadingAuthenticationState();
         services.AddAuthorization();

@@ -1,6 +1,6 @@
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">AxlProtocolMusic.WebApp</a>
+        <a class="navbar-brand" href="">Axl Protocol Music</a>
     </div>
 </div>
 
@@ -15,14 +15,26 @@
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
+            <NavLink class="nav-link" href="releases">
+                <span class="bi bi-vinyl-fill-nav-menu" aria-hidden="true"></span> Releases
             </NavLink>
         </div>
 
         <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
+            <NavLink class="nav-link" href="news">
+                <span class="bi bi-megaphone-fill-nav-menu" aria-hidden="true"></span> News
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="about-axl-protocol">
+                <span class="bi bi-mic-fill-nav-menu" aria-hidden="true"></span> About Axl Protocol
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="timeline">
+                <span class="bi bi-clock-history-nav-menu" aria-hidden="true"></span> Timeline
             </NavLink>
         </div>
 
@@ -30,30 +42,25 @@
             <Authorized>
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="admin">
-                        <span class="bi bi-shield-lock-fill-nav-menu" aria-hidden="true"></span> Admin
+                        <span class="bi bi-speedometer2-nav-menu" aria-hidden="true"></span> Admin
                     </NavLink>
                 </div>
 
                 <div class="nav-item px-3">
                     <NavLink class="nav-link" href="account/edit">
-                        <span class="bi bi-person-gear-nav-menu" aria-hidden="true"></span> Account
+                        <span class="bi bi-person-circle-nav-menu" aria-hidden="true"></span> Account
                     </NavLink>
                 </div>
 
                 <div class="nav-item px-3">
                     <form method="post" action="/account/logout">
                         <AntiforgeryToken />
-                        <button type="submit" class="nav-link btn btn-link border-0 p-0">Log out</button>
+                        <button type="submit" class="nav-link btn btn-link border-0 p-0">
+                            <span class="bi bi-box-arrow-right-nav-menu" aria-hidden="true"></span> Log out
+                        </button>
                     </form>
                 </div>
             </Authorized>
-            <NotAuthorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="login">
-                        <span class="bi bi-person-fill-nav-menu" aria-hidden="true"></span> Login
-                    </NavLink>
-                </div>
-            </NotAuthorized>
         </AuthorizeView>
     </nav>
 </div>

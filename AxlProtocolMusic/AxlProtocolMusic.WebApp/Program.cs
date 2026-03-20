@@ -41,7 +41,9 @@ app.MapRazorComponents<App>()
 using (var scope = app.Services.CreateScope())
 {
     var adminIdentitySeeder = scope.ServiceProvider.GetRequiredService<AdminIdentitySeeder>();
+    var releaseSeedService = scope.ServiceProvider.GetRequiredService<ReleaseSeedService>();
     await adminIdentitySeeder.SeedAsync();
+    await releaseSeedService.SeedAsync();
 }
 
 app.Run();
