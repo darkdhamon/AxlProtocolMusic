@@ -1,4 +1,5 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject IHostEnvironment HostEnvironment
 
 <div class="page">
     <div class="sidebar">
@@ -6,8 +7,21 @@
     </div>
 
     <main>
-        <div class="top-row px-4">
+        <div class="top-row px-4 d-flex justify-content-between align-items-center gap-3 flex-wrap">
             <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+
+            @if (HostEnvironment.IsDevelopment())
+            {
+                <form method="post" action="/account/reset-development-database" class="m-0">
+                    <AntiforgeryToken />
+                    <button
+                        class="btn btn-outline-danger btn-sm"
+                        type="submit"
+                        onclick="return confirm('Reset the development database to seeded data? This will delete all current local development content.');">
+                        Reset Dev DB
+                    </button>
+                </form>
+            }
         </div>
 
         <article class="content px-4">

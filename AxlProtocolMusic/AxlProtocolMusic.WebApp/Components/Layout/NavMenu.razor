@@ -35,6 +35,12 @@
                 </div>
 
                 <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="account/edit">
+                        <span class="bi bi-person-gear-nav-menu" aria-hidden="true"></span> Account
+                    </NavLink>
+                </div>
+
+                <div class="nav-item px-3">
                     <form method="post" action="/account/logout">
                         <AntiforgeryToken />
                         <button type="submit" class="nav-link btn btn-link border-0 p-0">Log out</button>

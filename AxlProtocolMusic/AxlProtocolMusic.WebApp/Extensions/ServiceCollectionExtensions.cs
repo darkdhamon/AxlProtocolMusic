@@ -4,6 +4,7 @@ using AxlProtocolMusic.WebApp.Models.Identity;
 using AxlProtocolMusic.WebApp.Repositories;
 using AxlProtocolMusic.WebApp.Repositories.Interfaces;
 using AxlProtocolMusic.WebApp.Services;
+using AxlProtocolMusic.WebApp.Services.Development;
 using AxlProtocolMusic.WebApp.Services.Identity;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
@@ -63,6 +64,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<AdminIdentitySeeder>();
+        services.AddScoped<DevelopmentDatabaseResetService>();
         services.AddCascadingAuthenticationState();
         services.AddAuthorization();
 

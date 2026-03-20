@@ -17,6 +17,11 @@ else
         <div class="alert alert-danger" role="alert">@Error</div>
     }
 
+    if (!string.IsNullOrWhiteSpace(Success))
+    {
+        <div class="alert alert-success" role="alert">@Success</div>
+    }
+
     <form method="post" action="/account/login" class="mt-4">
         <AntiforgeryToken />
         <input type="hidden" name="ReturnUrl" value="@SafeReturnUrl" />
@@ -49,6 +54,9 @@ else
 
     [SupplyParameterFromQuery]
     public string? Error { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Success { get; set; }
 
     private bool isAuthenticated;
 

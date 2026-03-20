@@ -55,6 +55,14 @@ public sealed class AdminIdentitySeeder
 
         if (user is null)
         {
+            var existingAdmins = await _userManager.GetUsersInRoleAsync(_settings.RoleName);
+            if (existingAdmins.Count > 0)
+            {
+                _logger.LogInformation(
+                    "Admin bootstrap user was not recreated because one or more admin users already exist.");
+                return;
+            }
+
             user = new ApplicationUser
             {
                 Id = Guid.NewGuid().ToString("N"),

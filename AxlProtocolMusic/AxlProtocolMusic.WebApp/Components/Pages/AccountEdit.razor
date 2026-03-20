@@ -1,0 +1,105 @@
+@page "/account/edit"
+@attribute [Authorize(Roles = "Admin")]
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Edit Account</PageTitle>
+
+<h1>Edit Account</h1>
+
+@if (account is null)
+{
+    <p><em>Loading account details...</em></p>
+}
+else
+{
+    if (ForcePasswordChange)
+    {
+        <div class="alert alert-warning" role="alert">
+            Your account is still using the default password. Please change it now.
+        </div>
+    }
+
+    if (!string.IsNullOrWhiteSpace(Error))
+    {
+        <div class="alert alert-danger" role="alert">@Error</div>
+    }
+
+    if (!string.IsNullOrWhiteSpace(Success))
+    {
+        <div class="alert alert-success" role="alert">@Success</div>
+    }
+
+    <form method="post" action="/account/update" class="mt-4">
+        <AntiforgeryToken />
+
+        <div class="mb-3">
+            <label class="form-label" for="username">Username</label>
+            <input class="form-control" id="username" name="UserName" value="@account.UserName" autocomplete="username" required />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="email">Email</label>
+            <input class="form-control" id="email" name="Email" type="email" value="@account.Email" autocomplete="email" required />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="currentPassword">Current Password</label>
+            <input class="form-control" id="currentPassword" name="CurrentPassword" type="password" autocomplete="current-password" required />
+            <div class="form-text">Required to save any account changes.</div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="newPassword">New Password</label>
+            <input class="form-control" id="newPassword" name="NewPassword" type="password" autocomplete="new-password" />
+            <div class="form-text">Leave blank if you only want to update username or email.</div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label" for="confirmNewPassword">Confirm New Password</label>
+            <input class="form-control" id="confirmNewPassword" name="ConfirmNewPassword" type="password" autocomplete="new-password" />
+        </div>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Save Changes</button>
+            <a class="btn btn-outline-secondary" href="/admin">Back to Dashboard</a>
+        </div>
+    </form>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string? Error { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Success { get; set; }
+
+    [SupplyParameterFromQuery]
+    public bool ForcePasswordChange { get; set; }
+
+    private AccountEditViewModel? account;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await UserManager.GetUserAsync(HttpContext.User);
+        if (user is null)
+        {
+            return;
+        }
+
+        account = new AccountEditViewModel
+        {
+            UserName = user.UserName ?? string.Empty,
+            Email = user.Email ?? string.Empty
+        };
+    }
+
+    private sealed class AccountEditViewModel
+    {
+        public string UserName { get; set; } = string.Empty;
+
+        public string Email { get; set; } = string.Empty;
+    }
+}
