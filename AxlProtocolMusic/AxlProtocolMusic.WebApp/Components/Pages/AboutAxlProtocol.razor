@@ -1,7 +1,334 @@
 @page "/about-axl-protocol"
+@rendermode InteractiveServer
+@inject IAboutPageService AboutPageService
 
 <PageTitle>About Axl Protocol</PageTitle>
 
-<h1>About Axl Protocol</h1>
+@if (isLoading)
+{
+    <p><em>Loading about page...</em></p>
+}
+else if (content is null)
+{
+    <p>The about page is not available right now.</p>
+}
+else
+{
+    <div class="about-page">
+        <section class="about-hero">
+            <div class="about-hero-copy">
+                <p class="eyebrow">Artist Identity</p>
+                <h1>About Axl Protocol</h1>
+                <p class="hero-lead">@content.HeroLead</p>
+                <p class="hero-body">@content.HeroBody</p>
+            </div>
 
-<p>This page will tell the story of Axl Protocol, the people behind it, and the life context around the music.</p>
+            <div class="about-hero-panel">
+                <p class="panel-label">Current Focus</p>
+                @if (content.FocusPoints.Count == 0)
+                {
+                    <p class="panel-empty">Focus points will appear here.</p>
+                }
+                else
+                {
+                    <ul class="hero-points">
+                        @foreach (var point in content.FocusPoints)
+                        {
+                            <li>@point</li>
+                        }
+                    </ul>
+                }
+            </div>
+        </section>
+
+        <section class="about-grid">
+            <article class="feature-panel">
+                <p class="eyebrow">Why This Site Exists</p>
+                <MarkdownRenderer Content="@content.WhyThisSiteExistsMarkdown" CssClass="markdown-content" />
+            </article>
+
+            <article class="feature-panel accent-panel">
+                <p class="eyebrow">What You Will Find Here</p>
+                <h2>The Narrative Behind The Catalog</h2>
+                @if (content.NarrativeHighlights.Count == 0)
+                {
+                    <p class="panel-empty">Narrative highlights will appear here.</p>
+                }
+                else
+                {
+                    <ul class="content-list">
+                        @foreach (var point in content.NarrativeHighlights)
+                        {
+                            <li>@point</li>
+                        }
+                    </ul>
+                }
+            </article>
+        </section>
+
+        <section class="origin-section">
+            <div class="origin-copy">
+                <p class="eyebrow">Origin</p>
+                <MarkdownRenderer Content="@content.OriginMarkdown" CssClass="markdown-content" />
+            </div>
+
+            <div class="origin-stat-block">
+                <div>
+                    <span class="stat-number">1</span>
+                    <span class="stat-label">artist universe at the center right now</span>
+                </div>
+                <div>
+                    <span class="stat-number">1</span>
+                    <span class="stat-label">label home base for story, context, and official release history</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="pillar-section">
+            <p class="eyebrow">Creative Pillars</p>
+            <h2>What Defines The Project</h2>
+
+            <div class="pillar-grid">
+                @if (content.Pillars.Count == 0)
+                {
+                    <article class="pillar-card">
+                        <h3>Pillars Coming Soon</h3>
+                        <p>Creative pillars will appear here once they are added.</p>
+                    </article>
+                }
+                else
+                {
+                    @foreach (var pillar in content.Pillars)
+                    {
+                        <article class="pillar-card">
+                            <h3>@pillar.Title</h3>
+                            <p>@pillar.Description</p>
+                        </article>
+                    }
+                }
+            </div>
+        </section>
+
+        <section class="pathways-section">
+            <article class="pathway-card">
+                <p class="eyebrow">Explore The Music</p>
+                <h3>Releases</h3>
+                <p>Dive into songs, credits, lyrics, and the larger story around each release.</p>
+                <a class="pathway-link" href="/releases">Browse Releases</a>
+            </article>
+
+            <article class="pathway-card">
+                <p class="eyebrow">Follow The Project</p>
+                <h3>News</h3>
+                <p>Track updates, milestones, announcements, and the next steps in the catalog.</p>
+                <a class="pathway-link" href="/news">See Updates</a>
+            </article>
+
+            <article class="pathway-card">
+                <p class="eyebrow">Trace The Arc</p>
+                <h3>Timeline</h3>
+                <p>Watch how releases, moments, and eras connect across the life of the project.</p>
+                <a class="pathway-link" href="/timeline">View Timeline</a>
+            </article>
+        </section>
+
+        <AuthorizeView Roles="Admin">
+            <Authorized Context="authContext">
+                <section class="admin-edit-panel">
+                    <div class="admin-edit-header">
+                        <p class="eyebrow">Admin</p>
+                        <h2>Edit About Page</h2>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(statusMessage))
+                    {
+                        <div class="alert alert-success" role="alert">@statusMessage</div>
+                    }
+
+                    <EditForm Model="editableContent" OnValidSubmit="SaveAsync" class="admin-edit-form">
+                        <div class="mb-3">
+                            <label class="form-label" for="heroLead">Hero Lead</label>
+                            <textarea class="form-control" id="heroLead" @bind="editableContent.HeroLead" rows="4"></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="heroBody">Hero Body</label>
+                            <textarea class="form-control" id="heroBody" @bind="editableContent.HeroBody" rows="4"></textarea>
+                        </div>
+
+                        <div class="dynamic-panel mb-3">
+                            <div class="dynamic-panel-header">
+                                <div>
+                                    <label class="form-label">Current Focus</label>
+                                    <div class="form-text">Short points shown in the hero side panel.</div>
+                                </div>
+                                <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddFocusPoint">Add Point</button>
+                            </div>
+
+                            <div class="role-chip-list">
+                                @for (var index = 0; index < editableContent.FocusPoints.Count; index++)
+                                {
+                                    var currentIndex = index;
+                                    <div class="dynamic-line-item">
+                                        <input class="form-control" @bind="editableContent.FocusPoints[currentIndex]" />
+                                        <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => RemoveFocusPoint(currentIndex)">Remove</button>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="whyMarkdown">Why This Site Exists</label>
+                            <MarkdownEditor Id="whyMarkdown" InputName="" Rows="10" EditorClass="form-control" @bind-Value="editableContent.WhyThisSiteExistsMarkdown" />
+                        </div>
+
+                        <div class="dynamic-panel mb-3">
+                            <div class="dynamic-panel-header">
+                                <div>
+                                    <label class="form-label">Narrative Highlights</label>
+                                    <div class="form-text">Bullets shown in the right-side content card.</div>
+                                </div>
+                                <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddNarrativeHighlight">Add Highlight</button>
+                            </div>
+
+                            <div class="role-chip-list">
+                                @for (var index = 0; index < editableContent.NarrativeHighlights.Count; index++)
+                                {
+                                    var currentIndex = index;
+                                    <div class="dynamic-line-item">
+                                        <input class="form-control" @bind="editableContent.NarrativeHighlights[currentIndex]" />
+                                        <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => RemoveNarrativeHighlight(currentIndex)">Remove</button>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="originMarkdown">Origin Section</label>
+                            <MarkdownEditor Id="originMarkdown" InputName="" Rows="10" EditorClass="form-control" @bind-Value="editableContent.OriginMarkdown" />
+                        </div>
+
+                        <div class="dynamic-panel mb-3">
+                            <div class="dynamic-panel-header">
+                                <div>
+                                    <label class="form-label">Creative Pillars</label>
+                                    <div class="form-text">Short cards that define the project.</div>
+                                </div>
+                                <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddPillar">Add Pillar</button>
+                            </div>
+
+                            @for (var index = 0; index < editableContent.Pillars.Count; index++)
+                            {
+                                var currentIndex = index;
+                                <div class="dynamic-row">
+                                    <div class="dynamic-row-grid">
+                                        <div>
+                                            <label class="form-label" for="@($"pillar-title-{currentIndex}")">Title</label>
+                                            <input class="form-control" id="@($"pillar-title-{currentIndex}")" @bind="editableContent.Pillars[currentIndex].Title" />
+                                        </div>
+                                        <div>
+                                            <label class="form-label" for="@($"pillar-description-{currentIndex}")">Description</label>
+                                            <textarea class="form-control" id="@($"pillar-description-{currentIndex}")" @bind="editableContent.Pillars[currentIndex].Description" rows="3"></textarea>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => RemovePillar(currentIndex)">Remove</button>
+                                </div>
+                            }
+                        </div>
+
+                        <button class="btn btn-primary" type="submit">Save About Page</button>
+                    </EditForm>
+                </section>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+}
+
+@code {
+    private AboutPageContent? content;
+    private AboutPageContent editableContent = new();
+    private bool isLoading = true;
+    private string? statusMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        statusMessage = null;
+        content = await AboutPageService.GetAsync();
+        editableContent = Clone(content);
+        isLoading = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        await AboutPageService.UpdateAsync(editableContent);
+        content = Clone(editableContent);
+        editableContent = Clone(editableContent);
+        statusMessage = "About page updated.";
+    }
+
+    private void AddFocusPoint()
+    {
+        editableContent.FocusPoints.Add(string.Empty);
+    }
+
+    private void RemoveFocusPoint(int index)
+    {
+        if (index >= 0 && index < editableContent.FocusPoints.Count)
+        {
+            editableContent.FocusPoints.RemoveAt(index);
+        }
+    }
+
+    private void AddNarrativeHighlight()
+    {
+        editableContent.NarrativeHighlights.Add(string.Empty);
+    }
+
+    private void RemoveNarrativeHighlight(int index)
+    {
+        if (index >= 0 && index < editableContent.NarrativeHighlights.Count)
+        {
+            editableContent.NarrativeHighlights.RemoveAt(index);
+        }
+    }
+
+    private void AddPillar()
+    {
+        editableContent.Pillars.Add(new AboutPillar());
+    }
+
+    private void RemovePillar(int index)
+    {
+        if (index >= 0 && index < editableContent.Pillars.Count)
+        {
+            editableContent.Pillars.RemoveAt(index);
+        }
+    }
+
+    private static AboutPageContent Clone(AboutPageContent source)
+    {
+        return new AboutPageContent
+        {
+            Id = source.Id,
+            HeroLead = source.HeroLead,
+            HeroBody = source.HeroBody,
+            FocusPoints = source.FocusPoints.ToList(),
+            WhyThisSiteExistsMarkdown = source.WhyThisSiteExistsMarkdown,
+            NarrativeHighlights = source.NarrativeHighlights.ToList(),
+            OriginMarkdown = source.OriginMarkdown,
+            Pillars = source.Pillars
+                .Select(pillar => new AboutPillar
+                {
+                    Title = pillar.Title,
+                    Description = pillar.Description
+                })
+                .ToList()
+        };
+    }
+}

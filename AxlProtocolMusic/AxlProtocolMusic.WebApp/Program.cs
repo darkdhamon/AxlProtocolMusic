@@ -1,6 +1,7 @@
 using AxlProtocolMusic.WebApp.Components;
 using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Extensions;
+using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.Development;
 using AxlProtocolMusic.WebApp.Services.Identity;
 using Microsoft.Extensions.Options;
@@ -41,8 +42,10 @@ app.MapRazorComponents<App>()
 using (var scope = app.Services.CreateScope())
 {
     var adminIdentitySeeder = scope.ServiceProvider.GetRequiredService<AdminIdentitySeeder>();
+    var aboutPageService = scope.ServiceProvider.GetRequiredService<IAboutPageService>();
     var releaseSeedService = scope.ServiceProvider.GetRequiredService<ReleaseSeedService>();
     await adminIdentitySeeder.SeedAsync();
+    await aboutPageService.SeedAsync();
     await releaseSeedService.SeedAsync();
 }
 

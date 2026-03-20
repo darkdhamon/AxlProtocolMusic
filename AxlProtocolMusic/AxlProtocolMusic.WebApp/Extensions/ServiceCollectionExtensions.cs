@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IMongoDbService, MongoDbService>();
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
+        services.AddScoped<IAboutPageService, AboutPageService>();
         services.AddScoped<IReleaseService, ReleaseService>();
         services.AddScoped<IImageStorageService, DiskImageStorageService>();
         services.AddScoped<MarkdownService>();
