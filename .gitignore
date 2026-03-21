@@ -216,6 +216,7 @@ PublishScripts/
 /\.nuget/
 /NuGet.Config
 /_buildcheck/
+/.dotnet-cli/
 **/.localmongo/
 **/wwwroot/uploads/
 # The packages folder can be ignored because of Package Restore

@@ -1,0 +1,98 @@
+.privacy-location-map-shell {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 1rem;
+    border: 1px solid rgba(17, 44, 114, 0.08);
+    background: linear-gradient(180deg, #fbfcff 0%, #f4f7ff 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.privacy-location-map-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: start;
+}
+
+.privacy-location-map-title,
+.privacy-location-map-subtitle,
+.privacy-location-map-focus {
+    margin: 0;
+}
+
+.privacy-location-map-title {
+    font-weight: 700;
+    color: #0b1738;
+}
+
+.privacy-location-map-subtitle,
+.privacy-location-map-focus {
+    color: rgba(11, 23, 56, 0.72);
+    font-size: 0.95rem;
+}
+
+.privacy-location-map {
+    width: 100%;
+    height: 400px;
+    border-radius: 1rem;
+    overflow: hidden;
+    border: 1px solid rgba(17, 44, 114, 0.08);
+}
+
+.privacy-location-map :global(.privacy-location-marker) {
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 999px;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    background:
+        radial-gradient(circle at 30% 30%, rgba(243, 181, 84, 0.95), rgba(243, 181, 84, 0.35) 40%, transparent 42%),
+        linear-gradient(180deg, #102a69 0%, #16567d 100%);
+    color: #ffffff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    box-shadow: 0 12px 24px rgba(16, 42, 105, 0.28);
+}
+
+.privacy-location-map :global(.privacy-location-marker span) {
+    display: inline-block;
+    line-height: 1;
+}
+
+.privacy-location-map-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.privacy-location-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(16, 42, 105, 0.08);
+    color: #102a69;
+    border: 1px solid rgba(16, 42, 105, 0.08);
+    font-size: 0.92rem;
+}
+
+.privacy-location-chip strong {
+    display: inline-grid;
+    place-items: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: #102a69;
+    color: #ffffff;
+    font-size: 0.8rem;
+}
+
+@media (max-width: 768px) {
+    .privacy-location-map-header {
+        flex-direction: column;
+    }
+}

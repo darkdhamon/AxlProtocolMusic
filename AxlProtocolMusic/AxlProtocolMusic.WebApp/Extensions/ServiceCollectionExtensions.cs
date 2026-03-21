@@ -24,9 +24,12 @@ public static class ServiceCollectionExtensions
         services.Configure<ImageStorageSettings>(
             configuration.GetSection(ImageStorageSettings.SectionName));
 
+        services.AddHttpContextAccessor();
         services.AddSingleton<IMongoDbService, MongoDbService>();
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
         services.AddScoped<IAboutPageService, AboutPageService>();
+        services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddScoped<IPrivacyPreferencesService, PrivacyPreferencesService>();
         services.AddScoped<IReleaseService, ReleaseService>();
         services.AddScoped<IImageStorageService, DiskImageStorageService>();
         services.AddScoped<MarkdownService>();

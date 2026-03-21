@@ -1,0 +1,251 @@
+.privacy-data-page {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.privacy-data-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+    gap: 1.5rem;
+    padding: 1.9rem;
+    border-radius: 1.4rem;
+    background:
+        radial-gradient(circle at top left, rgba(243, 181, 84, 0.16), transparent 28%),
+        linear-gradient(145deg, #0a1633 0%, #102a69 52%, #16567d 100%);
+    color: #f7f8fd;
+}
+
+.privacy-data-copy {
+    display: grid;
+    gap: 0.95rem;
+    align-content: center;
+}
+
+.privacy-data-copy h1 {
+    margin: 0;
+}
+
+.privacy-data-panel {
+    display: grid;
+    gap: 0.6rem;
+    align-content: start;
+    padding: 1.25rem;
+    border-radius: 1.1rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(10px);
+}
+
+.privacy-data-panel p,
+.hero-lead {
+    margin: 0;
+}
+
+.data-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.2rem;
+    align-items: start;
+}
+
+.data-card {
+    display: grid;
+    gap: 1rem;
+    padding: 1.45rem;
+    border-radius: 1.2rem;
+    border: 1px solid rgba(17, 44, 114, 0.08);
+    background: linear-gradient(180deg, #ffffff 0%, #f5f8ff 100%);
+    box-shadow: 0 18px 36px rgba(17, 44, 114, 0.06);
+}
+
+.notice-card {
+    background:
+        radial-gradient(circle at top right, rgba(243, 181, 84, 0.16), transparent 28%),
+        linear-gradient(180deg, #fffefb 0%, #f7faff 100%);
+}
+
+.action-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+}
+
+.delete-data-form {
+    margin: 0;
+}
+
+.modal-supporting-copy {
+    margin-bottom: 0;
+    color: rgba(11, 23, 56, 0.76);
+}
+
+.section-heading h2,
+.data-card h2 {
+    margin: 0;
+}
+
+.map-supporting-copy {
+    margin: 0;
+    color: rgba(11, 23, 56, 0.76);
+}
+
+.data-list {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.visit-group-card {
+    padding: 0;
+    overflow: hidden;
+    border-radius: 1rem;
+    background: linear-gradient(180deg, #fbfcff 0%, #f4f7ff 100%);
+    border: 1px solid rgba(17, 44, 114, 0.08);
+}
+
+.visit-group-summary {
+    list-style: none;
+}
+
+.visit-group-summary::-webkit-details-marker {
+    display: none;
+}
+
+.visit-group-summary .data-row {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    margin: 0;
+}
+
+.visit-group-card > .visit-details-list,
+.visit-group-card[open] > .visit-details-list {
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+.visit-group-summary {
+    cursor: pointer;
+    padding-bottom: 0.85rem;
+}
+
+.visit-group-toggle-label {
+    display: inline-block;
+    padding: 0.1rem 1rem 0;
+    font-weight: 600;
+    color: #102a69;
+}
+
+.visit-details-list {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 0;
+    padding-bottom: 1rem;
+}
+
+.visit-detail-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: start;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(17, 44, 114, 0.08);
+}
+
+.visit-detail-row:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.data-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: start;
+    padding: 1rem 1.05rem;
+    border-radius: 1rem;
+    background: rgba(17, 44, 114, 0.03);
+    border: 1px solid rgba(17, 44, 114, 0.08);
+}
+
+.data-title,
+.data-meta,
+.destination-url,
+.data-side p {
+    margin: 0;
+}
+
+.data-title {
+    font-weight: 700;
+    color: #0b1738;
+}
+
+.data-meta {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-top: 0.35rem;
+    color: rgba(11, 23, 56, 0.7);
+    font-size: 0.95rem;
+}
+
+.destination-url {
+    margin-top: 0.4rem;
+    color: rgba(11, 23, 56, 0.58);
+    font-size: 0.88rem;
+    line-height: 1.45;
+    font-family: Consolas, "Courier New", monospace;
+    overflow-wrap: anywhere;
+}
+
+.destination-link-row {
+    margin-top: 0.5rem;
+}
+
+.destination-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.38rem 0.7rem;
+    border-radius: 999px;
+    background: rgba(16, 42, 105, 0.08);
+    border: 1px solid rgba(16, 42, 105, 0.08);
+    color: #102a69;
+    font-weight: 600;
+    text-decoration: none;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.destination-link:hover {
+    background: rgba(16, 42, 105, 0.12);
+    color: #0b1738;
+}
+
+.click-row {
+    align-content: start;
+}
+
+.click-detail-row {
+    align-items: start;
+}
+
+.data-side {
+    display: grid;
+    gap: 0.25rem;
+    text-align: right;
+    color: rgba(11, 23, 56, 0.74);
+    white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+    .privacy-data-hero,
+    .data-grid,
+    .data-row,
+    .action-card,
+    .visit-detail-row {
+        grid-template-columns: 1fr;
+    }
+
+    .data-side {
+        text-align: left;
+        white-space: normal;
+    }
+}

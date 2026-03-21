@@ -1,0 +1,592 @@
+@page "/privacy/collected-data"
+@rendermode InteractiveServer
+@inject IAnalyticsService AnalyticsService
+@inject IHttpContextAccessor HttpContextAccessor
+
+<PageTitle>Collected Data</PageTitle>
+
+<div class="privacy-data-page">
+    <section class="privacy-data-hero">
+        <div class="privacy-data-copy">
+            <p class="eyebrow">Privacy</p>
+            <h1>Collected Data For This Browser</h1>
+            <p class="hero-lead">
+                This page shows only analytics data currently associated with this browser's visitor identifier. It does not
+                expose data collected from anyone else.
+            </p>
+        </div>
+
+        <div class="privacy-data-panel">
+            <p><strong>Visitor Identifier:</strong> @DisplayVisitorId</p>
+            <p><strong>Page Visits:</strong> @visitorData.PageVisits.Count</p>
+            <p><strong>External Link Clicks:</strong> @visitorData.ExternalLinkClicks.Count</p>
+        </div>
+    </section>
+
+    @if (showDeleteSuccess)
+    {
+        <div class="alert alert-success" role="alert">
+            Previously collected analytics data for this browser has been deleted. Future visits may still be tracked unless you disable essential metrics.
+        </div>
+    }
+
+    @if (!visitorData.HasVisitorId)
+    {
+        <section class="data-card">
+            <h2>No Visitor Data Yet</h2>
+            <p>
+                No visitor identifier is currently stored for this browser, so there is no collected analytics data to show here yet.
+            </p>
+        </section>
+    }
+    else
+    {
+        <section class="data-card action-card">
+            <div>
+                <p class="eyebrow">Data Controls</p>
+                <h2>Delete Previously Collected Data</h2>
+                <p>
+                    This removes analytics already associated with this browser's visitor id. It does not turn off future tracking by itself.
+                </p>
+            </div>
+
+            <button type="button" class="btn btn-outline-danger" @onclick="ShowDeleteModal">
+                Delete My Data
+            </button>
+        </section>
+
+        @if (visitorData.MetricsDisabled)
+        {
+            <section class="data-card notice-card">
+                <h2>Essential Metrics Disabled</h2>
+                <p>
+                    Essential site metrics are currently disabled for this browser. Existing visitor-linked analytics should already
+                    have been removed when that preference was saved.
+                </p>
+            </section>
+        }
+
+        @if (visitorData.IsAdminExcluded)
+        {
+            <section class="data-card notice-card">
+                <h2>Admin Browser Exclusion Active</h2>
+                <p>
+                    This browser is currently marked as an admin browser, so future traffic from it is excluded from public-facing
+                    analytics reporting.
+                </p>
+            </section>
+        }
+
+        <section class="data-card">
+            <div class="section-heading">
+                <div>
+                    <p class="eyebrow">Collected Locations</p>
+                    <h2>Unique Location Map</h2>
+                </div>
+            </div>
+
+            @if (GetUniqueMapLocations().Count > 0)
+            {
+                <p class="map-supporting-copy">
+                    This map shows the unique coarse locations currently associated with this browser's collected data.
+                </p>
+
+                <PrivacyLocationMap Locations="GetUniqueMapLocations()" />
+
+                <p class="map-supporting-copy">
+                    Text reports use the nearest metro-style place label, while the map uses rounded coarse coordinates for plotting.
+                </p>
+            }
+            else
+            {
+                <p class="map-supporting-copy">
+                    No mappable coarse location points are stored for this browser yet. If approximate location sharing was enabled
+                    before map coordinates were added, toggling it off and back on will refresh the saved map point.
+                </p>
+            }
+        </section>
+
+        <section class="data-grid">
+            <article class="data-card">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Collected Visits</p>
+                        <h2>Page Visit History</h2>
+                    </div>
+                </div>
+
+                @if (visitorData.PageVisits.Count == 0)
+                {
+                    <p>No page visit records are currently stored for this browser.</p>
+                }
+                else
+                {
+                    <div class="data-list">
+                        @foreach (var pageGroup in GetGroupedPageVisits())
+                        {
+                            <details class="visit-group-card">
+                                <summary class="visit-group-summary">
+                                    <div class="data-row">
+                                        <div>
+                                            <p class="data-title">@pageGroup.DisplayTitle</p>
+                                            <p class="data-meta">
+                                                <span>@pageGroup.PagePath</span>
+                                                <span>@pageGroup.VisitCount visits</span>
+                                                <span>@FormatDuration(pageGroup.TotalDurationSeconds) total</span>
+                                            </p>
+                                        </div>
+                                        <div class="data-side">
+                                            <p>@pageGroup.LastVisitedLocalDisplay</p>
+                                        </div>
+                                    </div>
+                                    <span class="visit-group-toggle-label">View individual visits</span>
+                                </summary>
+                                <div class="visit-details-list">
+                                    @foreach (var visit in pageGroup.Visits)
+                                    {
+                                        <div class="visit-detail-row">
+                                            <div>
+                                                <p class="data-title">@visit.VisitedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</p>
+                                                <p class="data-meta">
+                                                    @if (!string.IsNullOrWhiteSpace(visit.ReferrerPath))
+                                                    {
+                                                        <span>From @visit.ReferrerPath</span>
+                                                    }
+                                                    <span>@FormatRegion(visit.Region)</span>
+                                                </p>
+                                            </div>
+                                            <div class="data-side">
+                                                <p>@FormatDuration(visit.DurationSeconds)</p>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </details>
+                        }
+                    </div>
+                }
+            </article>
+
+            <article class="data-card">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Collected Clicks</p>
+                        <h2>External Link Click History</h2>
+                    </div>
+                </div>
+
+                @if (visitorData.ExternalLinkClicks.Count == 0)
+                {
+                    <p>No external link click records are currently stored for this browser.</p>
+                }
+                else
+                {
+                    <div class="data-list">
+                        @foreach (var clickGroup in GetGroupedExternalLinkClicks())
+                        {
+                            <details class="visit-group-card">
+                                <summary class="visit-group-summary">
+                                    <div class="data-row click-row">
+                                        <div>
+                                            <p class="data-title">@clickGroup.PlatformName</p>
+                                            <p class="data-meta">
+                                                <span>@clickGroup.ClickCount clicks</span>
+                                                <span>@clickGroup.UniqueSourcePages source page@(clickGroup.UniqueSourcePages == 1 ? string.Empty : "s")</span>
+                                            </p>
+                                        </div>
+                                        <div class="data-side">
+                                            <p>@clickGroup.LastClickedLocalDisplay</p>
+                                        </div>
+                                    </div>
+                                    <span class="visit-group-toggle-label">View individual clicks</span>
+                                </summary>
+                                <div class="visit-details-list">
+                                    @foreach (var click in clickGroup.Clicks)
+                                    {
+                                        <div class="visit-detail-row click-detail-row">
+                                            <div>
+                                                <p class="data-title">@(!string.IsNullOrWhiteSpace(click.LinkLabel) ? click.LinkLabel : clickGroup.PlatformName)</p>
+                                                <p class="data-meta">
+                                                    <span>From @click.SourcePagePath</span>
+                                                    <span>@FormatRegion(click.Region)</span>
+                                                </p>
+                                                <p class="destination-link-row">
+                                                    <a href="@click.DestinationUrl" target="_blank" rel="noopener noreferrer" class="destination-link">
+                                                        @GetDestinationDisplay(click.DestinationUrl)
+                                                    </a>
+                                                </p>
+                                                <p class="destination-url">@click.DestinationUrl</p>
+                                            </div>
+                                            <div class="data-side">
+                                                <p>@click.ClickedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</p>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </details>
+                        }
+                    </div>
+                }
+            </article>
+        </section>
+    }
+</div>
+
+@if (isDeleteModalOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete Collected Data</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="HideDeleteModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>
+                        Are you sure you want to delete the analytics data currently associated with this browser?
+                    </p>
+                    <p class="modal-supporting-copy">
+                        This will remove previously collected page visit and external link click data, but it will not disable future tracking by itself.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="HideDeleteModal">Cancel</button>
+                    <form method="post" action="/privacy/delete-my-data" class="delete-data-form">
+                        <AntiforgeryToken />
+                        <button type="submit" class="btn btn-danger">Yes, Delete My Data</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    private const string VisitorCookieName = "axl_visitor_id";
+    private const string MetricsPreferenceCookieName = "axl_site_metrics";
+    private const string AdminVisitorCookieName = "axl_admin_visitor";
+    private VisitorCollectedDataViewModel visitorData = new();
+    private bool isDeleteModalOpen;
+    [SupplyParameterFromQuery(Name = "deleted")]
+    private bool showDeleteSuccess { get; set; }
+
+    private string DisplayVisitorId => visitorData.HasVisitorId ? visitorData.VisitorId : "Not set";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var httpContext = HttpContextAccessor.HttpContext;
+        if (httpContext is null)
+        {
+            return;
+        }
+
+        httpContext.Request.Cookies.TryGetValue(VisitorCookieName, out var visitorId);
+        var metricsDisabled = httpContext.Request.Cookies.TryGetValue(MetricsPreferenceCookieName, out var metricsValue)
+            && string.Equals(metricsValue, "disabled", StringComparison.OrdinalIgnoreCase);
+        var isAdminExcluded = httpContext.Request.Cookies.TryGetValue(AdminVisitorCookieName, out var adminValue)
+            && string.Equals(adminValue, "true", StringComparison.OrdinalIgnoreCase);
+
+        visitorData = await AnalyticsService.GetVisitorCollectedDataAsync(visitorId ?? string.Empty);
+        visitorData.MetricsDisabled = metricsDisabled;
+        visitorData.IsAdminExcluded = isAdminExcluded;
+    }
+
+    private void ShowDeleteModal()
+    {
+        isDeleteModalOpen = true;
+    }
+
+    private void HideDeleteModal()
+    {
+        isDeleteModalOpen = false;
+    }
+
+    private static string FormatDuration(double durationSeconds)
+    {
+        if (durationSeconds < 60)
+        {
+            return $"{Math.Round(durationSeconds)} sec";
+        }
+
+        var timeSpan = TimeSpan.FromSeconds(durationSeconds);
+        return timeSpan.TotalHours >= 1
+            ? $"{(int)timeSpan.TotalHours}h {timeSpan.Minutes}m"
+            : $"{timeSpan.Minutes}m {timeSpan.Seconds}s";
+    }
+
+    private static string FormatRegion(string? region)
+    {
+        return string.IsNullOrWhiteSpace(region) || string.Equals(region, "Unknown", StringComparison.OrdinalIgnoreCase)
+            ? "Region: Unknown"
+            : $"Region: {GetShortDisplayRegion(region)}";
+    }
+
+    private static string GetDestinationDisplay(string? destinationUrl)
+    {
+        if (string.IsNullOrWhiteSpace(destinationUrl))
+        {
+            return "Open link";
+        }
+
+        if (!Uri.TryCreate(destinationUrl, UriKind.Absolute, out var uri))
+        {
+            return destinationUrl;
+        }
+
+        var host = uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
+            ? uri.Host[4..]
+            : uri.Host;
+
+        return uri.AbsolutePath == "/" || string.IsNullOrWhiteSpace(uri.AbsolutePath)
+            ? host
+            : $"{host}{uri.AbsolutePath}";
+    }
+
+    private static string GetShortDisplayRegion(string region)
+    {
+        var parts = region
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+
+        if (parts.Count == 0)
+        {
+            return region;
+        }
+
+        parts[0] = NormalizePlaceName(parts[0]);
+
+        if (parts.Count >= 2)
+        {
+            parts[1] = AbbreviateState(parts[1]);
+        }
+
+        if (parts.Count >= 3)
+        {
+            parts[2] = AbbreviateCountry(parts[2]);
+        }
+
+        return string.Join(", ", parts.Take(3));
+    }
+
+    private static string NormalizePlaceName(string value)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.StartsWith("Township of ", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed["Township of ".Length..];
+        }
+
+        if (trimmed.EndsWith(" Township", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[..^" Township".Length].Trim();
+        }
+
+        return trimmed;
+    }
+
+    private static string AbbreviateCountry(string value)
+    {
+        return value.Trim() switch
+        {
+            "United States of America (the)" => "USA",
+            "United States" => "USA",
+            "United Kingdom of Great Britain and Northern Ireland (the)" => "UK",
+            _ => value.Trim()
+        };
+    }
+
+    private IEnumerable<ExternalLinkGroupViewModel> GetGroupedExternalLinkClicks()
+    {
+        return visitorData.ExternalLinkClicks
+            .GroupBy(click => GetPlatformName(click))
+            .Select(group => new ExternalLinkGroupViewModel
+            {
+                PlatformName = group.Key,
+                ClickCount = group.Count(),
+                UniqueSourcePages = group
+                    .Select(click => click.SourcePagePath)
+                    .Where(path => !string.IsNullOrWhiteSpace(path))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Count(),
+                LastClickedUtc = group.Max(click => click.ClickedAtUtc),
+                Clicks = group
+                    .OrderByDescending(click => click.ClickedAtUtc)
+                    .ToList()
+            })
+            .OrderByDescending(group => group.LastClickedUtc);
+    }
+
+    private static string GetPlatformName(VisitorExternalLinkClickViewModel click)
+    {
+        if (!string.IsNullOrWhiteSpace(click.LinkLabel))
+        {
+            return click.LinkLabel.Trim();
+        }
+
+        if (Uri.TryCreate(click.DestinationUrl, UriKind.Absolute, out var uri))
+        {
+            var host = uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase)
+                ? uri.Host[4..]
+                : uri.Host;
+
+            var segments = host.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length >= 2)
+            {
+                return segments[^2];
+            }
+
+            return host;
+        }
+
+        return "External Link";
+    }
+
+    private static string AbbreviateState(string value)
+    {
+        return value.Trim() switch
+        {
+            "Alabama" => "AL",
+            "Alaska" => "AK",
+            "Arizona" => "AZ",
+            "Arkansas" => "AR",
+            "California" => "CA",
+            "Colorado" => "CO",
+            "Connecticut" => "CT",
+            "Delaware" => "DE",
+            "Florida" => "FL",
+            "Georgia" => "GA",
+            "Hawaii" => "HI",
+            "Idaho" => "ID",
+            "Illinois" => "IL",
+            "Indiana" => "IN",
+            "Iowa" => "IA",
+            "Kansas" => "KS",
+            "Kentucky" => "KY",
+            "Louisiana" => "LA",
+            "Maine" => "ME",
+            "Maryland" => "MD",
+            "Massachusetts" => "MA",
+            "Michigan" => "MI",
+            "Minnesota" => "MN",
+            "Mississippi" => "MS",
+            "Missouri" => "MO",
+            "Montana" => "MT",
+            "Nebraska" => "NE",
+            "Nevada" => "NV",
+            "New Hampshire" => "NH",
+            "New Jersey" => "NJ",
+            "New Mexico" => "NM",
+            "New York" => "NY",
+            "North Carolina" => "NC",
+            "North Dakota" => "ND",
+            "Ohio" => "OH",
+            "Oklahoma" => "OK",
+            "Oregon" => "OR",
+            "Pennsylvania" => "PA",
+            "Rhode Island" => "RI",
+            "South Carolina" => "SC",
+            "South Dakota" => "SD",
+            "Tennessee" => "TN",
+            "Texas" => "TX",
+            "Utah" => "UT",
+            "Vermont" => "VT",
+            "Virginia" => "VA",
+            "Washington" => "WA",
+            "West Virginia" => "WV",
+            "Wisconsin" => "WI",
+            "Wyoming" => "WY",
+            _ => value.Trim()
+        };
+    }
+
+    private IReadOnlyList<PrivacyLocationMap.PrivacyMapLocation> GetUniqueMapLocations()
+    {
+        return visitorData.PageVisits
+            .Concat(visitorData.ExternalLinkClicks.Select(click => new VisitorPageVisitViewModel
+            {
+                Region = click.Region,
+                ApproximateLatitude = click.ApproximateLatitude,
+                ApproximateLongitude = click.ApproximateLongitude
+            }))
+            .Where(item => item.ApproximateLatitude.HasValue && item.ApproximateLongitude.HasValue)
+            .GroupBy(item => new
+            {
+                Latitude = item.ApproximateLatitude!.Value,
+                Longitude = item.ApproximateLongitude!.Value,
+                Label = string.IsNullOrWhiteSpace(item.Region) ? "Region Unknown" : item.Region
+            })
+            .Select(group => new PrivacyLocationMap.PrivacyMapLocation
+            {
+                Label = group.Key.Label,
+                Latitude = group.Key.Latitude,
+                Longitude = group.Key.Longitude,
+                Count = group.Count()
+            })
+            .OrderByDescending(location => location.Count)
+            .ToList();
+    }
+
+    private IEnumerable<PageVisitGroupViewModel> GetGroupedPageVisits()
+    {
+        return visitorData.PageVisits
+            .GroupBy(visit => visit.PagePath)
+            .Select(group => new PageVisitGroupViewModel
+            {
+                PagePath = group.Key,
+                DisplayTitle = GetDisplayTitle(group),
+                VisitCount = group.Count(),
+                TotalDurationSeconds = group.Sum(visit => visit.DurationSeconds),
+                LastVisitedUtc = group.Max(visit => visit.VisitedAtUtc),
+                Visits = group
+                    .OrderByDescending(visit => visit.VisitedAtUtc)
+                    .ToList()
+            })
+            .OrderByDescending(group => group.LastVisitedUtc);
+    }
+
+    private static string GetDisplayTitle(IGrouping<string, VisitorPageVisitViewModel> group)
+    {
+        var title = group
+            .OrderByDescending(visit => visit.VisitedAtUtc)
+            .Select(visit => visit.PageTitle?.Trim())
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+        return !string.IsNullOrWhiteSpace(title)
+            ? title
+            : group.Key;
+    }
+
+    private sealed class PageVisitGroupViewModel
+    {
+        public string PagePath { get; set; } = string.Empty;
+
+        public string DisplayTitle { get; set; } = string.Empty;
+
+        public int VisitCount { get; set; }
+
+        public double TotalDurationSeconds { get; set; }
+
+        public DateTimeOffset LastVisitedUtc { get; set; }
+
+        public IReadOnlyList<VisitorPageVisitViewModel> Visits { get; set; } = [];
+
+        public string LastVisitedLocalDisplay => $"Last visit {LastVisitedUtc.ToLocalTime():MMM d, yyyy h:mm tt}";
+    }
+
+    private sealed class ExternalLinkGroupViewModel
+    {
+        public string PlatformName { get; set; } = string.Empty;
+
+        public int ClickCount { get; set; }
+
+        public int UniqueSourcePages { get; set; }
+
+        public DateTimeOffset LastClickedUtc { get; set; }
+
+        public IReadOnlyList<VisitorExternalLinkClickViewModel> Clicks { get; set; } = [];
+
+        public string LastClickedLocalDisplay => $"Last click {LastClickedUtc.ToLocalTime():MMM d, yyyy h:mm tt}";
+    }
+}

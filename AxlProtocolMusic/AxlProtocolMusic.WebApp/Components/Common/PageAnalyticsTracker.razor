@@ -1,0 +1,67 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JsRuntime
+@inject NavigationManager NavigationManager
+@implements IAsyncDisposable
+
+@code {
+    private IJSObjectReference? module;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "/js/pageAnalytics.js");
+            await module.InvokeVoidAsync("startTracking", NavigationManager.Uri);
+            NavigationManager.LocationChanged += HandleLocationChanged;
+            return;
+        }
+
+        if (module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await module.InvokeVoidAsync("syncCurrentTitle");
+        }
+        catch (JSDisconnectedException)
+        {
+            // Ignore disconnects during navigation or teardown.
+        }
+    }
+
+    private async void HandleLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        if (module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await module.InvokeVoidAsync("trackNavigation", args.Location);
+        }
+        catch (JSDisconnectedException)
+        {
+            // Ignore disconnects during navigation or teardown.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        NavigationManager.LocationChanged -= HandleLocationChanged;
+
+        if (module is not null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Ignore circuit disconnects during disposal.
+            }
+        }
+    }
+}

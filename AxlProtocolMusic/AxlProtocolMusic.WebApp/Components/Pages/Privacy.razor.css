@@ -1,0 +1,196 @@
+.privacy-page {
+    display: grid;
+    gap: 1.6rem;
+}
+
+.privacy-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+    gap: 1.5rem;
+    padding: 1.9rem;
+    border-radius: 1.4rem;
+    background:
+        radial-gradient(circle at top left, rgba(243, 181, 84, 0.16), transparent 28%),
+        linear-gradient(145deg, #0a1633 0%, #102a69 52%, #16567d 100%);
+    color: #f7f8fd;
+}
+
+.privacy-hero-copy {
+    display: grid;
+    gap: 0.95rem;
+    align-content: center;
+}
+
+.privacy-hero-copy h1,
+.privacy-card h2 {
+    margin: 0;
+}
+
+.hero-lead {
+    margin: 0;
+    max-width: 42rem;
+    line-height: 1.8;
+}
+
+.last-updated {
+    margin: 0;
+    font-size: 0.95rem;
+    color: rgba(247, 248, 253, 0.76);
+}
+
+.privacy-hero-panel {
+    display: grid;
+    gap: 1rem;
+    align-content: start;
+    padding: 1.25rem;
+    border-radius: 1.1rem;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(10px);
+}
+
+.panel-label {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.hero-points,
+.privacy-list {
+    display: grid;
+    gap: 0.8rem;
+    margin: 0;
+    padding-left: 1.15rem;
+    line-height: 1.7;
+}
+
+.privacy-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.2rem;
+}
+
+.privacy-card {
+    display: grid;
+    gap: 0.85rem;
+    padding: 1.45rem;
+    border-radius: 1.2rem;
+    border: 1px solid rgba(17, 44, 114, 0.08);
+    background: linear-gradient(180deg, #ffffff 0%, #f5f8ff 100%);
+    box-shadow: 0 18px 36px rgba(17, 44, 114, 0.06);
+}
+
+.accent-card {
+    background:
+        radial-gradient(circle at top right, rgba(243, 181, 84, 0.16), transparent 28%),
+        linear-gradient(180deg, #fffefb 0%, #f7faff 100%);
+}
+
+.supporting-copy,
+.privacy-card p {
+    margin: 0;
+    line-height: 1.75;
+}
+
+.preference-card {
+    gap: 1rem;
+}
+
+.privacy-card h2 + p,
+.privacy-card h2 + ul {
+    margin-top: 0.1rem;
+}
+
+.preference-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.preference-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 1rem 1.1rem;
+    border-radius: 1rem;
+    background: rgba(17, 44, 114, 0.03);
+    border: 1px solid rgba(17, 44, 114, 0.08);
+}
+
+.preference-row h3,
+.preference-row p {
+    margin: 0;
+}
+
+.preference-row p {
+    margin-top: 0.35rem;
+    color: rgba(11, 23, 56, 0.78);
+}
+
+.preference-note {
+    font-weight: 600;
+    color: #102a69;
+}
+
+.disabled-row {
+    opacity: 0.82;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 30px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+    background-color: rgba(17, 44, 114, 0.22);
+    transition: 0.2s ease;
+    border-radius: 999px;
+}
+
+.slider::before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 4px;
+    top: 4px;
+    background-color: #fff;
+    transition: 0.2s ease;
+    border-radius: 50%;
+}
+
+.switch input:checked + .slider {
+    background-color: #112c72;
+}
+
+.switch input:checked + .slider::before {
+    transform: translateX(22px);
+}
+
+.actions-row {
+    display: flex;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 980px) {
+    .privacy-hero,
+    .privacy-grid,
+    .preference-row {
+        grid-template-columns: 1fr;
+    }
+}

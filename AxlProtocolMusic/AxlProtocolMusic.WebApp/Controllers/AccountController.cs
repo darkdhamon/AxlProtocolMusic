@@ -2,6 +2,7 @@ using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Models.Authentication;
 using AxlProtocolMusic.WebApp.Models.Identity;
 using AxlProtocolMusic.WebApp.Services.Development;
+using AxlProtocolMusic.WebApp.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -13,24 +14,29 @@ namespace AxlProtocolMusic.WebApp.Controllers;
 [Route("account")]
 public sealed class AccountController : Controller
 {
+    private const string AdminVisitorCookieName = "axl_admin_visitor";
+    private const string VisitorCookieName = "axl_visitor_id";
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly AdminBootstrapSettings _adminBootstrapSettings;
     private readonly IHostEnvironment _hostEnvironment;
     private readonly DevelopmentDatabaseResetService _developmentDatabaseResetService;
+    private readonly IAnalyticsService _analyticsService;
 
     public AccountController(
         SignInManager<ApplicationUser> signInManager,
         UserManager<ApplicationUser> userManager,
         IOptions<AdminBootstrapSettings> adminBootstrapOptions,
         IHostEnvironment hostEnvironment,
-        DevelopmentDatabaseResetService developmentDatabaseResetService)
+        DevelopmentDatabaseResetService developmentDatabaseResetService,
+        IAnalyticsService analyticsService)
     {
         _signInManager = signInManager;
         _userManager = userManager;
         _adminBootstrapSettings = adminBootstrapOptions.Value;
         _hostEnvironment = hostEnvironment;
         _developmentDatabaseResetService = developmentDatabaseResetService;
+        _analyticsService = analyticsService;
     }
 
     [AllowAnonymous]
@@ -57,6 +63,9 @@ public sealed class AccountController : Controller
 
         if (result.Succeeded)
         {
+            await DeleteExistingVisitorMetricsAsync();
+            SetAdminVisitorCookie();
+
             if (await IsUsingDefaultPasswordAsync(user))
             {
                 return LocalRedirect("/account/edit?forcePasswordChange=true");
@@ -193,5 +202,29 @@ public sealed class AccountController : Controller
     private static string GetFirstError(IdentityResult result, string fallbackMessage)
     {
         return result.Errors.FirstOrDefault()?.Description ?? fallbackMessage;
+    }
+
+    private void SetAdminVisitorCookie()
+    {
+        Response.Cookies.Append(
+            AdminVisitorCookieName,
+            "true",
+            new CookieOptions
+            {
+                HttpOnly = true,
+                IsEssential = true,
+                SameSite = SameSiteMode.Lax,
+                Secure = Request.IsHttps,
+                Expires = DateTimeOffset.UtcNow.AddYears(1)
+            });
+    }
+
+    private async Task DeleteExistingVisitorMetricsAsync()
+    {
+        if (Request.Cookies.TryGetValue(VisitorCookieName, out var visitorId)
+            && !string.IsNullOrWhiteSpace(visitorId))
+        {
+            await _analyticsService.DeleteVisitorDataAsync(visitorId);
+        }
     }
 }

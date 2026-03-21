@@ -1,21 +1,222 @@
 @page "/admin"
 @attribute [Authorize(Roles = "Admin")]
+@inject IRepository<Release> ReleaseRepository
+@inject IAboutPageService AboutPageService
+@inject IAnalyticsService AnalyticsService
 
 <PageTitle>Admin Dashboard</PageTitle>
 
-<h1>Admin Dashboard</h1>
+@if (isLoading)
+{
+    <p><em>Loading admin dashboard...</em></p>
+}
+else
+{
+    <div class="admin-dashboard-page">
+        <section class="admin-hero">
+            <div class="admin-hero-copy">
+                <p class="eyebrow">Admin</p>
+                <h1>Dashboard</h1>
+                <p class="hero-lead">
+                    Manage releases, story-driven page content, and account settings from one place.
+                </p>
+            </div>
 
-<p>This is a placeholder admin area for managing Axl Protocol Music content.</p>
+            <div class="hero-status-card">
+                <p class="status-label">Current Snapshot</p>
+                <div class="status-grid">
+                    <div>
+                        <span class="status-number">@publishedReleaseCount</span>
+                        <span class="status-caption">published releases</span>
+                    </div>
+                    <div>
+                        <span class="status-number">@draftReleaseCount</span>
+                        <span class="status-caption">unpublished releases</span>
+                    </div>
+                    <div>
+                        <span class="status-number">@totalReleaseCount</span>
+                        <span class="status-caption">total releases</span>
+                    </div>
+                    <div>
+                        <span class="status-number">@(aboutPageReady ? "Ready" : "Missing")</span>
+                        <span class="status-caption">about page content</span>
+                    </div>
+                    <div>
+                        <span class="status-number">@analyticsSummary.TotalVisits</span>
+                        <span class="status-caption">tracked visits (30 days)</span>
+                    </div>
+                    <div>
+                        <span class="status-number">@analyticsSummary.UniqueVisitors</span>
+                        <span class="status-caption">unique visitors</span>
+                    </div>
+                    <div>
+                        <span class="status-number">@analyticsSummary.RepeatVisitors</span>
+                        <span class="status-caption">repeat visitors</span>
+                    </div>
+                    <div>
+                        <span class="status-number">@FormatDuration(analyticsSummary.AverageDurationSeconds)</span>
+                        <span class="status-caption">average time on page</span>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-<section class="mt-4">
-    <h2>Planned controls</h2>
-    <ul>
-        <li>Edit page content without redeploying</li>
-        <li>Manage releases, artist info, and timeline entries</li>
-        <li>Review and prune saved content versions manually</li>
-    </ul>
-</section>
+        <section class="admin-actions-grid">
+            <article class="admin-card feature-card">
+                <p class="eyebrow">Catalog</p>
+                <h2>Release Management</h2>
+                <p>
+                    Create releases, update details, manage credits, track lists, story content, and outbound listening links.
+                </p>
+                <div class="card-actions">
+                    <a class="btn btn-primary" href="/releases/new">Add Release</a>
+                    <a class="btn btn-outline-primary" href="/releases">Manage Releases</a>
+                </div>
+            </article>
 
-<section class="mt-4">
-    <a class="btn btn-outline-primary" href="/account/edit">Edit Login Details</a>
-</section>
+            <article class="admin-card">
+                <p class="eyebrow">Pages</p>
+                <h2>About Page</h2>
+                <p>
+                    Edit the artist and label narrative, focus points, creative pillars, and page copy without redeploying.
+                </p>
+                <div class="card-actions">
+                    <a class="btn btn-outline-primary" href="/about-axl-protocol">Edit About Page</a>
+                </div>
+            </article>
+
+            <article class="admin-card">
+                <p class="eyebrow">Security</p>
+                <h2>Account Settings</h2>
+                <p>
+                    Update your admin username, email, and password so the site stays secure and manageable.
+                </p>
+                <div class="card-actions">
+                    <a class="btn btn-outline-primary" href="/account/edit">Edit Login Details</a>
+                </div>
+            </article>
+        </section>
+
+        <section class="admin-overview-grid">
+            <article class="overview-panel">
+                <p class="eyebrow">Audience Metrics</p>
+                <h2>Most Visited Pages</h2>
+                @if (analyticsSummary.TopPages.Count == 0)
+                {
+                    <p>No page-visit data yet. Once people browse the site, page views and time-on-page metrics will appear here.</p>
+                }
+                else
+                {
+                    <ul class="dashboard-list">
+                        @foreach (var metricPage in analyticsSummary.TopPages)
+                        {
+                            <li>
+                                <strong>@(string.IsNullOrWhiteSpace(metricPage.PageTitle) ? metricPage.PagePath : metricPage.PageTitle)</strong>
+                                <span class="list-meta">@metricPage.VisitCount visits, avg @FormatDuration(metricPage.AverageDurationSeconds)</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </article>
+
+            <article class="overview-panel">
+                <p class="eyebrow">Audience Metrics</p>
+                <h2>Visitor Regions</h2>
+                @if (analyticsSummary.TopRegions.Count == 0)
+                {
+                    <p>No region data yet. Region tracking will populate when incoming requests include geographic headers.</p>
+                }
+                else
+                {
+                    <ul class="dashboard-list">
+                        @foreach (var region in analyticsSummary.TopRegions)
+                        {
+                            <li>
+                                <strong>@region.Region</strong>
+                                <span class="list-meta">@region.VisitCount visits</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </article>
+
+            <article class="overview-panel">
+                <p class="eyebrow">Outbound Traffic</p>
+                <h2>Most Clicked External Links</h2>
+                @if (analyticsSummary.TopExternalLinks.Count == 0)
+                {
+                    <p>No outbound link clicks yet. External destinations like streaming and store links will appear here after visitors start clicking them.</p>
+                }
+                else
+                {
+                    <ul class="dashboard-list">
+                        @foreach (var linkMetric in analyticsSummary.TopExternalLinks)
+                        {
+                            <li>
+                                <strong>@(string.IsNullOrWhiteSpace(linkMetric.LinkLabel) ? linkMetric.DestinationUrl : linkMetric.LinkLabel)</strong>
+                                <span class="list-meta">@linkMetric.ClickCount clicks from @linkMetric.SourcePagePath</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </article>
+
+            <article class="overview-panel">
+                <p class="eyebrow">What You Can Do Now</p>
+                <h2>Current Admin Capabilities</h2>
+                <ul class="dashboard-list">
+                    <li>Create, edit, publish, and unpublish releases</li>
+                    <li>Manage release credits, tags, tracks, links, lyrics, and story content</li>
+                    <li>Edit About page content from the site itself</li>
+                    <li>Update admin credentials and rotate away from bootstrap passwords</li>
+                </ul>
+            </article>
+
+            <article class="overview-panel roadmap-panel">
+                <p class="eyebrow">Next Layer</p>
+                <h2>Good Candidates For Admin Expansion</h2>
+                <ul class="dashboard-list">
+                    <li>News management with publish controls</li>
+                    <li>Timeline event editing and ordering</li>
+                    <li>Page version history and manual rollback tools</li>
+                    <li>Media library management for reusable image assets</li>
+                </ul>
+            </article>
+        </section>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool aboutPageReady;
+    private int totalReleaseCount;
+    private int publishedReleaseCount;
+    private int draftReleaseCount;
+    private AnalyticsDashboardSummary analyticsSummary = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var releases = await ReleaseRepository.GetAllAsync();
+        var aboutPage = await AboutPageService.GetAsync();
+        analyticsSummary = await AnalyticsService.GetDashboardSummaryAsync();
+
+        totalReleaseCount = releases.Count;
+        publishedReleaseCount = releases.Count(release => release.IsPublished);
+        draftReleaseCount = totalReleaseCount - publishedReleaseCount;
+        aboutPageReady = !string.IsNullOrWhiteSpace(aboutPage.HeroLead)
+            || !string.IsNullOrWhiteSpace(aboutPage.HeroBody)
+            || aboutPage.FocusPoints.Count > 0;
+
+        isLoading = false;
+    }
+
+    private static string FormatDuration(double seconds)
+    {
+        if (seconds < 60)
+        {
+            return $"{Math.Round(seconds)}s";
+        }
+
+        return $"{seconds / 60:0.0}m";
+    }
+}

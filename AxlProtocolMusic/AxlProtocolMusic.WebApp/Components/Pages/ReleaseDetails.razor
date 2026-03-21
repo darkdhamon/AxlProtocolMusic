@@ -2,20 +2,21 @@
 @rendermode InteractiveServer
 @inject IReleaseService ReleaseService
 
-<PageTitle>Release Details</PageTitle>
-
 @if (isLoading)
 {
+    <PageTitle>Release Details</PageTitle>
     <p><em>Loading release details...</em></p>
 }
 else if (release is null)
 {
+    <PageTitle>Release Not Found</PageTitle>
     <h1>Release Not Found</h1>
     <p>The release you requested could not be found.</p>
     <a class="btn btn-outline-primary" href="/releases">Back to Releases</a>
 }
 else
 {
+    <PageTitle>@($"{release.Title} | Release Details")</PageTitle>
     <div class="release-details-page">
         <a class="back-link" href="/releases">Back to Releases</a>
 
