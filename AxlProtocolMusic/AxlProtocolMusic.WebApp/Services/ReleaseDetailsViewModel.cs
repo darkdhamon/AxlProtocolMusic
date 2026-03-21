@@ -16,8 +16,6 @@ public sealed class ReleaseDetailsViewModel
 
     public string Story { get; init; } = string.Empty;
 
-    public string Lyrics { get; init; } = string.Empty;
-
     public IReadOnlyList<ReleaseCredit> Credits { get; init; } = [];
 
     public IReadOnlyList<ReleaseTrack> Tracks { get; init; } = [];

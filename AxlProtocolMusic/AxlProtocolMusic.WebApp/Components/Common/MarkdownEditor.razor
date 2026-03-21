@@ -18,14 +18,14 @@
         id="@Id"
         name="@InputName"
         rows="@Rows"
-        @bind="Value"
-        @bind:event="oninput"></textarea>
+        value="@Value"
+        @oninput="HandleInput"></textarea>
 
     <div class="form-text">
         Supports Markdown. Use the toolbar for quick formatting, or type Markdown directly.
     </div>
 
-    <div class="markdown-preview">
+    <div class="@GetPreviewContainerClass()">
         <div class="markdown-preview-header">Preview</div>
         @if (string.IsNullOrWhiteSpace(Value))
         {
@@ -33,7 +33,7 @@
         }
         else
         {
-            <div class="markdown-preview-body">
+            <div class="@GetPreviewBodyClass()">
                 @((MarkupString)MarkdownService.ToHtml(Value))
             </div>
         }
@@ -59,8 +59,17 @@
     [Parameter]
     public EventCallback<string?> ValueChanged { get; set; }
 
+    [Parameter]
+    public bool UseLyricsPreviewStyle { get; set; }
+
     private ElementReference textareaReference;
     private IJSObjectReference? module;
+
+    private async Task HandleInput(ChangeEventArgs eventArgs)
+    {
+        Value = eventArgs.Value?.ToString();
+        await ValueChanged.InvokeAsync(Value);
+    }
 
     private async Task ApplyFormatAsync(string format)
     {
@@ -75,4 +84,12 @@
             await module.DisposeAsync();
         }
     }
+
+    private string GetPreviewContainerClass()
+        => UseLyricsPreviewStyle ? "markdown-preview markdown-preview-lyrics" : "markdown-preview";
+
+    private string GetPreviewBodyClass()
+        => UseLyricsPreviewStyle
+            ? "markdown-preview-body markdown-preview-body-lyrics song-lyrics-markdown"
+            : "markdown-preview-body";
 }

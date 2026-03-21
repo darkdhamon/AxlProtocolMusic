@@ -3,6 +3,16 @@
     gap: 1.75rem;
 }
 
+.about-page-layout {
+    display: grid;
+    gap: 1.75rem;
+}
+
+.about-page-content {
+    display: grid;
+    gap: 1.75rem;
+}
+
 .about-hero {
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
@@ -235,6 +245,10 @@
     gap: 1rem;
 }
 
+.admin-edit-sidebar {
+    align-self: start;
+}
+
 .dynamic-panel {
     display: grid;
     gap: 1rem;
@@ -289,5 +303,19 @@
     .dynamic-line-item,
     .dynamic-row-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (min-width: 1101px) {
+    .about-page-layout {
+        grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.85fr);
+        align-items: start;
+    }
+
+    .admin-edit-sidebar {
+        position: sticky;
+        top: 1.5rem;
+        max-height: calc(100vh - 3rem);
+        overflow: auto;
     }
 }

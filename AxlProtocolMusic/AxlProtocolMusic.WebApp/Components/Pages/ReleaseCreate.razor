@@ -87,15 +87,6 @@
                     @bind-Value="Story" />
             </div>
 
-            <div class="mb-3">
-                <label class="form-label" for="lyrics">Lyrics</label>
-                <textarea
-                    class="form-control lyrics-editor"
-                    id="lyrics"
-                    name="Lyrics"
-                    rows="10">@Lyrics</textarea>
-            </div>
-
             <div class="dynamic-panel mb-3">
                 <div class="dynamic-panel-header">
                     <div>
@@ -125,6 +116,7 @@
                                         class="form-control"
                                         id="@($"credit-name-{index}")"
                                         name="@($"Credits[{index}].Name")"
+                                        list="known-contributor-names"
                                         value="@credit.Name"
                                         @oninput="eventArgs => credit.Name = eventArgs.Value?.ToString() ?? string.Empty" />
                                 </div>
@@ -214,6 +206,17 @@
                                         placeholder="3:42"
                                         @oninput="eventArgs => track.Duration = eventArgs.Value?.ToString() ?? string.Empty" />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="@($"track-lyrics-{index}")">Lyrics</label>
+                                <MarkdownEditor
+                                    Id="@($"track-lyrics-{index}")"
+                                    InputName="@($"Tracks[{currentIndex}].Lyrics")"
+                                    Rows="8"
+                                    EditorClass="form-control lyrics-editor"
+                                    UseLyricsPreviewStyle="true"
+                                    @bind-Value="track.Lyrics" />
                             </div>
 
                             <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => RemoveTrack(currentIndex)">Remove</button>
@@ -332,6 +335,13 @@
             }
         </datalist>
 
+        <datalist id="known-contributor-names">
+            @foreach (var contributorName in KnownContributorNames)
+            {
+                <option value="@contributorName"></option>
+            }
+        </datalist>
+
         <datalist id="known-release-platforms">
             @foreach (var platform in KnownPlatforms)
             {
@@ -371,9 +381,6 @@
     public string? Story { get; set; }
 
     [SupplyParameterFromQuery]
-    public string? Lyrics { get; set; }
-
-    [SupplyParameterFromQuery]
     public string? ReleaseTypeOverride { get; set; }
 
     [SupplyParameterFromQuery]
@@ -385,6 +392,7 @@
     private List<ReleaseLink> Links { get; set; } = [];
     private List<string> Tags { get; set; } = [];
     private IReadOnlyList<string> KnownCreditRoles { get; set; } = [];
+    private IReadOnlyList<string> KnownContributorNames { get; set; } = [];
     private IReadOnlyList<string> KnownTags { get; set; } = [];
     private static readonly IReadOnlyList<string> KnownPlatforms =
     [
@@ -403,6 +411,7 @@
     protected override async Task OnInitializedAsync()
     {
         KnownCreditRoles = await ReleaseService.GetKnownCreditRolesAsync();
+        KnownContributorNames = await ReleaseService.GetKnownContributorNamesAsync();
         KnownTags = await ReleaseService.GetKnownTagsAsync();
     }
 

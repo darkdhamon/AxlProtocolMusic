@@ -1,6 +1,9 @@
 @page "/releases/{Slug}"
 @rendermode InteractiveServer
 @inject IReleaseService ReleaseService
+@inject IImageStorageService ImageStorageService
+@inject NavigationManager NavigationManager
+@implements IDisposable
 
 @if (isLoading)
 {
@@ -18,7 +21,9 @@ else
 {
     <PageTitle>@($"{release.Title} | Release Details")</PageTitle>
     <div class="release-details-page">
-        <a class="back-link" href="/releases">Back to Releases</a>
+        <div class="release-details-layout">
+            <div class="release-details-content">
+                <a class="back-link" href="/releases">Back to Releases</a>
 
         @if (!string.IsNullOrWhiteSpace(Error))
         {
@@ -51,6 +56,10 @@ else
                     <h2>Release Info</h2>
 
                     <p class="release-type-line"><strong>Type:</strong> @release.ReleaseType</p>
+                    @if (!string.IsNullOrWhiteSpace(TotalPlayTimeDisplay))
+                    {
+                        <p class="release-type-line"><strong>Total Play Time:</strong> @TotalPlayTimeDisplay</p>
+                    }
 
                     @if (release.Credits.Count > 0)
                     {
@@ -69,7 +78,7 @@ else
                     }
                     else
                     {
-                        <p class="content-empty-state">Credits have not been added yet.</p>
+                        <p class="release-meta-empty-state">Credits have not been added yet.</p>
                     }
                 </section>
             </div>
@@ -101,25 +110,6 @@ else
             </section>
         }
 
-        @if (release.Tracks.Count > 1)
-        {
-            <section class="track-list-panel">
-                <h2>Track List</h2>
-                <ol class="track-list">
-                    @foreach (var track in release.Tracks.Select((item, index) => new { item, index }))
-                    {
-                        <li>
-                            <span class="track-title">@track.item.Title</span>
-                            @if (!string.IsNullOrWhiteSpace(track.item.Duration))
-                            {
-                                <span class="track-duration">@track.item.Duration</span>
-                            }
-                        </li>
-                    }
-                </ol>
-            </section>
-        }
-
         <section class="release-content-grid">
             <section class="release-content-card">
                 <h2>Story Behind The Release</h2>
@@ -134,39 +124,67 @@ else
             </section>
 
             <section class="release-content-card">
-                <h2>Lyrics</h2>
-                @if (!string.IsNullOrWhiteSpace(release.Lyrics))
+                <h2>Tracks And Lyrics</h2>
+                @if (release.Tracks.Count > 0)
                 {
-                    <div class="lyrics-block">@release.Lyrics</div>
+                    <ol class="track-list track-list-detailed">
+                        @foreach (var track in release.Tracks.Select((item, index) => new { item, index }))
+                        {
+                            <li>
+                                <div class="track-copy">
+                                    <span class="track-title">@track.item.Title</span>
+                                    @if (!string.IsNullOrWhiteSpace(track.item.Duration))
+                                    {
+                                        <span class="track-duration">@track.item.Duration</span>
+                                    }
+                                </div>
+                                <button
+                                    class="btn btn-outline-primary btn-sm"
+                                    type="button"
+                                    @onclick="() => ShowLyricsModal(track.item)"
+                                    disabled="@string.IsNullOrWhiteSpace(track.item.Lyrics)">
+                                    See Lyrics
+                                </button>
+                            </li>
+                        }
+                    </ol>
                 }
                 else
                 {
-                    <p class="content-empty-state">Lyrics have not been published for this release yet.</p>
+                    <p class="content-empty-state">Track details and lyrics have not been published for this release yet.</p>
                 }
             </section>
         </section>
+            </div>
 
         <AuthorizeView Roles="Admin">
             <Authorized>
-                <section class="admin-edit-panel">
+                <aside class="admin-edit-panel admin-edit-sidebar">
                     <div class="admin-edit-header">
                         <p class="eyebrow">Admin</p>
                         <h2>Edit Release Details</h2>
                     </div>
 
-                    <form method="post" action="/releases/update" enctype="multipart/form-data" class="admin-edit-form">
-                        <AntiforgeryToken />
-                        <input type="hidden" name="OriginalSlug" value="@release.Slug" />
+                    @if (!string.IsNullOrWhiteSpace(editorErrorMessage))
+                    {
+                        <div class="alert alert-danger" role="alert">@editorErrorMessage</div>
+                    }
 
+                    @if (!string.IsNullOrWhiteSpace(editorStatusMessage))
+                    {
+                        <div class="alert alert-success" role="alert">@editorStatusMessage</div>
+                    }
+
+                    <div class="admin-edit-form">
                         <div class="form-grid">
                             <div>
                                 <label class="form-label" for="title">Title</label>
-                                <input class="form-control" id="title" name="Title" value="@release.Title" required />
+                                <input class="form-control" id="title" @bind="editableRelease.Title" @bind:event="oninput" @bind:after="ScheduleAutosave" required />
                             </div>
 
                             <div>
                                 <label class="form-label" for="slug">Slug</label>
-                                <input class="form-control" id="slug" name="Slug" value="@release.Slug" required />
+                                <input class="form-control" id="slug" @bind="editableRelease.Slug" @bind:event="oninput" @bind:after="ScheduleAutosave" required />
                             </div>
 
                             <div>
@@ -174,9 +192,10 @@ else
                                 <input
                                     class="form-control"
                                     id="releaseDate"
-                                    name="ReleaseDate"
                                     type="date"
-                                    value="@release.ReleaseDateUtc.ToString("yyyy-MM-dd")"
+                                    @bind="editableRelease.ReleaseDate"
+                                    @bind:format="yyyy-MM-dd"
+                                    @bind:after="ScheduleAutosave"
                                     required />
                             </div>
 
@@ -185,18 +204,18 @@ else
                                 <input
                                     class="form-control"
                                     id="coverImageUrl"
-                                    name="CoverImageUrl"
-                                    value="@release.CoverImageUrl" />
+                                    @bind="editableRelease.CoverImageUrl"
+                                    @bind:event="oninput"
+                                    @bind:after="ScheduleAutosave" />
                                 <div class="form-text">Paste an external image URL or upload a new image file below.</div>
                             </div>
 
                             <div>
                                 <label class="form-label" for="coverImageFile">Upload Cover Image</label>
-                                <input
-                                    class="form-control"
+                                <InputFile
                                     id="coverImageFile"
-                                    name="CoverImageFile"
-                                    type="file"
+                                    class="form-control"
+                                    OnChange="HandleCoverImageSelectedAsync"
                                     accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif" />
                             </div>
                         </div>
@@ -206,29 +225,22 @@ else
                             <textarea
                                 class="form-control"
                                 id="shortDescription"
-                                name="ShortDescription"
+                                @bind="editableRelease.ShortDescription"
+                                @bind:event="oninput"
+                                @bind:after="ScheduleAutosave"
                                 rows="4"
-                                required>@release.ShortDescription</textarea>
+                                required></textarea>
                         </div>
 
                         <div class="mb-3">
                             <label class="form-label" for="story">Story Behind The Release</label>
                             <MarkdownEditor
                                 Id="story"
-                                InputName="Story"
                                 Rows="10"
                                 EditorClass="form-control"
-                                @bind-Value="Story" />
+                                @bind-Value="editableRelease.Story"
+                                @bind-Value:after="ScheduleAutosave" />
                         </div>
-
-            <div class="mb-3">
-                <label class="form-label" for="lyrics">Lyrics</label>
-                <textarea
-                    class="form-control lyrics-editor"
-                    id="lyrics"
-                                name="Lyrics"
-                    rows="10">@Lyrics</textarea>
-            </div>
 
             <div class="dynamic-panel mb-3">
                 <div class="dynamic-panel-header">
@@ -258,9 +270,10 @@ else
                                                 <input
                                                     class="form-control"
                                                     id="@($"credit-name-{index}")"
-                                                    name="@($"Credits[{index}].Name")"
-                                                    value="@credit.Name"
-                                                    @oninput="eventArgs => credit.Name = eventArgs.Value?.ToString() ?? string.Empty" />
+                                                    list="known-contributor-names"
+                                                    @bind="credit.Name"
+                                                    @bind:event="oninput"
+                                                    @bind:after="ScheduleAutosave" />
                                 </div>
 
                                 <div>
@@ -270,15 +283,14 @@ else
                                             class="form-control"
                                             id="@($"credit-role-input-{index}")"
                                             list="known-credit-roles"
-                                            value="@credit.RoleInput"
-                                            @oninput="eventArgs => credit.RoleInput = eventArgs.Value?.ToString() ?? string.Empty" />
+                                            @bind="credit.RoleInput"
+                                            @bind:event="oninput" />
                                         <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => AddRoleToCredit(credit)">Add Role</button>
                                     </div>
                                     <div class="role-chip-list">
                                         @for (var roleIndex = 0; roleIndex < credit.Roles.Count; roleIndex++)
                                         {
                                             var currentRoleIndex = roleIndex;
-                                            <input type="hidden" name="@($"Credits[{currentIndex}].Roles[{currentRoleIndex}]")" value="@credit.Roles[currentRoleIndex]" />
                                             <button class="role-chip-edit" type="button" @onclick="() => RemoveRoleFromCredit(credit, currentRoleIndex)">@credit.Roles[currentRoleIndex] x</button>
                                         }
                                     </div>
@@ -307,7 +319,7 @@ else
 
                 <div>
                     <label class="form-label" for="releaseTypeOverride">Release Type Override</label>
-                    <select class="form-select" id="releaseTypeOverride" name="ReleaseTypeOverride" @bind="ReleaseTypeOverride">
+                    <select class="form-select" id="releaseTypeOverride" @bind="editableRelease.ReleaseTypeOverride" @bind:after="ScheduleAutosave">
                         <option value="">Auto</option>
                         <option value="Single">Single</option>
                         <option value="EP">EP</option>
@@ -334,19 +346,32 @@ else
                                     <input
                                         class="form-control"
                                         id="@($"track-title-{index}")"
-                                        name="@($"Tracks[{currentIndex}].Title")"
-                                        value="@track.Title"
-                                        @oninput="eventArgs => track.Title = eventArgs.Value?.ToString() ?? string.Empty" />
+                                        @bind="track.Title"
+                                        @bind:event="oninput"
+                                        @bind:after="ScheduleAutosave" />
                                 </div>
                                 <div>
                                     <label class="form-label" for="@($"track-duration-{index}")">Duration</label>
                                     <input
                                         class="form-control"
                                         id="@($"track-duration-{index}")"
-                                        name="@($"Tracks[{currentIndex}].Duration")"
-                                        value="@track.Duration"
+                                        @bind="track.Duration"
                                         placeholder="3:42"
-                                        @oninput="eventArgs => track.Duration = eventArgs.Value?.ToString() ?? string.Empty" />
+                                        @bind:event="oninput"
+                                        @bind:after="ScheduleAutosave" />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="form-label" for="@($"track-lyrics-{index}")">Lyrics</label>
+                                <MarkdownEditor
+                                    Id="@($"track-lyrics-{index}")"
+                                    Rows="8"
+                                    EditorClass="form-control lyrics-editor"
+                                    UseLyricsPreviewStyle="true"
+                                    @bind-Value="track.Lyrics" />
+                                <div class="track-lyrics-actions">
+                                    <button class="btn btn-primary btn-sm" type="button" @onclick="() => SaveTrackLyricsAsync(currentIndex)">Save Lyrics</button>
                                 </div>
                             </div>
 
@@ -385,9 +410,9 @@ else
                                         class="form-control"
                                         id="@($"link-platform-{index}")"
                                         list="known-release-platforms"
-                                        name="@($"Links[{currentIndex}].PlatformName")"
-                                        value="@link.PlatformName"
-                                        @oninput="eventArgs => link.PlatformName = eventArgs.Value?.ToString() ?? string.Empty" />
+                                        @bind="link.PlatformName"
+                                        @bind:event="oninput"
+                                        @bind:after="ScheduleAutosave" />
                                 </div>
 
                                 <div>
@@ -395,9 +420,9 @@ else
                                     <input
                                         class="form-control"
                                         id="@($"link-url-{index}")"
-                                        name="@($"Links[{currentIndex}].Url")"
-                                        value="@link.Url"
-                                        @oninput="eventArgs => link.Url = eventArgs.Value?.ToString() ?? string.Empty" />
+                                        @bind="link.Url"
+                                        @bind:event="oninput"
+                                        @bind:after="ScheduleAutosave" />
                                 </div>
                             </div>
 
@@ -424,8 +449,8 @@ else
                                         class="form-control"
                                         id="tag-input"
                                         list="known-tags"
-                                        value="@TagInput"
-                                        @oninput="eventArgs => TagInput = eventArgs.Value?.ToString() ?? string.Empty" />
+                                        @bind="TagInput"
+                                        @bind:event="oninput" />
                                     <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddTagFromInput">Add Tag</button>
                                 </div>
                             </div>
@@ -434,7 +459,6 @@ else
                                 @for (var index = 0; index < Tags.Count; index++)
                                 {
                                     var currentIndex = index;
-                                    <input type="hidden" name="@($"Tags[{currentIndex}]")" value="@Tags[currentIndex]" />
                                     <button class="role-chip-edit" type="button" @onclick="() => RemoveTag(currentIndex)">@Tags[currentIndex] x</button>
                                 }
                             </div>
@@ -449,15 +473,12 @@ else
                             <input
                                 class="form-check-input"
                                 id="isPublished"
-                                name="IsPublished"
                                 type="checkbox"
-                                value="true"
-                                checked="@release.IsPublished" />
+                                @bind="editableRelease.IsPublished"
+                                @bind:after="ScheduleAutosave" />
                             <label class="form-check-label" for="isPublished">Published</label>
                         </div>
-
-                        <button class="btn btn-primary" type="submit">Save Release</button>
-                    </form>
+                    </div>
 
                     <datalist id="known-credit-roles">
                         @foreach (var role in KnownCreditRoles)
@@ -473,19 +494,45 @@ else
                         }
                     </datalist>
 
+                    <datalist id="known-contributor-names">
+                        @foreach (var contributorName in KnownContributorNames)
+                        {
+                            <option value="@contributorName"></option>
+                        }
+                    </datalist>
+
                     <datalist id="known-tags">
                         @foreach (var tag in KnownTags)
                         {
                             <option value="@tag"></option>
                         }
                     </datalist>
-                </section>
+                </aside>
             </Authorized>
         </AuthorizeView>
+        </div>
+    </div>
+}
+
+@if (isLyricsModalOpen && selectedLyricsTrack is not null)
+{
+    <div class="lyrics-modal-overlay" tabindex="-1" role="dialog" aria-modal="true" @onclick="HideLyricsModal">
+        <div class="lyrics-modal-dialog" role="document" @onclick:stopPropagation="true">
+            <div class="lyrics-modal-surface">
+                <div class="lyrics-modal-header">
+                    <h5 class="lyrics-modal-title">@selectedLyricsTrack.Title Lyrics</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="HideLyricsModal"></button>
+                </div>
+                <div class="lyrics-modal-body">
+                    <MarkdownRenderer Content="@selectedLyricsTrack.Lyrics" CssClass="lyrics-block markdown-content modal-lyrics-block song-lyrics-markdown" />
+                </div>
+            </div>
+        </div>
     </div>
 }
 
 @code {
+    private const int AutoSaveDelayMilliseconds = 700;
     [Parameter]
     public string Slug { get; set; } = string.Empty;
 
@@ -499,15 +546,22 @@ else
     public string? Success { get; set; }
 
     private ReleaseDetailsViewModel? release;
+    private ReleaseUpdateRequest editableRelease = new();
     private bool isLoading = true;
-    private string Story { get; set; } = string.Empty;
-    private string Lyrics { get; set; } = string.Empty;
-    private string ReleaseTypeOverride { get; set; } = string.Empty;
+    private string? editorStatusMessage;
+    private string? editorErrorMessage;
+    private bool isLyricsModalOpen;
+    private ReleaseTrack? selectedLyricsTrack;
+    private CancellationTokenSource? autosaveCancellationTokenSource;
+    private long autosaveVersion;
+    private long lastSavedVersion;
+    private readonly SemaphoreSlim saveSemaphore = new(1, 1);
     private List<EditableCredit> Credits { get; set; } = [];
     private List<ReleaseTrack> Tracks { get; set; } = [];
     private List<ReleaseLink> Links { get; set; } = [];
     private List<string> Tags { get; set; } = [];
     private IReadOnlyList<string> KnownCreditRoles { get; set; } = [];
+    private IReadOnlyList<string> KnownContributorNames { get; set; } = [];
     private IReadOnlyList<string> KnownTags { get; set; } = [];
     private static readonly IReadOnlyList<string> KnownPlatforms =
     [
@@ -521,12 +575,14 @@ else
         "Tidal"
     ];
 
-    private string ComputedReleaseType => GetDisplayReleaseType(Tracks.Count, ReleaseTypeOverride);
+    private string ComputedReleaseType => GetDisplayReleaseType(Tracks.Count, editableRelease.ReleaseTypeOverride);
+    private string TotalPlayTimeDisplay => FormatTotalPlayTime(release?.Tracks ?? []);
 
     protected override async Task OnParametersSetAsync()
     {
         isLoading = true;
         KnownCreditRoles = await ReleaseService.GetKnownCreditRolesAsync();
+        KnownContributorNames = await ReleaseService.GetKnownContributorNamesAsync();
         KnownTags = await ReleaseService.GetKnownTagsAsync();
         var authenticationState = AuthenticationStateTask is null
             ? null
@@ -542,16 +598,26 @@ else
     {
         if (release is null)
         {
-            Story = string.Empty;
-            Lyrics = string.Empty;
+            editableRelease = new ReleaseUpdateRequest();
             Credits = [];
+            Tracks = [];
+            Links = [];
             Tags = [];
             return;
         }
 
-        Story = release.Story;
-        Lyrics = release.Lyrics;
-        ReleaseTypeOverride = release.ReleaseTypeOverride;
+        editableRelease = new ReleaseUpdateRequest
+        {
+            OriginalSlug = release.Slug,
+            Title = release.Title,
+            Slug = release.Slug,
+            ShortDescription = release.ShortDescription,
+            CoverImageUrl = release.CoverImageUrl,
+            Story = release.Story,
+            ReleaseTypeOverride = release.ReleaseTypeOverride,
+            ReleaseDate = release.ReleaseDateUtc.Date,
+            IsPublished = release.IsPublished
+        };
         Credits = release.Credits
             .Select(credit => new ReleaseCredit
             {
@@ -568,7 +634,8 @@ else
             .Select(track => new ReleaseTrack
             {
                 Title = track.Title,
-                Duration = track.Duration
+                Duration = track.Duration,
+                Lyrics = track.Lyrics
             })
             .ToList();
         Links = release.Links
@@ -579,11 +646,16 @@ else
             })
             .ToList();
         Tags = release.Tags.ToList();
+        editorStatusMessage = null;
+        editorErrorMessage = null;
+        autosaveVersion = 0;
+        lastSavedVersion = 0;
     }
 
     private void AddCredit()
     {
         Credits.Add(new EditableCredit());
+        _ = ScheduleAutosave();
     }
 
     private void RemoveCredit(int index)
@@ -591,6 +663,7 @@ else
         if (index >= 0 && index < Credits.Count)
         {
             Credits.RemoveAt(index);
+            _ = ScheduleAutosave();
         }
     }
 
@@ -605,6 +678,7 @@ else
         if (!credit.Roles.Contains(role, StringComparer.OrdinalIgnoreCase))
         {
             credit.Roles.Add(role);
+            _ = ScheduleAutosave();
         }
 
         credit.RoleInput = string.Empty;
@@ -615,12 +689,14 @@ else
         if (roleIndex >= 0 && roleIndex < credit.Roles.Count)
         {
             credit.Roles.RemoveAt(roleIndex);
+            _ = ScheduleAutosave();
         }
     }
 
     private void AddTrack()
     {
         Tracks.Add(new ReleaseTrack());
+        _ = ScheduleAutosave();
     }
 
     private void RemoveTrack(int index)
@@ -628,12 +704,38 @@ else
         if (index >= 0 && index < Tracks.Count)
         {
             Tracks.RemoveAt(index);
+            _ = ScheduleAutosave();
+        }
+    }
+
+    private async Task SaveTrackLyricsAsync(int index)
+    {
+        if (index < 0 || index >= Tracks.Count)
+        {
+            return;
+        }
+
+        autosaveCancellationTokenSource?.Cancel();
+        autosaveCancellationTokenSource?.Dispose();
+        autosaveCancellationTokenSource = null;
+
+        editorErrorMessage = null;
+        editorStatusMessage = $"Saving lyrics for {GetTrackLabel(index)}...";
+        await InvokeAsync(StateHasChanged);
+
+        await SaveAsync(Interlocked.Increment(ref autosaveVersion), CancellationToken.None);
+
+        if (string.IsNullOrWhiteSpace(editorErrorMessage))
+        {
+            editorStatusMessage = $"Lyrics saved for {GetTrackLabel(index)}.";
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private void AddLink()
     {
         Links.Add(new ReleaseLink());
+        _ = ScheduleAutosave();
     }
 
     private void RemoveLink(int index)
@@ -641,12 +743,13 @@ else
         if (index >= 0 && index < Links.Count)
         {
             Links.RemoveAt(index);
+            _ = ScheduleAutosave();
         }
     }
 
-    private void AddTagFromInput()
+    private async Task AddTagFromInput()
     {
-        var tag = TagInput.Trim();
+        var tag = (TagInput ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(tag))
         {
             return;
@@ -658,14 +761,236 @@ else
         }
 
         TagInput = string.Empty;
+        await InvokeAsync(StateHasChanged);
+        await ScheduleAutosave();
     }
 
-    private void RemoveTag(int index)
+    private async Task RemoveTag(int index)
     {
         if (index >= 0 && index < Tags.Count)
         {
             Tags.RemoveAt(index);
+            await InvokeAsync(StateHasChanged);
+            await ScheduleAutosave();
         }
+    }
+
+    private async Task ScheduleAutosave()
+    {
+        editorErrorMessage = null;
+        var version = Interlocked.Increment(ref autosaveVersion);
+
+        autosaveCancellationTokenSource?.Cancel();
+        autosaveCancellationTokenSource?.Dispose();
+        autosaveCancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = autosaveCancellationTokenSource.Token;
+
+        try
+        {
+            await Task.Delay(AutoSaveDelayMilliseconds, cancellationToken);
+            await SaveAsync(version, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task SaveAsync(long version, CancellationToken cancellationToken)
+    {
+        if (release is null || version <= Interlocked.Read(ref lastSavedVersion))
+        {
+            return;
+        }
+
+        await saveSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            if (release is null || version <= lastSavedVersion)
+            {
+                return;
+            }
+
+            editorStatusMessage = "Saving changes...";
+            await InvokeAsync(StateHasChanged);
+
+            var request = BuildUpdateRequest();
+            var validationResults = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
+            if (!System.ComponentModel.DataAnnotations.Validator.TryValidateObject(
+                    request,
+                    new System.ComponentModel.DataAnnotations.ValidationContext(request),
+                    validationResults,
+                    validateAllProperties: true))
+            {
+                editorErrorMessage = validationResults
+                    .Select(result => result.ErrorMessage)
+                    .FirstOrDefault(message => !string.IsNullOrWhiteSpace(message))
+                    ?? "Complete all required release fields.";
+                editorStatusMessage = null;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            var previousSlug = release.Slug;
+            var previousCoverImageUrl = release.CoverImageUrl;
+            var result = await ReleaseService.UpdateReleaseAsync(request, cancellationToken);
+
+            if (!result.Succeeded)
+            {
+                editorErrorMessage = result.ErrorMessage;
+                editorStatusMessage = null;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            editableRelease.OriginalSlug = result.Slug;
+            release = BuildReleaseViewModel(result.Slug);
+            lastSavedVersion = version;
+            editorStatusMessage = "All changes saved.";
+            editorErrorMessage = null;
+
+            if (!string.Equals(previousSlug, result.Slug, StringComparison.OrdinalIgnoreCase))
+            {
+                NavigationManager.NavigateTo($"/releases/{Uri.EscapeDataString(result.Slug)}", replace: true);
+            }
+
+            if (!string.IsNullOrWhiteSpace(previousCoverImageUrl)
+                && ReleaseService.IsManagedImageUrl(previousCoverImageUrl)
+                && !string.Equals(previousCoverImageUrl, editableRelease.CoverImageUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                await ImageStorageService.DeleteAsync(previousCoverImageUrl, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            editorErrorMessage = exception.Message;
+            editorStatusMessage = null;
+            await InvokeAsync(StateHasChanged);
+        }
+        finally
+        {
+            saveSemaphore.Release();
+        }
+    }
+
+    private async Task HandleCoverImageSelectedAsync(InputFileChangeEventArgs args)
+    {
+        var file = args.File;
+        if (file is null || release is null)
+        {
+            return;
+        }
+
+        editorErrorMessage = null;
+        editorStatusMessage = "Uploading cover image...";
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await using var readStream = file.OpenReadStream(5 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await readStream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            var formFile = new Microsoft.AspNetCore.Http.FormFile(memoryStream, 0, memoryStream.Length, file.Name, file.Name)
+            {
+                Headers = new Microsoft.AspNetCore.Http.HeaderDictionary(),
+                ContentType = file.ContentType
+            };
+
+            var imageSaveResult = await ImageStorageService.SaveReleaseImageAsync(formFile);
+            editableRelease.CoverImageUrl = imageSaveResult.Url;
+            await SaveAsync(Interlocked.Increment(ref autosaveVersion), CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            editorErrorMessage = exception.Message;
+            editorStatusMessage = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private ReleaseUpdateRequest BuildUpdateRequest()
+    {
+        editableRelease.Credits = Credits
+            .Select(credit => new ReleaseCredit
+            {
+                Name = credit.Name,
+                Roles = credit.Roles.ToList()
+            })
+            .ToList();
+        editableRelease.Tracks = Tracks
+            .Select(track => new ReleaseTrack
+            {
+                Title = track.Title,
+                Duration = track.Duration,
+                Lyrics = track.Lyrics
+            })
+            .ToList();
+        editableRelease.Links = Links
+            .Select(link => new ReleaseLink
+            {
+                PlatformName = link.PlatformName,
+                Url = link.Url
+            })
+            .ToList();
+        editableRelease.Tags = Tags.ToList();
+        return editableRelease;
+    }
+
+    private ReleaseDetailsViewModel BuildReleaseViewModel(string slug)
+    {
+        return new ReleaseDetailsViewModel
+        {
+            Id = release?.Id ?? string.Empty,
+            Title = editableRelease.Title,
+            Slug = slug,
+            ShortDescription = editableRelease.ShortDescription,
+            CoverImageUrl = editableRelease.CoverImageUrl?.Trim() ?? string.Empty,
+            Story = editableRelease.Story?.Trim() ?? string.Empty,
+            Credits = Credits
+                .Select(credit => new ReleaseCredit
+                {
+                    Name = credit.Name.Trim(),
+                    Roles = credit.Roles
+                        .Select(role => role.Trim())
+                        .Where(role => !string.IsNullOrWhiteSpace(role))
+                        .ToList()
+                })
+                .Where(credit => !string.IsNullOrWhiteSpace(credit.Name) || credit.Roles.Count > 0)
+                .ToList(),
+            Tracks = Tracks
+                .Select(track => new ReleaseTrack
+                {
+                    Title = track.Title.Trim(),
+                    Duration = track.Duration.Trim(),
+                    Lyrics = track.Lyrics.Trim()
+                })
+                .Where(track =>
+                    !string.IsNullOrWhiteSpace(track.Title)
+                    || !string.IsNullOrWhiteSpace(track.Duration)
+                    || !string.IsNullOrWhiteSpace(track.Lyrics))
+                .ToList(),
+            Links = Links
+                .Select(link => new ReleaseLink
+                {
+                    PlatformName = link.PlatformName.Trim(),
+                    Url = link.Url.Trim()
+                })
+                .Where(link => !string.IsNullOrWhiteSpace(link.PlatformName) || !string.IsNullOrWhiteSpace(link.Url))
+                .ToList(),
+            ReleaseType = GetDisplayReleaseType(Tracks.Count, editableRelease.ReleaseTypeOverride),
+            ReleaseTypeOverride = editableRelease.ReleaseTypeOverride?.Trim() ?? string.Empty,
+            Tags = Tags
+                .Select(tag => tag.Trim())
+                .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            ReleaseDateUtc = new DateTimeOffset(DateTime.SpecifyKind(editableRelease.ReleaseDate.Date, DateTimeKind.Utc)),
+            IsPublished = editableRelease.IsPublished
+        };
     }
 
     private static string GetDisplayReleaseType(int trackCount, string? releaseTypeOverride)
@@ -683,6 +1008,87 @@ else
         };
     }
 
+    private static string FormatTotalPlayTime(IEnumerable<ReleaseTrack> tracks)
+    {
+        var totalSeconds = tracks
+            .Select(track => TryParseDuration(track.Duration))
+            .Where(seconds => seconds.HasValue)
+            .Sum(seconds => seconds!.Value);
+
+        if (totalSeconds <= 0)
+        {
+            return string.Empty;
+        }
+
+        var timeSpan = TimeSpan.FromSeconds(totalSeconds);
+        return timeSpan.TotalHours >= 1
+            ? $"{(int)timeSpan.TotalHours}:{timeSpan.Minutes:D2}:{timeSpan.Seconds:D2}"
+            : $"{timeSpan.Minutes}:{timeSpan.Seconds:D2}";
+    }
+
+    private static int? TryParseDuration(string? duration)
+    {
+        if (string.IsNullOrWhiteSpace(duration))
+        {
+            return null;
+        }
+
+        var parts = duration
+            .Trim()
+            .Split(':', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length == 2
+            && int.TryParse(parts[0], out var minutes)
+            && int.TryParse(parts[1], out var seconds)
+            && minutes >= 0
+            && seconds is >= 0 and < 60)
+        {
+            return (minutes * 60) + seconds;
+        }
+
+        if (parts.Length == 3
+            && int.TryParse(parts[0], out var hours)
+            && int.TryParse(parts[1], out var remainingMinutes)
+            && int.TryParse(parts[2], out var remainingSeconds)
+            && hours >= 0
+            && remainingMinutes is >= 0 and < 60
+            && remainingSeconds is >= 0 and < 60)
+        {
+            return (hours * 3600) + (remainingMinutes * 60) + remainingSeconds;
+        }
+
+        return null;
+    }
+
+    private string GetTrackLabel(int index)
+    {
+        if (index < 0 || index >= Tracks.Count)
+        {
+            return "track";
+        }
+
+        return string.IsNullOrWhiteSpace(Tracks[index].Title)
+            ? $"track {index + 1}"
+            : Tracks[index].Title.Trim();
+    }
+
+    private void ShowLyricsModal(ReleaseTrack track)
+    {
+        if (string.IsNullOrWhiteSpace(track.Lyrics))
+        {
+            return;
+        }
+
+        selectedLyricsTrack = track;
+        isLyricsModalOpen = true;
+    }
+
+    private void HideLyricsModal()
+    {
+        isLyricsModalOpen = false;
+        selectedLyricsTrack = null;
+    }
+
     private sealed class EditableCredit
     {
         public string Name { get; set; } = string.Empty;
@@ -693,4 +1099,11 @@ else
     }
 
     private string TagInput { get; set; } = string.Empty;
+
+    public void Dispose()
+    {
+        autosaveCancellationTokenSource?.Cancel();
+        autosaveCancellationTokenSource?.Dispose();
+        saveSemaphore.Dispose();
+    }
 }

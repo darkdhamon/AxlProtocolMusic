@@ -124,6 +124,21 @@ public sealed class ReleaseService : IReleaseService
             return null;
         }
 
+        if (!release.Tracks.Any()
+            && !string.IsNullOrWhiteSpace(release.Lyrics))
+        {
+            release.Tracks =
+            [
+                new ReleaseTrack
+                {
+                    Title = release.Title,
+                    Lyrics = release.Lyrics.Trim()
+                }
+            ];
+            release.Lyrics = string.Empty;
+            await _releaseRepository.UpdateAsync(release, cancellationToken);
+        }
+
         return new ReleaseDetailsViewModel
         {
             Id = release.Id,
@@ -132,7 +147,6 @@ public sealed class ReleaseService : IReleaseService
             ShortDescription = release.ShortDescription,
             CoverImageUrl = release.CoverImageUrl,
             Story = release.Story,
-            Lyrics = release.Lyrics,
             Credits = release.Credits
                 .Select(credit => new ReleaseCredit
                 {
@@ -144,7 +158,8 @@ public sealed class ReleaseService : IReleaseService
                 .Select(track => new ReleaseTrack
                 {
                     Title = track.Title,
-                    Duration = track.Duration
+                    Duration = track.Duration,
+                    Lyrics = track.Lyrics
                 })
                 .ToList(),
             Links = release.Links
@@ -208,7 +223,7 @@ public sealed class ReleaseService : IReleaseService
         release.ShortDescription = request.ShortDescription.Trim();
         release.CoverImageUrl = request.CoverImageUrl?.Trim() ?? string.Empty;
         release.Story = request.Story?.Trim() ?? string.Empty;
-        release.Lyrics = request.Lyrics?.Trim() ?? string.Empty;
+        release.Lyrics = string.Empty;
         release.Credits = NormalizeCredits(request.Credits);
         release.Tracks = NormalizeTracks(request.Tracks);
         release.Links = NormalizeLinks(request.Links);
@@ -264,7 +279,7 @@ public sealed class ReleaseService : IReleaseService
             ShortDescription = request.ShortDescription.Trim(),
             CoverImageUrl = request.CoverImageUrl?.Trim() ?? string.Empty,
             Story = request.Story?.Trim() ?? string.Empty,
-            Lyrics = request.Lyrics?.Trim() ?? string.Empty,
+            Lyrics = string.Empty,
             Credits = NormalizeCredits(request.Credits),
             Tracks = NormalizeTracks(request.Tracks),
             Links = NormalizeLinks(request.Links),
@@ -321,6 +336,18 @@ public sealed class ReleaseService : IReleaseService
             .Where(role => !string.IsNullOrWhiteSpace(role))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(role => role)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<string>> GetKnownContributorNamesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return (await _releaseRepository.GetAllAsync(cancellationToken))
+            .SelectMany(release => release.Credits)
+            .Select(credit => credit.Name.Trim())
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name)
             .ToList();
     }
 
@@ -429,9 +456,13 @@ public sealed class ReleaseService : IReleaseService
             .Select(track => new ReleaseTrack
             {
                 Title = track.Title.Trim(),
-                Duration = track.Duration.Trim()
+                Duration = track.Duration.Trim(),
+                Lyrics = track.Lyrics.Trim()
             })
-            .Where(track => !string.IsNullOrWhiteSpace(track.Title) || !string.IsNullOrWhiteSpace(track.Duration))
+            .Where(track =>
+                !string.IsNullOrWhiteSpace(track.Title)
+                || !string.IsNullOrWhiteSpace(track.Duration)
+                || !string.IsNullOrWhiteSpace(track.Lyrics))
             .ToList();
     }
 
