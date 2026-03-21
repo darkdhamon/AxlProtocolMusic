@@ -216,6 +216,7 @@ PublishScripts/
 /\.nuget/
 /NuGet.Config
 /_buildcheck/
+/_tools/
 /.dotnet-cli/
 **/.localmongo/
 **/wwwroot/uploads/
