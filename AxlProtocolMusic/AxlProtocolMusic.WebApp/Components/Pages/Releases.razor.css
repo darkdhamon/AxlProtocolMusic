@@ -177,3 +177,32 @@
         min-width: 0;
     }
 }
+
+:root[data-theme="dark"] .lead,
+:root[data-theme="dark"] .results-meta p,
+:root[data-theme="dark"] .release-copy p:last-child,
+:root[data-theme="dark"] .page-status {
+    color: var(--app-text-muted);
+}
+
+:root[data-theme="dark"] .search-panel,
+:root[data-theme="dark"] .empty-results {
+    background: linear-gradient(180deg, var(--app-surface-elevated) 0%, var(--app-surface-muted) 100%);
+    border-color: var(--app-border);
+    box-shadow: var(--app-shadow);
+}
+
+:root[data-theme="dark"] .release-card {
+    background: var(--app-surface);
+    border-color: var(--app-border);
+    box-shadow: var(--app-shadow);
+}
+
+:root[data-theme="dark"] .release-date {
+    color: var(--app-text-muted);
+}
+
+:root[data-theme="dark"] .release-status-badge {
+    background: rgba(255, 157, 157, 0.12);
+    color: #ffb3b3;
+}

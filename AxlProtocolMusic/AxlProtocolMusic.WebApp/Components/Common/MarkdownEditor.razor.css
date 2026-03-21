@@ -110,3 +110,48 @@
 ::deep .markdown-preview-body-lyrics p:last-child {
     margin-bottom: 0;
 }
+
+:root[data-theme="dark"] .markdown-preview {
+    background: var(--app-subtle-fill);
+    border-color: var(--app-border);
+}
+
+:root[data-theme="dark"] .markdown-preview-header {
+    color: var(--app-text-muted);
+}
+
+:root[data-theme="dark"] .markdown-preview-empty,
+:root[data-theme="dark"] .markdown-preview-body {
+    color: var(--app-text);
+}
+
+:root[data-theme="dark"] .markdown-preview-lyrics {
+    background:
+        radial-gradient(circle at top left, rgba(142, 186, 255, 0.08), transparent 24%),
+        linear-gradient(180deg, #101927 0%, #162234 100%);
+}
+
+:root[data-theme="dark"] .markdown-preview-body-lyrics {
+    color: #e4ecfb;
+}
+
+:root[data-theme="dark"] ::deep .markdown-preview-body-lyrics h2 {
+    background: var(--app-chip-bg);
+    border-color: var(--app-border);
+    box-shadow: none;
+    color: var(--app-chip-text);
+}
+
+:root[data-theme="dark"] ::deep .markdown-preview-body-lyrics p {
+    color: #d7e3f8;
+}
+
+:root[data-theme="dark"] .markdown-toolbar .btn-outline-secondary {
+    color: var(--app-text);
+    border-color: var(--app-border-strong);
+}
+
+:root[data-theme="dark"] .markdown-toolbar .btn-outline-secondary:hover {
+    background: var(--app-subtle-fill);
+    color: var(--app-heading);
+}

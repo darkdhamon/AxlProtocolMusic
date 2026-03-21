@@ -194,3 +194,37 @@
         grid-template-columns: 1fr;
     }
 }
+
+:root[data-theme="dark"] .privacy-card {
+    background: linear-gradient(180deg, var(--app-surface-elevated) 0%, var(--app-surface-muted) 100%);
+    border-color: var(--app-border);
+    box-shadow: var(--app-shadow);
+}
+
+:root[data-theme="dark"] .accent-card {
+    background:
+        radial-gradient(circle at top right, rgba(243, 181, 84, 0.14), transparent 28%),
+        linear-gradient(180deg, #1b2230 0%, var(--app-surface-muted) 100%);
+}
+
+:root[data-theme="dark"] .preference-row {
+    background: var(--app-subtle-fill);
+    border-color: var(--app-border);
+}
+
+:root[data-theme="dark"] .preference-row p,
+:root[data-theme="dark"] .preference-note {
+    color: var(--app-text-muted);
+}
+
+:root[data-theme="dark"] .slider {
+    background-color: rgba(142, 186, 255, 0.24);
+}
+
+:root[data-theme="dark"] .slider::before {
+    background-color: #eef4ff;
+}
+
+:root[data-theme="dark"] .switch input:checked + .slider {
+    background-color: #8ebaff;
+}

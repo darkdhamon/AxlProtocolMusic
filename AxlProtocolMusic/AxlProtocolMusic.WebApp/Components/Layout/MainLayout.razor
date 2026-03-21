@@ -1,5 +1,7 @@
 @inherits LayoutComponentBase
 @inject IHostEnvironment HostEnvironment
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
 
 <div class="page">
     <div class="sidebar">
@@ -8,8 +10,39 @@
 
     <main>
         <div class="top-row px-4 d-flex justify-content-end align-items-center gap-3 flex-wrap">
+            <label class="theme-switch" for="theme-toggle">
+                <span class="theme-switch-copy">
+                    <span class="theme-switch-label">Dark Mode</span>
+                    <span class="theme-switch-state">@(isDarkMode ? "On" : "Off")</span>
+                </span>
+                <span class="theme-switch-control">
+                    <input
+                        id="theme-toggle"
+                        class="theme-switch-input"
+                        type="checkbox"
+                        @bind="isDarkMode"
+                        @bind:after="HandleThemeChanged"
+                        aria-label="Toggle dark mode" />
+                    <span class="theme-switch-slider" aria-hidden="true"></span>
+                </span>
+            </label>
+
+            @if (IsReleaseDetailsPage)
+            {
+                <a class="btn btn-outline-primary btn-sm" href="/releases">Back to Releases</a>
+            }
+
             @if (HostEnvironment.IsDevelopment())
             {
+                <AuthorizeView Roles="Admin">
+                    <Authorized>
+                        @if (IsTimelinePage)
+                        {
+                            <a class="btn btn-outline-primary btn-sm" href="/timeline?editor=new">Add Timeline Event</a>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+
                 <form method="post" action="/account/reset-development-database" class="m-0">
                     <AntiforgeryToken />
                     <button
@@ -33,3 +66,66 @@
     <a href="." class="reload">Reload</a>
     <span class="dismiss">x</span>
 </div>
+
+@implements IDisposable
+
+@code {
+    private bool isDarkMode;
+    private bool shouldReapplyTheme;
+
+    protected override void OnInitialized()
+    {
+        NavigationManager.LocationChanged += HandleLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var activeTheme = await JSRuntime.InvokeAsync<string>("axlTheme.initializeTheme");
+            isDarkMode = string.Equals(activeTheme, "dark", StringComparison.OrdinalIgnoreCase);
+            StateHasChanged();
+            return;
+        }
+
+        if (!shouldReapplyTheme)
+        {
+            return;
+        }
+
+        shouldReapplyTheme = false;
+        await JSRuntime.InvokeVoidAsync("axlTheme.setTheme", isDarkMode ? "dark" : "light");
+    }
+
+    private bool IsTimelinePage =>
+        NavigationManager.ToBaseRelativePath(NavigationManager.Uri)
+            .StartsWith("timeline", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsReleaseDetailsPage
+    {
+        get
+        {
+            var relativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+            var path = relativePath.Split('?', '#')[0].Trim('/');
+
+            return path.StartsWith("releases/", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(path, "releases/new", StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private async Task HandleThemeChanged()
+    {
+        await JSRuntime.InvokeVoidAsync("axlTheme.setTheme", isDarkMode ? "dark" : "light");
+    }
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs args)
+    {
+        shouldReapplyTheme = true;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= HandleLocationChanged;
+    }
+}

@@ -104,3 +104,20 @@
         grid-template-columns: 1fr;
     }
 }
+
+:root[data-theme="dark"] .dynamic-panel {
+    background: var(--app-subtle-fill);
+    border-color: var(--app-border);
+}
+
+:root[data-theme="dark"] .dynamic-panel-empty,
+:root[data-theme="dark"] .release-type-summary {
+    color: var(--app-text-muted);
+}
+
+:root[data-theme="dark"] .role-chip-edit,
+:root[data-theme="dark"] .track-number-chip {
+    background: var(--app-chip-bg);
+    border-color: var(--app-border);
+    color: var(--app-chip-text);
+}

@@ -1,7 +1,601 @@
 @page "/timeline"
+@rendermode InteractiveServer
+@inject IReleaseService ReleaseService
+@inject ITimelineEventService TimelineEventService
+@inject NavigationManager NavigationManager
+@implements IDisposable
 
 <PageTitle>Timeline</PageTitle>
 
-<h1>Timeline</h1>
+@if (isLoading)
+{
+    <p><em>Loading timeline...</em></p>
+}
+else
+{
+    <div class="timeline-page">
+        <section class="timeline-hero">
+            <div class="timeline-hero-copy">
+                <p class="eyebrow">Project History</p>
+                <h1>The Axl Protocol Timeline</h1>
+                <p class="hero-lead">
+                    A chronology of releases, milestones, and defining moments across the Axl Protocol story.
+                </p>
+                <p class="hero-body">
+                    Follow how major life events, creative decisions, and official releases connect across time, with the
+                    newest moments appearing first.
+                </p>
+            </div>
 
-<p>This page will map the major events, releases, and moments that define the Axl Protocol journey.</p>
+            <div class="timeline-hero-panel">
+                <p class="panel-label">At A Glance</p>
+                <div class="timeline-stats">
+                    <div>
+                        <span class="stat-number">@totalTimelineEvents</span>
+                        <span class="stat-label">total moments</span>
+                    </div>
+                    <div>
+                        <span class="stat-number">@releaseEventCount</span>
+                        <span class="stat-label">releases</span>
+                    </div>
+                    <div>
+                        <span class="stat-number">@manualEventCount</span>
+                        <span class="stat-label">timeline events</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="timeline-track">
+            @foreach (var month in timelineYears)
+            {
+                <article class="era-section">
+                    <div class="era-header">
+                        <div class="era-marker">
+                            <span class="era-year">@month.MonthLabelShort</span>
+                        </div>
+                    </div>
+
+                    <div class="era-events">
+                        <div class="timeline-event-side timeline-event-side-left">
+                            @foreach (var timelineEvent in month.Events.Where(item => item.IsManualEvent))
+                            {
+                                <article class="event-card event-card-manual">
+                                    <div class="event-meta">
+                                        <span class="event-date">@timelineEvent.DateLabel</span>
+                                        <span class="event-tag @timelineEvent.TagClass">@timelineEvent.Tag</span>
+                                    </div>
+
+                                    <h3>@timelineEvent.Title</h3>
+                                    <p>@timelineEvent.Description</p>
+
+                                    @if (timelineEvent.Highlights.Count > 0)
+                                    {
+                                        <ul class="event-highlights">
+                                            @foreach (var highlight in timelineEvent.Highlights)
+                                            {
+                                                <li>@highlight</li>
+                                            }
+                                        </ul>
+                                    }
+
+                                    <AuthorizeView Roles="Admin">
+                                        <Authorized>
+                                            <div class="event-admin-actions">
+                                                <button
+                                                    class="btn btn-outline-primary btn-sm event-edit-button"
+                                                    type="button"
+                                                    @onclick="() => OpenEditModal(timelineEvent)">
+                                                    Edit Event
+                                                </button>
+
+                                                <button
+                                                    class="btn btn-outline-danger btn-sm"
+                                                    type="button"
+                                                    @onclick="() => OpenDeleteModal(timelineEvent)">
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                </article>
+                            }
+                        </div>
+
+                        <div class="timeline-event-center"></div>
+
+                        <div class="timeline-event-side timeline-event-side-right timeline-release-grid">
+                            @foreach (var timelineEvent in month.Events.Where(item => !item.IsManualEvent))
+                            {
+                                <article class="event-card event-card-release">
+                                    @if (timelineEvent.Tag == "Release")
+                                    {
+                                        <div class="event-artwork">
+                                            @if (!string.IsNullOrWhiteSpace(timelineEvent.ImageUrl))
+                                            {
+                                                <img src="@timelineEvent.ImageUrl" alt="@($"{timelineEvent.Title} cover art")" />
+                                            }
+                                            else
+                                            {
+                                                <div class="event-artwork-placeholder">
+                                                    <span>@timelineEvent.Title</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+
+                                    <div class="event-meta">
+                                        <span class="event-date">@timelineEvent.DateLabel</span>
+                                        <span class="event-tag @timelineEvent.TagClass">@timelineEvent.Tag</span>
+                                    </div>
+
+                                    <h3>@timelineEvent.Title</h3>
+                                    <p>@timelineEvent.Description</p>
+
+                                    @if (timelineEvent.Highlights.Count > 0)
+                                    {
+                                        <ul class="event-highlights">
+                                            @foreach (var highlight in timelineEvent.Highlights)
+                                            {
+                                                <li>@highlight</li>
+                                            }
+                                        </ul>
+                                    }
+
+                                    @if (!string.IsNullOrWhiteSpace(timelineEvent.Href))
+                                    {
+                                        <a class="event-link" href="@timelineEvent.Href">@timelineEvent.LinkLabel</a>
+                                    }
+                                </article>
+                            }
+                        </div>
+                    </div>
+                </article>
+            }
+        </section>
+
+    </div>
+}
+
+@if (isEditModalOpen)
+{
+    <div class="timeline-modal-backdrop" @onclick="CloseEditModal">
+        <div class="timeline-modal" @onclick:stopPropagation="true">
+            <div class="timeline-modal-header">
+                <div>
+                    <p class="eyebrow">Admin</p>
+                    <h2>Edit Timeline Event</h2>
+                </div>
+                <button class="btn-close" type="button" aria-label="Close" @onclick="CloseEditModal"></button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(editErrorMessage))
+            {
+                <div class="alert alert-danger" role="alert">@editErrorMessage</div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(editStatusMessage))
+            {
+                <div class="alert alert-success" role="alert">@editStatusMessage</div>
+            }
+
+            @if (editableTimelineEvent is not null)
+            {
+                <div class="timeline-modal-form">
+                    <div class="form-grid">
+                        <div>
+                            <label class="form-label" for="timeline-title">Title</label>
+                            <input
+                                class="form-control"
+                                id="timeline-title"
+                                @bind="editableTimelineEvent.Title"
+                                @bind:event="oninput" />
+                        </div>
+
+                        <div>
+                            <label class="form-label" for="timeline-date">Event Date</label>
+                            <input
+                                class="form-control"
+                                id="timeline-date"
+                                type="date"
+                                @bind="editableEventDate"
+                                @bind:format="yyyy-MM-dd" />
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <div>
+                            <label class="form-label" for="timeline-type">Event Type</label>
+                            <InputSelect class="form-select" id="timeline-type" @bind-Value="editableTimelineEvent.EventType">
+                                @foreach (var eventType in timelineEventTypes)
+                                {
+                                    <option value="@eventType">@GetTimelineEventTag(eventType)</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div>
+                            <label class="form-label" for="timeline-image">Image Url</label>
+                            <input
+                                class="form-control"
+                                id="timeline-image"
+                                @bind="editableTimelineEvent.ImageUrl"
+                                @bind:event="oninput" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="timeline-description">Short Description</label>
+                        <textarea
+                            class="form-control"
+                            id="timeline-description"
+                            @bind="editableTimelineEvent.ShortDescription"
+                            @bind:event="oninput"
+                            rows="5"></textarea>
+                    </div>
+
+                    <div class="timeline-modal-actions">
+                        <button class="btn btn-outline-secondary" type="button" @onclick="CloseEditModal">Cancel</button>
+                        <button class="btn btn-primary" type="button" @onclick="SaveTimelineEventAsync" disabled="@isSavingEdit">
+                            @(isSavingEdit ? "Saving..." : (isCreatingTimelineEvent ? "Create Event" : "Save Changes"))
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (isDeleteModalOpen && timelineEventPendingDelete is not null)
+{
+    <div class="timeline-modal-backdrop" @onclick="CloseDeleteModal">
+        <div class="timeline-modal timeline-confirm-modal" @onclick:stopPropagation="true">
+            <div class="timeline-modal-header">
+                <div>
+                    <p class="eyebrow">Admin</p>
+                    <h2>Delete Timeline Event</h2>
+                </div>
+                <button class="btn-close" type="button" aria-label="Close" @onclick="CloseDeleteModal"></button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(deleteErrorMessage))
+            {
+                <div class="alert alert-danger" role="alert">@deleteErrorMessage</div>
+            }
+
+            <p class="confirm-copy">
+                Delete <strong>@timelineEventPendingDelete.Title</strong>? This action cannot be undone.
+            </p>
+
+            <div class="timeline-modal-actions">
+                <button class="btn btn-outline-secondary" type="button" @onclick="CloseDeleteModal">Cancel</button>
+                <button class="btn btn-danger" type="button" @onclick="DeleteTimelineEventAsync" disabled="@isDeletingEvent">
+                    @(isDeletingEvent ? "Deleting..." : "Delete Event")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly IReadOnlyList<TimelineEventType> timelineEventTypes = Enum
+        .GetValues<TimelineEventType>()
+        .ToList();
+
+    private List<TimelineMonthSection> timelineYears = [];
+    private bool isLoading = true;
+    private int releaseEventCount;
+    private int manualEventCount;
+    private int totalTimelineEvents;
+    private bool isEditModalOpen;
+    private bool isSavingEdit;
+    private bool isCreatingTimelineEvent;
+    private bool isDeleteModalOpen;
+    private bool isDeletingEvent;
+    private string? editErrorMessage;
+    private string? editStatusMessage;
+    private string? deleteErrorMessage;
+    private TimelineEvent? editableTimelineEvent;
+    private TimelineEntry? timelineEventPendingDelete;
+    private DateTime editableEventDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        NavigationManager.LocationChanged += HandleLocationChanged;
+        await LoadTimelineAsync();
+        OpenCreateModalIfRequested();
+    }
+
+    private async Task LoadTimelineAsync()
+    {
+        var releaseResult = await ReleaseService.GetPagedReleasesAsync(
+            searchTerm: null,
+            pageNumber: 1,
+            pageSize: 250);
+        var timelineEvents = await TimelineEventService.GetAllAsync();
+
+        var releaseEvents = releaseResult.Items
+            .Select(release => new TimelineEntry(
+                null,
+                release.ReleaseDateUtc,
+                "Release",
+                "release-event",
+                release.Title,
+                release.ShortDescription,
+                BuildReleaseHighlights(release),
+                release.CoverImageUrl,
+                false,
+                null,
+                $"/releases/{Uri.EscapeDataString(release.Slug)}",
+                "View Release"))
+            .ToList();
+
+        var manualEvents = timelineEvents
+            .Select(timelineEvent => new TimelineEntry(
+                timelineEvent.Id,
+                timelineEvent.EventDateUtc,
+                GetTimelineEventTag(timelineEvent.EventType),
+                "timeline-event",
+                timelineEvent.Title,
+                timelineEvent.ShortDescription,
+                [],
+                timelineEvent.ImageUrl,
+                true,
+                timelineEvent.EventType,
+                null,
+                null))
+            .ToList();
+
+        releaseEventCount = releaseEvents.Count;
+        manualEventCount = manualEvents.Count;
+
+        var combinedEvents = releaseEvents
+            .Concat(manualEvents)
+            .OrderByDescending(item => item.EventDateUtc)
+            .ToList();
+
+        totalTimelineEvents = combinedEvents.Count;
+
+        timelineYears = combinedEvents
+            .GroupBy(item => new DateTime(item.EventDateUtc.Year, item.EventDateUtc.Month, 1))
+            .OrderByDescending(group => group.Key)
+            .Select(group => new TimelineMonthSection(
+                group.Key.ToString("MMM yyyy"),
+                group.ToList()))
+            .ToList();
+
+        isLoading = false;
+    }
+
+    private static IReadOnlyList<string> BuildReleaseHighlights(ReleaseListItemViewModel release)
+    {
+        return [];
+    }
+
+    private void OpenEditModal(TimelineEntry timelineEvent)
+    {
+        if (!timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
+        {
+            return;
+        }
+
+        isCreatingTimelineEvent = false;
+        editableTimelineEvent = new TimelineEvent
+        {
+            Id = timelineEvent.Id,
+            Title = timelineEvent.Title,
+            ShortDescription = timelineEvent.Description,
+            ImageUrl = timelineEvent.ImageUrl ?? string.Empty,
+            EventDateUtc = timelineEvent.EventDateUtc,
+            EventType = timelineEvent.EventType ?? TimelineEventType.Milestone
+        };
+
+        editableEventDate = timelineEvent.EventDateUtc.UtcDateTime.Date;
+        editErrorMessage = null;
+        editStatusMessage = null;
+        isEditModalOpen = true;
+    }
+
+    private void OpenCreateModal()
+    {
+        isCreatingTimelineEvent = true;
+        editableTimelineEvent = new TimelineEvent
+        {
+            EventDateUtc = DateTimeOffset.UtcNow.Date,
+            EventType = TimelineEventType.Milestone
+        };
+        editableEventDate = DateTime.UtcNow.Date;
+        editErrorMessage = null;
+        editStatusMessage = null;
+        isEditModalOpen = true;
+    }
+
+    private void OpenDeleteModal(TimelineEntry timelineEvent)
+    {
+        if (!timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
+        {
+            return;
+        }
+
+        timelineEventPendingDelete = timelineEvent;
+        deleteErrorMessage = null;
+        isDeleteModalOpen = true;
+    }
+
+    private void CloseEditModal()
+    {
+        if (isSavingEdit)
+        {
+            return;
+        }
+
+        isEditModalOpen = false;
+        isCreatingTimelineEvent = false;
+        editableTimelineEvent = null;
+        editErrorMessage = null;
+        editStatusMessage = null;
+        RemoveEditorQueryParameter();
+    }
+
+    private void CloseDeleteModal()
+    {
+        if (isDeletingEvent)
+        {
+            return;
+        }
+
+        isDeleteModalOpen = false;
+        timelineEventPendingDelete = null;
+        deleteErrorMessage = null;
+    }
+
+    private async Task SaveTimelineEventAsync()
+    {
+        if (editableTimelineEvent is null)
+        {
+            return;
+        }
+
+        isSavingEdit = true;
+        editErrorMessage = null;
+        editStatusMessage = null;
+
+        try
+        {
+            editableTimelineEvent.EventDateUtc = new DateTimeOffset(
+                editableEventDate.Year,
+                editableEventDate.Month,
+                editableEventDate.Day,
+                0,
+                0,
+                0,
+                TimeSpan.Zero);
+
+            if (isCreatingTimelineEvent)
+            {
+                await TimelineEventService.CreateAsync(editableTimelineEvent);
+            }
+            else
+            {
+                await TimelineEventService.UpdateAsync(editableTimelineEvent);
+            }
+
+            await LoadTimelineAsync();
+
+            editStatusMessage = isCreatingTimelineEvent
+                ? "Timeline event created."
+                : "Timeline event updated.";
+            isEditModalOpen = false;
+            isCreatingTimelineEvent = false;
+            editableTimelineEvent = null;
+            RemoveEditorQueryParameter();
+        }
+        catch (Exception exception)
+        {
+            editErrorMessage = exception.Message;
+        }
+        finally
+        {
+            isSavingEdit = false;
+        }
+    }
+
+    private async Task DeleteTimelineEventAsync()
+    {
+        if (timelineEventPendingDelete is null || string.IsNullOrWhiteSpace(timelineEventPendingDelete.Id))
+        {
+            return;
+        }
+
+        isDeletingEvent = true;
+        deleteErrorMessage = null;
+
+        try
+        {
+            await TimelineEventService.DeleteAsync(timelineEventPendingDelete.Id);
+            await LoadTimelineAsync();
+            isDeleteModalOpen = false;
+            timelineEventPendingDelete = null;
+        }
+        catch (Exception exception)
+        {
+            deleteErrorMessage = exception.Message;
+        }
+        finally
+        {
+            isDeletingEvent = false;
+        }
+    }
+
+    private static string GetTimelineEventTag(TimelineEventType eventType) => eventType switch
+    {
+        TimelineEventType.Research => "Research",
+        TimelineEventType.Creative => "Creative",
+        TimelineEventType.Planning => "Planning",
+        TimelineEventType.Identity => "Identity",
+        TimelineEventType.Release => "Release",
+        TimelineEventType.Platform => "Platform",
+        TimelineEventType.LifeEvent => "Life Event",
+        _ => "Milestone"
+    };
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        OpenCreateModalIfRequested();
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenCreateModalIfRequested()
+    {
+        var uri = new Uri(NavigationManager.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+        if (query.TryGetValue("editor", out var editorMode)
+            && string.Equals(editorMode.ToString(), "new", StringComparison.OrdinalIgnoreCase)
+            && !isEditModalOpen)
+        {
+            OpenCreateModal();
+        }
+    }
+
+    private void RemoveEditorQueryParameter()
+    {
+        var uri = new Uri(NavigationManager.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query)
+            .Where(entry => !string.Equals(entry.Key, "editor", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(entry => entry.Key, entry => (string?)entry.Value.ToString());
+
+        var baseUri = uri.GetLeftPart(UriPartial.Path);
+        var targetUri = query.Count == 0
+            ? baseUri
+            : Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(baseUri, query);
+
+        NavigationManager.NavigateTo(targetUri, replace: true);
+    }
+
+    private sealed record TimelineMonthSection(
+        string MonthLabelShort,
+        IReadOnlyList<TimelineEntry> Events);
+
+    private sealed record TimelineEntry(
+        string? Id,
+        DateTimeOffset EventDateUtc,
+        string Tag,
+        string TagClass,
+        string Title,
+        string Description,
+        IReadOnlyList<string> Highlights,
+        string? ImageUrl,
+        bool IsManualEvent,
+        TimelineEventType? EventType,
+        string? Href,
+        string? LinkLabel)
+    {
+        public string DateLabel => EventDateUtc.ToString("MMMM d, yyyy");
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= HandleLocationChanged;
+    }
+}

@@ -249,3 +249,41 @@
         white-space: normal;
     }
 }
+
+:root[data-theme="dark"] .data-card,
+:root[data-theme="dark"] .visit-group-card {
+    background: linear-gradient(180deg, var(--app-surface-elevated) 0%, var(--app-surface-muted) 100%);
+    border-color: var(--app-border);
+    box-shadow: var(--app-shadow);
+}
+
+:root[data-theme="dark"] .notice-card {
+    background:
+        radial-gradient(circle at top right, rgba(243, 181, 84, 0.14), transparent 28%),
+        linear-gradient(180deg, #1c2230 0%, var(--app-surface-muted) 100%);
+}
+
+:root[data-theme="dark"] .modal-supporting-copy,
+:root[data-theme="dark"] .map-supporting-copy,
+:root[data-theme="dark"] .data-meta,
+:root[data-theme="dark"] .destination-url,
+:root[data-theme="dark"] .data-side {
+    color: var(--app-text-muted);
+}
+
+:root[data-theme="dark"] .data-row,
+:root[data-theme="dark"] .destination-link {
+    background: var(--app-subtle-fill);
+    border-color: var(--app-border);
+    color: var(--app-text);
+}
+
+:root[data-theme="dark"] .destination-link:hover {
+    background: rgba(142, 186, 255, 0.14);
+    color: #eef4ff;
+}
+
+:root[data-theme="dark"] .visit-group-toggle-label,
+:root[data-theme="dark"] .data-title {
+    color: #dce9ff;
+}

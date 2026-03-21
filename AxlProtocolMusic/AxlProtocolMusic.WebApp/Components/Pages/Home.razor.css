@@ -121,7 +121,7 @@
     font-weight: 600;
 }
 
-.carousel-indicators {
+.hero-carousel-indicators {
     display: flex;
     justify-content: center;
     gap: 0.55rem;
@@ -150,6 +150,11 @@
     border-radius: 1.25rem;
     background: linear-gradient(180deg, rgba(17, 44, 114, 0.06), rgba(17, 44, 114, 0.02));
     border: 1px solid rgba(17, 44, 114, 0.08);
+}
+
+.intro-card .eyebrow,
+.feature-card .eyebrow {
+    color: rgba(17, 44, 114, 0.56);
 }
 
 .intro-card p:last-child,
@@ -189,4 +194,26 @@
     .intro-grid {
         grid-template-columns: 1fr;
     }
+}
+
+:root[data-theme="dark"] .intro-card,
+:root[data-theme="dark"] .feature-card {
+    background: linear-gradient(180deg, var(--app-surface-elevated) 0%, var(--app-surface-muted) 100%);
+    border-color: var(--app-border);
+    box-shadow: var(--app-shadow);
+}
+
+:root[data-theme="dark"] .intro-card .eyebrow,
+:root[data-theme="dark"] .feature-card .eyebrow {
+    color: rgba(234, 241, 255, 0.72);
+}
+
+:root[data-theme="dark"] .indicator {
+    background: rgba(142, 186, 255, 0.22);
+}
+
+:root[data-theme="dark"] .indicator.active,
+:root[data-theme="dark"] .carousel-arrow {
+    background: #8ebaff;
+    color: #08111f;
 }

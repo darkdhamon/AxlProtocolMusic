@@ -1,9 +1,95 @@
+:root {
+    color-scheme: light;
+    --app-bg: #eef3fb;
+    --app-bg-accent: rgba(210, 225, 255, 0.75);
+    --app-surface: #ffffff;
+    --app-surface-muted: #f5f8ff;
+    --app-surface-elevated: #ffffff;
+    --app-text: #16233f;
+    --app-text-muted: #5f6f8a;
+    --app-heading: #0f1d3a;
+    --app-link: #1a57c5;
+    --app-link-hover: #133f95;
+    --app-border: rgba(17, 44, 114, 0.12);
+    --app-border-strong: rgba(17, 44, 114, 0.2);
+    --app-shadow: 0 18px 36px rgba(17, 44, 114, 0.08);
+    --app-shadow-strong: 0 24px 60px rgba(10, 22, 51, 0.16);
+    --app-sidebar-gradient: linear-gradient(180deg, #052767 0%, #24083d 100%);
+    --app-header-bg: rgba(248, 250, 255, 0.82);
+    --app-header-surface: rgba(255, 255, 255, 0.88);
+    --app-input-bg: #ffffff;
+    --app-input-text: #16233f;
+    --app-input-border: rgba(17, 44, 114, 0.16);
+    --app-focus: #5f9dff;
+    --app-selection: rgba(95, 157, 255, 0.24);
+    --app-subtle-fill: rgba(17, 44, 114, 0.05);
+    --app-chip-bg: rgba(17, 44, 114, 0.08);
+    --app-chip-text: #102a69;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --app-bg: #08111f;
+    --app-bg-accent: rgba(17, 34, 64, 0.92);
+    --app-surface: #0f1a2b;
+    --app-surface-muted: #142236;
+    --app-surface-elevated: #17263d;
+    --app-text: #eaf1ff;
+    --app-text-muted: #9baed0;
+    --app-heading: #f7fbff;
+    --app-link: #8ebaff;
+    --app-link-hover: #bfd6ff;
+    --app-border: rgba(146, 178, 230, 0.18);
+    --app-border-strong: rgba(146, 178, 230, 0.28);
+    --app-shadow: 0 18px 36px rgba(0, 0, 0, 0.3);
+    --app-shadow-strong: 0 24px 60px rgba(0, 0, 0, 0.45);
+    --app-sidebar-gradient: linear-gradient(180deg, #020814 0%, #0a1834 50%, #160819 100%);
+    --app-header-bg: rgba(8, 15, 28, 0.82);
+    --app-header-surface: rgba(20, 34, 54, 0.92);
+    --app-input-bg: #0d1727;
+    --app-input-text: #eef4ff;
+    --app-input-border: rgba(146, 178, 230, 0.18);
+    --app-focus: #8ebaff;
+    --app-selection: rgba(142, 186, 255, 0.3);
+    --app-subtle-fill: rgba(142, 186, 255, 0.08);
+    --app-chip-bg: rgba(142, 186, 255, 0.14);
+    --app-chip-text: #d9e7ff;
+}
+
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background: var(--app-bg);
+    color: var(--app-text);
+}
+
+body {
+    --bs-body-bg: var(--app-bg);
+    --bs-body-color: var(--app-text);
+    --bs-emphasis-color: var(--app-heading);
+    --bs-secondary-color: var(--app-text-muted);
+    --bs-border-color: var(--app-border);
+    --bs-secondary-bg: var(--app-surface);
+    --bs-tertiary-bg: var(--app-surface-muted);
+    --bs-card-bg: var(--app-surface);
+    --bs-card-border-color: var(--app-border);
+    --bs-modal-bg: var(--app-surface-elevated);
+    --bs-form-control-bg: var(--app-input-bg);
+    --bs-form-control-color: var(--app-input-text);
+    --bs-form-control-border-color: var(--app-input-border);
+    --bs-link-color: var(--app-link);
+    --bs-link-hover-color: var(--app-link-hover);
+}
+
+::selection {
+    background: var(--app-selection);
 }
 
 a, .btn-link {
-    color: #006bb7;
+    color: var(--app-link);
+}
+
+a:hover, .btn-link:hover {
+    color: var(--app-link-hover);
 }
 
 .btn-primary {
@@ -12,8 +98,32 @@ a, .btn-link {
     border-color: #1861ac;
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+:root[data-theme="dark"] .btn-outline-primary {
+    color: #9dc1ff;
+    border-color: rgba(157, 193, 255, 0.48);
+    background: rgba(157, 193, 255, 0.06);
+}
+
+:root[data-theme="dark"] .btn-outline-primary:hover {
+    color: #08111f;
+    background: #9dc1ff;
+    border-color: #9dc1ff;
+}
+
+:root[data-theme="dark"] .btn-outline-danger {
+    color: #ff9d9d;
+    border-color: rgba(255, 157, 157, 0.38);
+    background: rgba(255, 157, 157, 0.04);
+}
+
+:root[data-theme="dark"] .btn-outline-danger:hover {
+    color: #08111f;
+    background: #ff9d9d;
+    border-color: #ff9d9d;
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus, .form-select:focus {
+    box-shadow: 0 0 0 0.1rem var(--app-surface), 0 0 0 0.25rem var(--app-focus);
 }
 
 .content {
@@ -22,6 +132,60 @@ a, .btn-link {
 
 h1:focus {
     outline: none;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: inherit;
+}
+
+.card,
+.modal-content,
+.dropdown-menu,
+.offcanvas,
+.accordion-item {
+    background: var(--app-surface);
+    color: var(--app-text);
+    border-color: var(--app-border);
+    box-shadow: var(--app-shadow);
+}
+
+.form-control,
+.form-select,
+textarea,
+select,
+input:not([type="checkbox"]):not([type="radio"]) {
+    background-color: var(--app-input-bg);
+    color: var(--app-input-text);
+    border-color: var(--app-input-border);
+}
+
+.form-control::placeholder,
+textarea::placeholder {
+    color: var(--app-text-muted);
+}
+
+.form-check-input {
+    background-color: var(--app-input-bg);
+    border-color: var(--app-input-border);
+}
+
+.form-check-input:checked {
+    background-color: #1b6ec2;
+    border-color: #1b6ec2;
+}
+
+table {
+    color: var(--app-text);
+}
+
+.table {
+    --bs-table-bg: transparent;
+    --bs-table-color: var(--app-text);
+    --bs-table-border-color: var(--app-border);
+    --bs-table-striped-color: var(--app-text);
+    --bs-table-striped-bg: var(--app-subtle-fill);
+    --bs-table-hover-color: var(--app-text);
+    --bs-table-hover-bg: rgba(17, 44, 114, 0.06);
 }
 
 .valid.modified:not([type=checkbox]) {
@@ -42,9 +206,9 @@ h1:focus {
     color: white;
 }
 
-    .blazor-error-boundary::after {
-        content: "An error has occurred."
-    }
+.blazor-error-boundary::after {
+    content: "An error has occurred."
+}
 
 .darker-border-checkbox.form-check-input {
     border-color: #929292;

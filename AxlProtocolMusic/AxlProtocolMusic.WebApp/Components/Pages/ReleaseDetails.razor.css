@@ -542,3 +542,80 @@
         overflow: auto;
     }
 }
+
+:root[data-theme="dark"] .release-content-card,
+:root[data-theme="dark"] .release-links-panel,
+:root[data-theme="dark"] .track-list-panel,
+:root[data-theme="dark"] .lyrics-modal-surface,
+:root[data-theme="dark"] .admin-edit-panel {
+    background: linear-gradient(180deg, var(--app-surface-elevated) 0%, var(--app-surface-muted) 100%);
+    border-color: var(--app-border);
+    box-shadow: var(--app-shadow);
+}
+
+:root[data-theme="dark"] .lyrics-modal-body {
+    background:
+        radial-gradient(circle at top left, rgba(142, 186, 255, 0.08), transparent 24%),
+        linear-gradient(180deg, #101927 0%, #162234 100%);
+}
+
+:root[data-theme="dark"] .lyrics-modal-header {
+    border-bottom-color: var(--app-border);
+}
+
+:root[data-theme="dark"] .lyrics-modal-title {
+    color: var(--app-heading);
+}
+
+:root[data-theme="dark"] .lyrics-modal-header .btn-close {
+    filter: invert(1) opacity(0.9);
+}
+
+:root[data-theme="dark"] ::deep .markdown-content blockquote,
+:root[data-theme="dark"] .content-empty-state,
+:root[data-theme="dark"] .dynamic-panel-empty,
+:root[data-theme="dark"] .release-type-summary,
+:root[data-theme="dark"] .track-duration,
+:root[data-theme="dark"] .credit-role {
+    color: var(--app-text-muted);
+}
+
+:root[data-theme="dark"] .release-link-button {
+    background: #8ebaff;
+    color: #08111f;
+}
+
+:root[data-theme="dark"] .release-link-button:hover {
+    background: #bfd6ff;
+    color: #08111f;
+}
+
+:root[data-theme="dark"] .lyrics-block,
+:root[data-theme="dark"] ::deep .song-lyrics-markdown p {
+    color: #e4ecfb;
+}
+
+:root[data-theme="dark"] .lyrics-modal-body ::deep .song-lyrics-markdown p {
+    color: #e4ecfb;
+}
+
+:root[data-theme="dark"] .lyrics-modal-body ::deep .song-lyrics-markdown h2 {
+    background: var(--app-chip-bg);
+    border-color: var(--app-border);
+    color: var(--app-chip-text);
+    box-shadow: none;
+}
+
+:root[data-theme="dark"] ::deep .song-lyrics-markdown h2,
+:root[data-theme="dark"] .role-chip-edit,
+:root[data-theme="dark"] .track-number-chip {
+    background: var(--app-chip-bg);
+    border-color: var(--app-border);
+    color: var(--app-chip-text);
+    box-shadow: none;
+}
+
+:root[data-theme="dark"] .dynamic-panel {
+    background: var(--app-subtle-fill);
+    border-color: var(--app-border);
+}

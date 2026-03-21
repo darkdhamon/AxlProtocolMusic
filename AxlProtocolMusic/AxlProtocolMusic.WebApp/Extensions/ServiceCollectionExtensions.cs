@@ -31,6 +31,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<IPrivacyPreferencesService, PrivacyPreferencesService>();
         services.AddScoped<IReleaseService, ReleaseService>();
+        services.AddScoped<ITimelineEventService, TimelineEventService>();
         services.AddScoped<IImageStorageService, DiskImageStorageService>();
         services.AddScoped<MarkdownService>();
 

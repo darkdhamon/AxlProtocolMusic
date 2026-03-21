@@ -319,3 +319,34 @@
         overflow: auto;
     }
 }
+
+:root[data-theme="dark"] .feature-panel,
+:root[data-theme="dark"] .origin-section,
+:root[data-theme="dark"] .pillar-section,
+:root[data-theme="dark"] .pathway-card,
+:root[data-theme="dark"] .admin-edit-panel {
+    background: linear-gradient(180deg, var(--app-surface-elevated) 0%, var(--app-surface-muted) 100%);
+    border-color: var(--app-border);
+    box-shadow: var(--app-shadow);
+}
+
+:root[data-theme="dark"] .accent-panel {
+    background:
+        radial-gradient(circle at top right, rgba(243, 181, 84, 0.14), transparent 26%),
+        linear-gradient(180deg, #1c2231 0%, var(--app-surface-muted) 100%);
+}
+
+:root[data-theme="dark"] .origin-stat-block,
+:root[data-theme="dark"] .pillar-card,
+:root[data-theme="dark"] .dynamic-panel {
+    background: var(--app-subtle-fill);
+    border-color: var(--app-border);
+}
+
+:root[data-theme="dark"] .stat-number {
+    color: #dce9ff;
+}
+
+:root[data-theme="dark"] .stat-label {
+    color: var(--app-text-muted);
+}

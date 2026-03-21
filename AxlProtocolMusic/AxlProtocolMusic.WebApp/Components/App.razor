@@ -5,6 +5,54 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    <script>
+        (function () {
+            var storageKey = "axl-theme";
+
+            var prefersDark = function () {
+                return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+            };
+
+            var getStoredTheme = function () {
+                try {
+                    var value = window.localStorage.getItem(storageKey);
+                    return value === "dark" || value === "light" ? value : null;
+                } catch {
+                    return null;
+                }
+            };
+
+            var applyTheme = function (theme) {
+                var resolvedTheme = theme === "dark" ? "dark" : "light";
+                document.documentElement.setAttribute("data-theme", resolvedTheme);
+                document.documentElement.style.colorScheme = resolvedTheme;
+                return resolvedTheme;
+            };
+
+            window.axlTheme = {
+                initializeTheme: function () {
+                    return applyTheme(getStoredTheme() || (prefersDark() ? "dark" : "light"));
+                },
+                setTheme: function (theme) {
+                    var resolvedTheme = applyTheme(theme);
+
+                    try {
+                        window.localStorage.setItem(storageKey, resolvedTheme);
+                    } catch {
+                    }
+
+                    return resolvedTheme;
+                }
+            };
+
+            try {
+                window.axlTheme.initializeTheme();
+            } catch {
+                document.documentElement.setAttribute("data-theme", "light");
+                document.documentElement.style.colorScheme = "light";
+            }
+        })();
+    </script>
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
