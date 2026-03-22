@@ -1,6 +1,8 @@
 @page "/timeline"
 @rendermode InteractiveServer
+@using System.Text.RegularExpressions
 @inject IReleaseService ReleaseService
+@inject INewsArticleService NewsArticleService
 @inject ITimelineEventService TimelineEventService
 @inject NavigationManager NavigationManager
 @implements IDisposable
@@ -19,10 +21,10 @@ else
                 <p class="eyebrow">Project History</p>
                 <h1>The Axl Protocol Timeline</h1>
                 <p class="hero-lead">
-                    A chronology of releases, milestones, and defining moments across the Axl Protocol story.
+                    A chronology of releases, news articles, milestones, and defining moments across the Axl Protocol story.
                 </p>
                 <p class="hero-body">
-                    Follow how major life events, creative decisions, and official releases connect across time, with the
+                    Follow how major life events, creative decisions, official releases, and editorial updates connect across time, with the
                     newest moments appearing first.
                 </p>
             </div>
@@ -37,6 +39,10 @@ else
                     <div>
                         <span class="stat-number">@releaseEventCount</span>
                         <span class="stat-label">releases</span>
+                    </div>
+                    <div>
+                        <span class="stat-number">@newsArticleEventCount</span>
+                        <span class="stat-label">news articles</span>
                     </div>
                     <div>
                         <span class="stat-number">@manualEventCount</span>
@@ -58,13 +64,20 @@ else
 
                     <div class="era-events">
                         <div class="timeline-event-side timeline-event-side-left">
-                            @foreach (var timelineEvent in month.Events.Where(item => item.IsManualEvent))
+                            @foreach (var timelineEvent in month.Events.Where(item => item.IsManualEvent || item.Tag == "News"))
                             {
                                 <article class="event-card event-card-manual">
                                     <div class="event-meta">
                                         <span class="event-date">@timelineEvent.DateLabel</span>
                                         <span class="event-tag @timelineEvent.TagClass">@timelineEvent.Tag</span>
                                     </div>
+
+                                    @if (!string.IsNullOrWhiteSpace(timelineEvent.ImageUrl))
+                                    {
+                                        <div class="event-artwork">
+                                            <img src="@timelineEvent.ImageUrl" alt="@($"{timelineEvent.Title} image")" />
+                                        </div>
+                                    }
 
                                     <h3>@timelineEvent.Title</h3>
                                     <p>@timelineEvent.Description</p>
@@ -81,6 +94,8 @@ else
 
                                     <AuthorizeView Roles="Admin">
                                         <Authorized>
+                                            @if (timelineEvent.IsManualEvent)
+                                            {
                                             <div class="event-admin-actions">
                                                 <button
                                                     class="btn btn-outline-primary btn-sm event-edit-button"
@@ -96,6 +111,7 @@ else
                                                     Delete
                                                 </button>
                                             </div>
+                                            }
                                         </Authorized>
                                     </AuthorizeView>
                                 </article>
@@ -105,22 +121,13 @@ else
                         <div class="timeline-event-center"></div>
 
                         <div class="timeline-event-side timeline-event-side-right timeline-release-grid">
-                            @foreach (var timelineEvent in month.Events.Where(item => !item.IsManualEvent))
+                            @foreach (var timelineEvent in month.Events.Where(item => !item.IsManualEvent && item.Tag == "Release"))
                             {
                                 <article class="event-card event-card-release">
-                                    @if (timelineEvent.Tag == "Release")
+                                    @if (!string.IsNullOrWhiteSpace(timelineEvent.ImageUrl))
                                     {
                                         <div class="event-artwork">
-                                            @if (!string.IsNullOrWhiteSpace(timelineEvent.ImageUrl))
-                                            {
-                                                <img src="@timelineEvent.ImageUrl" alt="@($"{timelineEvent.Title} cover art")" />
-                                            }
-                                            else
-                                            {
-                                                <div class="event-artwork-placeholder">
-                                                    <span>@timelineEvent.Title</span>
-                                                </div>
-                                            }
+                                            <img src="@timelineEvent.ImageUrl" alt="@($"{timelineEvent.Title} cover art")" />
                                         </div>
                                     }
 
@@ -285,6 +292,7 @@ else
     private List<TimelineMonthSection> timelineYears = [];
     private bool isLoading = true;
     private int releaseEventCount;
+    private int newsArticleEventCount;
     private int manualEventCount;
     private int totalTimelineEvents;
     private bool isEditModalOpen;
@@ -312,6 +320,7 @@ else
             searchTerm: null,
             pageNumber: 1,
             pageSize: 250);
+        var newsArticles = await NewsArticleService.GetArticlesAsync();
         var timelineEvents = await TimelineEventService.GetAllAsync();
 
         var releaseEvents = releaseResult.Items
@@ -328,6 +337,22 @@ else
                 null,
                 $"/releases/{Uri.EscapeDataString(release.Slug)}",
                 "View Release"))
+            .ToList();
+
+        var newsArticleEvents = newsArticles
+            .Select(article => new TimelineEntry(
+                null,
+                article.PublicationDateUtc,
+                "News",
+                "news-event",
+                article.Title,
+                BuildNewsDescription(article),
+                [],
+                article.ImageUrl,
+                false,
+                null,
+                "/news",
+                "View Article"))
             .ToList();
 
         var manualEvents = timelineEvents
@@ -347,9 +372,11 @@ else
             .ToList();
 
         releaseEventCount = releaseEvents.Count;
+        newsArticleEventCount = newsArticleEvents.Count;
         manualEventCount = manualEvents.Count;
 
         var combinedEvents = releaseEvents
+            .Concat(newsArticleEvents)
             .Concat(manualEvents)
             .OrderByDescending(item => item.EventDateUtc)
             .ToList();
@@ -370,6 +397,20 @@ else
     private static IReadOnlyList<string> BuildReleaseHighlights(ReleaseListItemViewModel release)
     {
         return [];
+    }
+
+    private static string BuildNewsDescription(NewsArticle article)
+    {
+        var words = Regex.Split(article.Content.Trim(), @"\s+")
+            .Where(word => !string.IsNullOrWhiteSpace(word))
+            .ToList();
+
+        if (words.Count <= 28)
+        {
+            return string.Join(' ', words);
+        }
+
+        return $"{string.Join(' ', words.Take(28))}...";
     }
 
     private void OpenEditModal(TimelineEntry timelineEvent)

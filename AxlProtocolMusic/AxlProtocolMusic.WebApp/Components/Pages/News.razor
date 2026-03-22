@@ -3,6 +3,9 @@
 @rendermode InteractiveServer
 @using System.Text.RegularExpressions
 @inject IJSRuntime JSRuntime
+@inject IImageStorageService ImageStorageService
+@inject INewsArticleService NewsArticleService
+@inject NavigationManager NavigationManager
 @implements IAsyncDisposable
 
 <script>
@@ -51,16 +54,16 @@
 <div class="news-page">
     <section class="news-page-header">
         <div>
-            <p class="eyebrow">Mockup</p>
+            <p class="eyebrow">Editorial</p>
             <h1>News Articles</h1>
             <p class="news-lead">
-                This mockup now follows the product rules we discussed: featured stories at the top, article cards with 50-word previews, modal reading, and scroll loading for the remaining feed.
+                Featured stories lead the page, published articles flow underneath by recency, and admin users can create, edit, schedule, publish, and delete seeded news content directly from this view.
             </p>
         </div>
 
         <div class="news-summary-card">
             <p class="summary-label">Dataset</p>
-            <p class="summary-value">@allArticles.Count generated articles</p>
+            <p class="summary-value">@allArticles.Count stored articles</p>
             <p class="summary-copy">
                 Showing @visibleArticles.Count visible articles
                 @if (isAdmin)
@@ -91,6 +94,15 @@
                             Read More
                         </button>
                         <a class="btn btn-outline-light" href="#news-feed">Jump To Feed</a>
+                        @if (isAdmin)
+                        {
+                            <button class="btn btn-outline-light" type="button" @onclick="() => OpenEditArticle(activeFeaturedArticle)">
+                                Edit Article
+                            </button>
+                            <button class="btn btn-outline-light" type="button" @onclick="() => OpenDeleteArticle(activeFeaturedArticle)">
+                                Delete Article
+                            </button>
+                        }
                     </div>
                 </div>
             </article>
@@ -149,9 +161,20 @@
 
                     <h3>@article.Title</h3>
                     <p class="article-preview">@GetPreviewText(article.Content, 50)</p>
-                    <button class="btn btn-primary" type="button" @onclick="() => OpenArticle(article)">
-                        Read More
-                    </button>
+                    <div class="article-card-actions">
+                        <button class="btn btn-primary" type="button" @onclick="() => OpenArticle(article)">
+                            Read More
+                        </button>
+                        @if (isAdmin)
+                        {
+                            <button class="btn btn-outline-light article-edit-button" type="button" @onclick="() => OpenEditArticle(article)">
+                                Edit
+                            </button>
+                            <button class="btn btn-outline-danger article-delete-button" type="button" @onclick="() => OpenDeleteArticle(article)">
+                                Delete
+                            </button>
+                        }
+                    </div>
                 </div>
             </article>
         }
@@ -183,8 +206,18 @@
                         <h3 class="news-modal-title">@selectedArticle.Title</h3>
                         <p class="news-modal-date">@FormatPublicationLabel(selectedArticle)</p>
                     </div>
-
-                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseArticle"></button>
+                    <div class="news-modal-header-actions">
+                        @if (isAdmin)
+                        {
+                            <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => OpenEditArticle(selectedArticle)">
+                                Edit Article
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => OpenDeleteArticle(selectedArticle)">
+                                Delete Article
+                            </button>
+                        }
+                        <button type="button" class="btn-close" aria-label="Close" @onclick="CloseArticle"></button>
+                    </div>
                 </div>
 
                 @if (!string.IsNullOrWhiteSpace(selectedArticle.ImageUrl))
@@ -203,31 +236,128 @@
     </div>
 }
 
+@if (isEditModalOpen && editableArticle is not null)
+{
+    <div class="news-modal-overlay" tabindex="-1" role="dialog" aria-modal="true" @onclick="CloseEditArticle">
+        <div class="news-modal-dialog" role="document" @onclick:stopPropagation="true">
+            <div class="news-modal-surface admin-edit-surface">
+                <div class="news-modal-header">
+                    <div>
+                        <p class="eyebrow">Admin</p>
+                        <h3 class="news-modal-title">@(isCreatingArticle ? "Create Article" : "Edit Article")</h3>
+                        <p class="news-modal-date">Database-backed news editor</p>
+                    </div>
+
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseEditArticle"></button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(editErrorMessage))
+                {
+                    <div class="alert alert-danger admin-edit-alert" role="alert">@editErrorMessage</div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(editStatusMessage))
+                {
+                    <div class="alert alert-success admin-edit-alert" role="alert">@editStatusMessage</div>
+                }
+
+                <div class="admin-edit-form">
+                    <div class="mb-3">
+                        <label class="form-label" for="news-title">Title</label>
+                        <input class="form-control" id="news-title" @bind="editableArticle.Title" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="news-image-url">Image Url</label>
+                        <input class="form-control" id="news-image-url" @bind="editableArticle.ImageUrl" />
+                        <div class="form-text">Paste an existing image URL or upload a new image below.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="news-image-upload">Upload Image</label>
+                        <InputFile id="news-image-upload" OnChange="HandleArticleImageSelectedAsync" accept=".jpg,.jpeg,.png,.webp,.gif" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="news-publication-date">Publication Date</label>
+                        <InputDate class="form-control" id="news-publication-date" @bind-Value="editablePublicationDate" />
+                    </div>
+
+                    <div class="admin-checkbox-row mb-3">
+                        <label class="form-check">
+                            <input class="form-check-input" type="checkbox" @bind="editableArticle.IsPublished" />
+                            <span class="form-check-label">Published</span>
+                        </label>
+
+                        <label class="form-check">
+                            <input class="form-check-input" type="checkbox" @bind="editableArticle.IsFeatured" />
+                            <span class="form-check-label">Featured</span>
+                        </label>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="news-content">Content</label>
+                        <textarea class="form-control admin-content-editor" id="news-content" @bind="editableArticle.Content"></textarea>
+                    </div>
+
+                    <div class="admin-edit-actions">
+                        <button class="btn btn-outline-secondary" type="button" @onclick="CloseEditArticle">Cancel</button>
+                        <button class="btn btn-primary" type="button" @onclick="SaveEditedArticle">
+                            @(isCreatingArticle ? "Create Article" : "Save Changes")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (isDeleteModalOpen && articlePendingDelete is not null)
+{
+    <div class="news-modal-overlay" tabindex="-1" role="dialog" aria-modal="true" @onclick="CloseDeleteArticle">
+        <div class="news-modal-dialog" role="document" @onclick:stopPropagation="true">
+            <div class="news-modal-surface delete-confirm-surface">
+                <div class="news-modal-header">
+                    <div>
+                        <p class="eyebrow">Admin</p>
+                        <h3 class="news-modal-title">Delete Article</h3>
+                        <p class="news-modal-date">This action removes the article from the database.</p>
+                    </div>
+
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseDeleteArticle"></button>
+                </div>
+
+                <div class="delete-confirm-body">
+                    <p>Are you sure you want to delete <strong>@articlePendingDelete.Title</strong>?</p>
+                    <p>This updates the featured carousel, feed, and article modal immediately.</p>
+                </div>
+
+                <div class="admin-edit-actions delete-confirm-actions">
+                    <button class="btn btn-outline-secondary" type="button" @onclick="CloseDeleteArticle">Cancel</button>
+                    <button class="btn btn-danger" type="button" @onclick="ConfirmDeleteArticle">Delete Article</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
-    private const int FeedBatchSize = 9;
-    private static readonly string[] MockImageUrls =
-    [
-        string.Empty,
-        "/uploads/releases/24ecbe52da3f44f9971386b6aa824d39.png",
-        "/uploads/releases/2be94a351134427cbc7d246b2466f5fd.png",
-        "/uploads/releases/6ad4a3897ec144b3bb4970999daca630.png",
-        "/uploads/releases/6af29a343cbd4d1db7cb7c378f345558.png",
-        "/uploads/releases/81cbbdd5332d47418a14261319b98625.png",
-        "/uploads/releases/ba890855935c4e9b97ffc347ca7aea49.png",
-        "/uploads/releases/deea5e23c13d462baebeedd2708386a4.png",
-        "/uploads/releases/e8ab31b5f4904929b4ac7f899706ab59.png",
-        "/Assets/Logo/Site%20Logo.png"
-    ];
+    [SupplyParameterFromQuery(Name = "editor")]
+    public string? EditorMode { get; set; }
 
-    private List<MockNewsArticle> allArticles = [];
-    private List<MockNewsArticle> visibleArticles = [];
-    private List<MockNewsArticle> featuredArticles = [];
-    private List<MockNewsArticle> feedArticles = [];
-    private List<MockNewsArticle> loadedArticles = [];
-    private MockNewsArticle? selectedArticle;
+    private const int FeedBatchSize = 9;
+
+    private List<NewsArticle> allArticles = [];
+    private List<NewsArticle> visibleArticles = [];
+    private List<NewsArticle> featuredArticles = [];
+    private List<NewsArticle> feedArticles = [];
+    private List<NewsArticle> loadedArticles = [];
+    private NewsArticle? selectedArticle;
+    private NewsArticle? editableArticle;
+    private NewsArticle? articlePendingDelete;
     private DotNetObjectReference<News>? dotNetReference;
     private ElementReference loadMoreSentinel;
     private int activeFeaturedArticleIndex;
@@ -235,6 +365,12 @@
     private bool hasMoreArticles;
     private bool isLoadingMore;
     private bool observerInitialized;
+    private bool isEditModalOpen;
+    private bool isCreatingArticle;
+    private bool isDeleteModalOpen;
+    private DateTime editablePublicationDate;
+    private string? editErrorMessage;
+    private string? editStatusMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -243,23 +379,22 @@
             : await AuthenticationStateTask;
 
         isAdmin = authenticationState?.User.IsInRole("Admin") == true;
-        allArticles = BuildMockArticles();
-        visibleArticles = allArticles
-            .Where(CanViewArticle)
-            .OrderByDescending(article => article.PublicationDateUtc)
-            .ToList();
+        await RefreshVisibleArticlesAsync();
 
-        featuredArticles = visibleArticles
-            .Where(article => article.IsFeatured)
-            .OrderByDescending(article => article.PublicationDateUtc)
-            .ToList();
+        if (isAdmin && string.Equals(EditorMode, "new", StringComparison.OrdinalIgnoreCase))
+        {
+            OpenCreateArticle();
+        }
+    }
 
-        feedArticles = visibleArticles
-            .Where(article => !article.IsFeatured)
-            .OrderByDescending(article => article.PublicationDateUtc)
-            .ToList();
-
-        LoadNextBatch();
+    protected override void OnParametersSet()
+    {
+        if (isAdmin
+            && !isEditModalOpen
+            && string.Equals(EditorMode, "new", StringComparison.OrdinalIgnoreCase))
+        {
+            OpenCreateArticle();
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -310,23 +445,13 @@
         hasMoreArticles = loadedArticles.Count < feedArticles.Count;
     }
 
-    private bool CanViewArticle(MockNewsArticle article)
-    {
-        if (isAdmin)
-        {
-            return true;
-        }
-
-        return IsLiveForPublic(article);
-    }
-
-    private static bool IsLiveForPublic(MockNewsArticle article)
+    private static bool IsLiveForPublic(NewsArticle article)
     {
         return article.IsPublished
             && article.PublicationDateUtc <= DateTimeOffset.UtcNow;
     }
 
-    private void OpenArticle(MockNewsArticle article)
+    private void OpenArticle(NewsArticle article)
     {
         selectedArticle = article;
     }
@@ -334,6 +459,58 @@
     private void CloseArticle()
     {
         selectedArticle = null;
+    }
+
+    private void OpenEditArticle(NewsArticle article)
+    {
+        editableArticle = CloneArticle(article);
+        editablePublicationDate = article.PublicationDateUtc.UtcDateTime.Date;
+        editErrorMessage = null;
+        editStatusMessage = null;
+        isCreatingArticle = false;
+        isEditModalOpen = true;
+    }
+
+    private void OpenCreateArticle()
+    {
+        editableArticle = new NewsArticle
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Slug = string.Empty,
+            Title = string.Empty,
+            Content = string.Empty,
+            ImageUrl = string.Empty,
+            PublicationDateUtc = DateTimeOffset.UtcNow,
+            IsPublished = false,
+            IsFeatured = false
+        };
+        editablePublicationDate = DateTime.UtcNow.Date;
+        editErrorMessage = null;
+        editStatusMessage = null;
+        isCreatingArticle = true;
+        isEditModalOpen = true;
+    }
+
+    private void OpenDeleteArticle(NewsArticle article)
+    {
+        articlePendingDelete = article;
+        isDeleteModalOpen = true;
+    }
+
+    private void CloseEditArticle()
+    {
+        isEditModalOpen = false;
+        editableArticle = null;
+        editErrorMessage = null;
+        editStatusMessage = null;
+        isCreatingArticle = false;
+        RemoveEditorQueryParameter();
+    }
+
+    private void CloseDeleteArticle()
+    {
+        isDeleteModalOpen = false;
+        articlePendingDelete = null;
     }
 
     private void ShowPreviousFeaturedArticle()
@@ -361,83 +538,133 @@
         activeFeaturedArticleIndex = index;
     }
 
-    private static List<MockNewsArticle> BuildMockArticles()
+    private async Task SaveEditedArticle()
     {
-        var articles = new List<MockNewsArticle>(50);
-        var now = DateTimeOffset.UtcNow;
-        var categories =
-            new[]
-            {
-                "Release Update",
-                "Studio Journal",
-                "Creative Process",
-                "Milestone Report",
-                "Catalog Note",
-                "Behind The Scenes"
-            };
-        var headlines =
-            new[]
-            {
-                "Shaping The Next Chapter",
-                "Refining The Sound",
-                "Building Momentum Around The Catalog",
-                "Turning Sessions Into Story",
-                "Mapping The Release Window",
-                "Connecting Music With Narrative"
-            };
-        var focusPoints =
-            new[]
-            {
-                "the release schedule",
-                "the visual identity",
-                "the latest studio sessions",
-                "the growing archive",
-                "the story around each track",
-                "how new milestones connect to older eras"
-            };
-
-        for (var index = 0; index < 50; index++)
+        if (editableArticle is null)
         {
-            var articleNumber = index + 1;
-            var isScheduled = articleNumber % 10 == 0;
-            var publicationDateUtc = isScheduled
-                ? now.AddDays((articleNumber / 10) + 2)
-                : now.AddDays(-(articleNumber - 1) * 2);
-
-            var isPublished = !isScheduled || articleNumber % 20 == 0;
-            var title = $"{categories[index % categories.Length]} {articleNumber}: {headlines[index % headlines.Length]}";
-            var imageUrl = articleNumber % 4 == 0
-                ? string.Empty
-                : MockImageUrls[(index % (MockImageUrls.Length - 1)) + 1];
-
-            articles.Add(new MockNewsArticle
-            {
-                Id = $"mock-news-{articleNumber:00}",
-                Title = title,
-                Slug = $"mock-news-{articleNumber:00}",
-                Content = BuildMockContent(articleNumber, focusPoints[index % focusPoints.Length], title),
-                ImageUrl = imageUrl,
-                PublicationDateUtc = publicationDateUtc,
-                IsPublished = isPublished,
-                IsFeatured = articleNumber <= 5
-            });
+            return;
         }
 
-        return articles
-            .OrderByDescending(article => article.PublicationDateUtc)
-            .ToList();
+        if (string.IsNullOrWhiteSpace(editableArticle.Title))
+        {
+            editErrorMessage = "Title is required.";
+            editStatusMessage = null;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editableArticle.Content))
+        {
+            editErrorMessage = "Content is required.";
+            editStatusMessage = null;
+            return;
+        }
+
+        try
+        {
+            if (isCreatingArticle)
+            {
+                await NewsArticleService.CreateAsync(BuildUpdateRequest());
+                await RefreshVisibleArticlesAsync();
+                CloseEditArticle();
+                return;
+            }
+
+            var previousImageUrl = allArticles
+                .FirstOrDefault(article => article.Id == editableArticle.Id)?
+                .ImageUrl;
+
+            var updatedArticle = await NewsArticleService.UpdateAsync(BuildUpdateRequest());
+
+            if (!string.IsNullOrWhiteSpace(previousImageUrl)
+                && NewsArticleService.IsManagedImageUrl(previousImageUrl)
+                && !string.Equals(previousImageUrl, updatedArticle.ImageUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                await ImageStorageService.DeleteAsync(previousImageUrl);
+            }
+
+            await RefreshVisibleArticlesAsync(updatedArticle.Id);
+            CloseEditArticle();
+        }
+        catch (Exception exception)
+        {
+            editErrorMessage = exception.Message;
+            editStatusMessage = null;
+        }
     }
 
-    private static string BuildMockContent(int articleNumber, string focusPoint, string title)
+    private async Task HandleArticleImageSelectedAsync(InputFileChangeEventArgs args)
     {
-        return string.Join(
-            "\n\n",
-            [
-                $"{title} is part of the News Articles mockup and exists to preview how long-form updates could read once the editorial system is wired into the site. This sample article follows the same model we discussed, with a title, publication date, optional image support, and enough body copy to make the card preview and modal feel realistic.",
-                $"In this sample story, the update focuses on {focusPoint}. The goal is to show how an article can frame context around a release, describe what changed in the creative process, and give visitors a stronger sense of momentum across the broader Axl Protocol Music project without forcing them to leave the news feed immediately.",
-                $"Article {articleNumber} also demonstrates the reading flow for the modal experience. A visitor sees the first fifty words on the card, notices the trailing ellipsis when more text exists, clicks Read More, and then lands in a larger article presentation with the hero image at the top and the full story continuing below it in a clean, readable layout.",
-                $"This dummy copy is intentionally straightforward, but it points toward the structure we can use later for release announcements, studio journals, premiere notes, milestone recaps, or reflections that connect a new post to the timeline and catalog. Once the real backend is added, these placeholders can give way to actual published stories without changing the overall page behavior."
-            ]);
+        var file = args.File;
+        if (file is null || editableArticle is null)
+        {
+            return;
+        }
+
+        editErrorMessage = null;
+        editStatusMessage = "Uploading article image...";
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await using var readStream = file.OpenReadStream(5 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await readStream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            var formFile = new Microsoft.AspNetCore.Http.FormFile(memoryStream, 0, memoryStream.Length, file.Name, file.Name)
+            {
+                Headers = new Microsoft.AspNetCore.Http.HeaderDictionary(),
+                ContentType = file.ContentType
+            };
+
+            var imageSaveResult = await ImageStorageService.SaveReleaseImageAsync(formFile);
+
+            if (!string.IsNullOrWhiteSpace(editableArticle.ImageUrl)
+                && NewsArticleService.IsManagedImageUrl(editableArticle.ImageUrl)
+                && !string.Equals(editableArticle.ImageUrl, imageSaveResult.Url, StringComparison.OrdinalIgnoreCase))
+            {
+                await ImageStorageService.DeleteAsync(editableArticle.ImageUrl);
+            }
+
+            editableArticle.ImageUrl = imageSaveResult.Url;
+            editStatusMessage = "Article image uploaded.";
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception exception)
+        {
+            editErrorMessage = exception.Message;
+            editStatusMessage = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ConfirmDeleteArticle()
+    {
+        if (articlePendingDelete is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(articlePendingDelete.ImageUrl)
+            && NewsArticleService.IsManagedImageUrl(articlePendingDelete.ImageUrl))
+        {
+            await ImageStorageService.DeleteAsync(articlePendingDelete.ImageUrl);
+        }
+
+        await NewsArticleService.DeleteAsync(articlePendingDelete.Id);
+
+        if (selectedArticle?.Id == articlePendingDelete.Id)
+        {
+            selectedArticle = null;
+        }
+
+        if (editableArticle?.Id == articlePendingDelete.Id)
+        {
+            CloseEditArticle();
+        }
+
+        await RefreshVisibleArticlesAsync();
+        CloseDeleteArticle();
     }
 
     private static IEnumerable<string> GetParagraphs(string content)
@@ -460,23 +687,23 @@
         return $"{string.Join(' ', words.Take(wordCount))}...";
     }
 
-    private static string FormatPublicationLabel(MockNewsArticle article)
+    private static string FormatPublicationLabel(NewsArticle article)
     {
         var label = article.PublicationDateUtc.ToLocalTime().ToString("MMMM d, yyyy");
         if (!article.IsPublished)
         {
-            return $"Unpublished • {label}";
+            return $"Unpublished - {label}";
         }
 
         if (article.PublicationDateUtc > DateTimeOffset.UtcNow)
         {
-            return $"Scheduled • {label}";
+            return $"Scheduled - {label}";
         }
 
         return label;
     }
 
-    private static string GetCardStyle(MockNewsArticle article)
+    private static string GetCardStyle(NewsArticle article)
     {
         if (string.IsNullOrWhiteSpace(article.ImageUrl))
         {
@@ -486,7 +713,7 @@
         return $"background-image: linear-gradient(180deg, rgba(8, 14, 28, 0.16), rgba(8, 14, 28, 0.88)), url('{article.ImageUrl}');";
     }
 
-    private static string GetFeaturedStyle(MockNewsArticle article)
+    private static string GetFeaturedStyle(NewsArticle article)
     {
         if (string.IsNullOrWhiteSpace(article.ImageUrl))
         {
@@ -494,6 +721,97 @@
         }
 
         return $"background-image: linear-gradient(180deg, rgba(8, 14, 28, 0.24), rgba(8, 14, 28, 0.88)), url('{article.ImageUrl}');";
+    }
+
+    private async Task RefreshVisibleArticlesAsync(string? focusArticleId = null)
+    {
+        var loadedCount = loadedArticles.Count;
+
+        allArticles = (await NewsArticleService.GetArticlesAsync(includeUnpublished: true)).ToList();
+        visibleArticles = isAdmin
+            ? allArticles.ToList()
+            : allArticles.Where(IsLiveForPublic).ToList();
+
+        featuredArticles = visibleArticles
+            .Where(article => article.IsFeatured)
+            .OrderByDescending(article => article.PublicationDateUtc)
+            .ToList();
+
+        feedArticles = visibleArticles
+            .Where(article => !article.IsFeatured)
+            .OrderByDescending(article => article.PublicationDateUtc)
+            .ToList();
+
+        loadedArticles = feedArticles
+            .Take(Math.Min(Math.Max(loadedCount, FeedBatchSize), feedArticles.Count))
+            .ToList();
+
+        hasMoreArticles = loadedArticles.Count < feedArticles.Count;
+
+        if (featuredArticles.Count == 0)
+        {
+            activeFeaturedArticleIndex = 0;
+        }
+        else if (focusArticleId is not null)
+        {
+            var focusedIndex = featuredArticles.FindIndex(article => article.Id == focusArticleId);
+            activeFeaturedArticleIndex = focusedIndex >= 0
+                ? focusedIndex
+                : Math.Min(activeFeaturedArticleIndex, featuredArticles.Count - 1);
+        }
+        else
+        {
+            activeFeaturedArticleIndex = Math.Min(activeFeaturedArticleIndex, featuredArticles.Count - 1);
+        }
+
+        if (selectedArticle is not null)
+        {
+            selectedArticle = visibleArticles.FirstOrDefault(article => article.Id == selectedArticle.Id);
+        }
+    }
+
+    private NewsArticleUpdateRequest BuildUpdateRequest()
+    {
+        return new NewsArticleUpdateRequest
+        {
+            OriginalSlug = isCreatingArticle ? null : editableArticle?.Slug,
+            Title = editableArticle?.Title ?? string.Empty,
+            Content = editableArticle?.Content ?? string.Empty,
+            ImageUrl = editableArticle?.ImageUrl ?? string.Empty,
+            PublicationDate = editablePublicationDate,
+            IsPublished = editableArticle?.IsPublished == true,
+            IsFeatured = editableArticle?.IsFeatured == true
+        };
+    }
+
+    private void RemoveEditorQueryParameter()
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        var filteredEntries = query
+            .Where(entry => !string.Equals(entry.Key, "editor", StringComparison.OrdinalIgnoreCase))
+            .SelectMany(entry => entry.Value, (entry, value) => new KeyValuePair<string, string?>(entry.Key, value));
+
+        var targetUri = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
+            uri.GetLeftPart(UriPartial.Path),
+            filteredEntries);
+
+        NavigationManager.NavigateTo(targetUri, replace: true);
+    }
+
+    private static NewsArticle CloneArticle(NewsArticle article)
+    {
+        return new NewsArticle
+        {
+            Id = article.Id,
+            Title = article.Title,
+            Slug = article.Slug,
+            Content = article.Content,
+            ImageUrl = article.ImageUrl,
+            PublicationDateUtc = article.PublicationDateUtc,
+            IsPublished = article.IsPublished,
+            IsFeatured = article.IsFeatured
+        };
     }
 
     public async ValueTask DisposeAsync()
@@ -507,24 +825,5 @@
         }
 
         dotNetReference?.Dispose();
-    }
-
-    private sealed class MockNewsArticle
-    {
-        public string Id { get; init; } = string.Empty;
-
-        public string Title { get; init; } = string.Empty;
-
-        public string Slug { get; init; } = string.Empty;
-
-        public string Content { get; init; } = string.Empty;
-
-        public string ImageUrl { get; init; } = string.Empty;
-
-        public DateTimeOffset PublicationDateUtc { get; init; }
-
-        public bool IsPublished { get; init; }
-
-        public bool IsFeatured { get; init; }
     }
 }

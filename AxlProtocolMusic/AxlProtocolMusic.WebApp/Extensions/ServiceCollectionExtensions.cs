@@ -29,6 +29,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
         services.AddScoped<IAboutPageService, AboutPageService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddScoped<INewsArticleService, NewsArticleService>();
         services.AddScoped<IPrivacyPreferencesService, PrivacyPreferencesService>();
         services.AddScoped<IReleaseService, ReleaseService>();
         services.AddScoped<ITimelineEventService, TimelineEventService>();
@@ -76,6 +77,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<AdminIdentitySeeder>();
+        services.AddScoped<NewsArticleSeedService>();
         services.AddScoped<ReleaseSeedService>();
         services.AddScoped<DevelopmentDatabaseResetService>();
         services.AddCascadingAuthenticationState();

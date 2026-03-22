@@ -182,6 +182,7 @@
     grid-template-columns: repeat(auto-fit, minmax(280px, 360px));
     min-width: 0;
     align-content: start;
+    align-items: start;
     justify-content: start;
     justify-items: start;
     gap: 1rem;
@@ -281,6 +282,11 @@
 .event-tag.release-event {
     background: rgba(17, 44, 114, 0.12);
     color: #102a69;
+}
+
+.event-tag.news-event {
+    background: rgba(25, 135, 84, 0.14);
+    color: #156847;
 }
 
 .event-tag.timeline-event {
@@ -508,6 +514,11 @@
 :root[data-theme="dark"] .event-tag.release-event {
     background: rgba(142, 186, 255, 0.14);
     color: #dce9ff;
+}
+
+:root[data-theme="dark"] .event-tag.news-event {
+    background: rgba(79, 209, 146, 0.16);
+    color: #a9f0c9;
 }
 
 :root[data-theme="dark"] .event-tag.timeline-event {

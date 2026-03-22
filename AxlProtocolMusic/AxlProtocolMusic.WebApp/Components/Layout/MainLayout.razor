@@ -32,6 +32,15 @@
                 <a class="btn btn-outline-primary btn-sm" href="/releases">Back to Releases</a>
             }
 
+            <AuthorizeView Roles="Admin">
+                <Authorized>
+                    @if (IsNewsPage)
+                    {
+                        <a class="btn btn-primary btn-sm" href="/news?editor=new">Create Article</a>
+                    }
+                </Authorized>
+            </AuthorizeView>
+
             @if (HostEnvironment.IsDevelopment())
             {
                 <AuthorizeView Roles="Admin">
@@ -100,6 +109,18 @@
     private bool IsTimelinePage =>
         NavigationManager.ToBaseRelativePath(NavigationManager.Uri)
             .StartsWith("timeline", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsNewsPage
+    {
+        get
+        {
+            var relativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+            var path = relativePath.Split('?', '#')[0].Trim('/');
+
+            return string.Equals(path, "news", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(path, "news-articles", StringComparison.OrdinalIgnoreCase);
+        }
+    }
 
     private bool IsReleaseDetailsPage
     {

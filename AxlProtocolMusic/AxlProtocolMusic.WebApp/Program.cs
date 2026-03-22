@@ -43,10 +43,12 @@ using (var scope = app.Services.CreateScope())
 {
     var adminIdentitySeeder = scope.ServiceProvider.GetRequiredService<AdminIdentitySeeder>();
     var aboutPageService = scope.ServiceProvider.GetRequiredService<IAboutPageService>();
+    var newsArticleSeedService = scope.ServiceProvider.GetRequiredService<NewsArticleSeedService>();
     var releaseSeedService = scope.ServiceProvider.GetRequiredService<ReleaseSeedService>();
     var timelineEventService = scope.ServiceProvider.GetRequiredService<ITimelineEventService>();
     await adminIdentitySeeder.SeedAsync();
     await aboutPageService.SeedAsync();
+    await newsArticleSeedService.SeedAsync();
     await releaseSeedService.SeedAsync();
     await timelineEventService.SeedAsync();
 }
