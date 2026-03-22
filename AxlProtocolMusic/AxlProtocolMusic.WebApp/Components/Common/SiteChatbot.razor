@@ -2,6 +2,7 @@
 @using AxlProtocolMusic.WebApp.Models.Chatbot
 @using System.Text.Json
 @using Microsoft.Extensions.Options
+@implements IAsyncDisposable
 @inject IChatbotBudgetService ChatbotBudgetService
 @inject IJSRuntime JSRuntime
 @inject ISiteChatbotService SiteChatbotService
@@ -9,7 +10,7 @@
 
 @if (ChatbotOptions.Value.Enabled && IsChatbotVisible() && !chatbotBudgetSummary.IsManuallyDisabled)
 {
-    <div class="site-chatbot @(isOpen ? "is-open" : string.Empty)" style="@chatbotAccentStyle">
+    <div id="site-chatbot-root" class="site-chatbot @(isOpen ? "is-open" : string.Empty)" style="@GetChatbotRootStyle()">
         <button
             class="chatbot-launcher"
             type="button"
@@ -21,7 +22,7 @@
 
         @if (isOpen)
         {
-            <section id="site-chatbot-panel" class="chatbot-panel" aria-label="Site assistant">
+            <section id="site-chatbot-panel" class="chatbot-panel" style="@GetChatbotPanelStyle()" aria-label="Site assistant">
                 <header class="chatbot-header">
                     <div class="chatbot-header-row">
                         <div>
@@ -32,7 +33,7 @@
                     </div>
                 </header>
 
-                <div class="chatbot-body">
+                <div id="site-chatbot-body" class="chatbot-body">
                     @if (messages.Count == 0)
                     {
                         <div class="chatbot-empty-state">
@@ -51,15 +52,7 @@
                     else
                     {
                         <div class="chatbot-message-list">
-                            @if (isBusy)
-                            {
-                                <article class="chatbot-message assistant is-pending">
-                                    <p class="chatbot-message-role">Assistant</p>
-                                    <p>Thinking...</p>
-                                </article>
-                            }
-
-                            @foreach (var message in messages.AsEnumerable().Reverse())
+                            @foreach (var message in messages)
                             {
                                 <article class="chatbot-message @message.Role">
                                     <p class="chatbot-message-role">@(message.Role == "assistant" ? "Assistant" : "You")</p>
@@ -72,6 +65,14 @@
                                     {
                                         <p>@message.Content</p>
                                     }
+                                </article>
+                            }
+
+                            @if (isBusy)
+                            {
+                                <article class="chatbot-message assistant is-pending">
+                                    <p class="chatbot-message-role">Assistant</p>
+                                    <p>Thinking...</p>
                                 </article>
                             }
 
@@ -118,6 +119,14 @@
     private bool hasLoadedStoredTranscript;
     private int consecutiveNoCount;
     private DateTimeOffset? browserDisabledUntilUtc;
+    private int? panelLeft;
+    private int? panelTop;
+    private int? panelWidth;
+    private int? panelHeight;
+    private DotNetObjectReference<SiteChatbot>? dotNetReference;
+    private bool hasInitializedPanelUi;
+    private int lastRenderedMessageCount = -1;
+    private bool lastRenderedBusyState;
 
     protected override async Task OnInitializedAsync()
     {
@@ -126,19 +135,53 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || hasLoadedStoredTranscript)
+        if (firstRender && !hasLoadedStoredTranscript)
         {
+            hasLoadedStoredTranscript = true;
+            await LoadStoredTranscriptAsync();
+            StateHasChanged();
             return;
         }
 
-        hasLoadedStoredTranscript = true;
-        await LoadStoredTranscriptAsync();
-        StateHasChanged();
+        if (isOpen)
+        {
+            if (!hasInitializedPanelUi)
+            {
+                dotNetReference ??= DotNetObjectReference.Create(this);
+                await JSRuntime.InvokeVoidAsync(
+                    "axlChatbotUi.initializePanel",
+                    "#site-chatbot-root",
+                    "#site-chatbot-panel",
+                    ".chatbot-header",
+                    dotNetReference);
+                hasInitializedPanelUi = true;
+            }
+
+            if (messages.Count != lastRenderedMessageCount || isBusy != lastRenderedBusyState)
+            {
+                await JSRuntime.InvokeVoidAsync("axlChatbotUi.scrollToBottom", "#site-chatbot-body");
+                lastRenderedMessageCount = messages.Count;
+                lastRenderedBusyState = isBusy;
+            }
+        }
     }
 
-    private void ToggleOpen()
+    private async Task ToggleOpen()
     {
-        isOpen = !isOpen;
+        if (isOpen)
+        {
+            isOpen = false;
+            panelLeft = null;
+            panelTop = null;
+            panelWidth = null;
+            panelHeight = null;
+            hasInitializedPanelUi = false;
+            await JSRuntime.InvokeVoidAsync("axlChatbotUi.resetPanel", "#site-chatbot-root");
+            await PersistStateAsync();
+            return;
+        }
+
+        isOpen = true;
     }
 
     private async Task UseSuggestionAsync(string suggestion)
@@ -222,7 +265,7 @@
 
     private bool ShouldRefuseLocally(string message)
     {
-        return IsBoundaryProbe(message) || IsOffScopeRequest(message);
+        return IsBoundaryProbe(message);
     }
 
     private async Task HandleKeyDown(KeyboardEventArgs args)
@@ -254,6 +297,34 @@
         chatbotAccentStyle = $"--chatbot-primary:{primary};--chatbot-secondary:{secondary};--chatbot-soft:{soft};--chatbot-border:{border};";
     }
 
+    private string GetChatbotRootStyle()
+    {
+        if (isOpen && panelLeft.HasValue && panelTop.HasValue)
+        {
+            return $"{chatbotAccentStyle}left:{panelLeft.Value}px;top:{panelTop.Value}px;right:auto;bottom:auto;";
+        }
+
+        return chatbotAccentStyle;
+    }
+
+    private string GetChatbotPanelStyle()
+    {
+        var styles = new List<string>();
+
+        if (panelWidth.HasValue)
+        {
+            styles.Add($"width:{panelWidth.Value}px");
+        }
+
+        if (panelHeight.HasValue)
+        {
+            styles.Add($"height:{panelHeight.Value}px");
+            styles.Add("max-height:none");
+        }
+
+        return string.Join(';', styles);
+    }
+
     private async Task LoadStoredTranscriptAsync()
     {
         try
@@ -266,6 +337,10 @@
                 {
                     consecutiveNoCount = Math.Max(0, parsedState.ConsecutiveNoCount);
                     browserDisabledUntilUtc = parsedState.BrowserDisabledUntilUtc;
+                    panelLeft = parsedState.PanelLeft;
+                    panelTop = parsedState.PanelTop;
+                    panelWidth = parsedState.PanelWidth;
+                    panelHeight = parsedState.PanelHeight;
 
                     if (parsedState.Messages is not null)
                     {
@@ -321,6 +396,10 @@
             {
                 ConsecutiveNoCount = consecutiveNoCount,
                 BrowserDisabledUntilUtc = browserDisabledUntilUtc,
+                PanelLeft = panelLeft,
+                PanelTop = panelTop,
+                PanelWidth = panelWidth,
+                PanelHeight = panelHeight,
                 Messages = messages.Select(item => new StoredChatMessage
                 {
                     Role = item.Role,
@@ -453,6 +532,22 @@
         }
     }
 
+    [JSInvokable]
+    public async Task UpdatePanelLayout(int left, int top, int width, int height)
+    {
+        panelLeft = left;
+        panelTop = top;
+        panelWidth = width;
+        panelHeight = height;
+        await PersistStateAsync();
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        dotNetReference?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
     private sealed record ChatMessage(string Role, string Content);
 
     private sealed class StoredChatMessage
@@ -467,6 +562,14 @@
         public int ConsecutiveNoCount { get; set; }
 
         public DateTimeOffset? BrowserDisabledUntilUtc { get; set; }
+
+        public int? PanelLeft { get; set; }
+
+        public int? PanelTop { get; set; }
+
+        public int? PanelWidth { get; set; }
+
+        public int? PanelHeight { get; set; }
 
         public List<StoredChatMessage> Messages { get; set; } = [];
     }
