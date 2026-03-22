@@ -10,7 +10,8 @@
 
 <script>
     window.axlTimelinePage = window.axlTimelinePage || (() => {
-        let observer;
+        let loadObserver;
+        let revealObserver;
 
         function initializeInfiniteScroll(sentinel, dotNetReference) {
             if (!sentinel || !dotNetReference) {
@@ -19,7 +20,7 @@
 
             disposeInfiniteScroll();
 
-            observer = new IntersectionObserver(entries => {
+            loadObserver = new IntersectionObserver(entries => {
                 const visibleEntry = entries.find(entry => entry.isIntersecting);
                 if (!visibleEntry) {
                     return;
@@ -32,19 +33,61 @@
                 threshold: 0.1
             });
 
-            observer.observe(sentinel);
+            loadObserver.observe(sentinel);
+        }
+
+        function initializeRevealAnimations() {
+            const targets = document.querySelectorAll(".timeline-reveal-target");
+            if (!targets.length) {
+                return;
+            }
+
+            if (!revealObserver) {
+                revealObserver = new IntersectionObserver(entries => {
+                    entries.forEach(entry => {
+                        if (!entry.isIntersecting) {
+                            return;
+                        }
+
+                        entry.target.classList.add("is-visible");
+                        revealObserver.unobserve(entry.target);
+                    });
+                }, {
+                    root: null,
+                    rootMargin: "0px 0px -8% 0px",
+                    threshold: 0.16
+                });
+            }
+
+            targets.forEach(target => {
+                if (target.classList.contains("is-visible") || target.dataset.timelineObserved === "true") {
+                    return;
+                }
+
+                target.dataset.timelineObserved = "true";
+                revealObserver.observe(target);
+            });
         }
 
         function disposeInfiniteScroll() {
-            if (observer) {
-                observer.disconnect();
-                observer = null;
+            if (loadObserver) {
+                loadObserver.disconnect();
+                loadObserver = null;
+            }
+        }
+
+        function disposeRevealAnimations() {
+            if (revealObserver) {
+                revealObserver.disconnect();
+                revealObserver = null;
             }
         }
 
         return {
             initializeInfiniteScroll,
-            disposeInfiniteScroll
+            initializeRevealAnimations,
+            disposeInfiniteScroll,
+            disposeRevealAnimations
         };
     })();
 </script>
@@ -95,6 +138,9 @@ else
         </section>
 
         <section class="timeline-track">
+            @{
+                var initialVisibleEventCount = 0;
+            }
             @foreach (var month in timelineYears)
             {
                 <article class="era-section">
@@ -110,7 +156,10 @@ else
                         <div class="timeline-event-list">
                             @foreach (var timelineEvent in month.Events)
                             {
-                                <article class="event-card">
+                                var isInitiallyVisible = initialVisibleEventCount < 3;
+                                initialVisibleEventCount++;
+
+                                <article class="event-card @timelineEvent.TagClass timeline-reveal-target @(isInitiallyVisible ? "is-visible" : string.Empty)">
                                     <div class="event-meta">
                                         <span class="event-date">@timelineEvent.DateLabel</span>
                                         <span class="event-tag @timelineEvent.TagClass">@timelineEvent.Tag</span>
@@ -349,14 +398,14 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if ((!firstRender && observerInitialized) || !hasMoreMonths)
+        if (!observerInitialized && hasMoreMonths)
         {
-            return;
+            dotNetReference ??= DotNetObjectReference.Create(this);
+            await JSRuntime.InvokeVoidAsync("axlTimelinePage.initializeInfiniteScroll", loadMoreSentinel, dotNetReference);
+            observerInitialized = true;
         }
 
-        dotNetReference ??= DotNetObjectReference.Create(this);
-        await JSRuntime.InvokeVoidAsync("axlTimelinePage.initializeInfiniteScroll", loadMoreSentinel, dotNetReference);
-        observerInitialized = true;
+        await JSRuntime.InvokeVoidAsync("axlTimelinePage.initializeRevealAnimations");
     }
 
     [JSInvokable]
@@ -716,6 +765,7 @@ else
         try
         {
             await JSRuntime.InvokeVoidAsync("axlTimelinePage.disposeInfiniteScroll");
+            await JSRuntime.InvokeVoidAsync("axlTimelinePage.disposeRevealAnimations");
         }
         catch
         {
