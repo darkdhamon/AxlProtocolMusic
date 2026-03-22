@@ -1,7 +1,530 @@
 @page "/news"
+@page "/news-articles"
+@rendermode InteractiveServer
+@using System.Text.RegularExpressions
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
 
-<PageTitle>News</PageTitle>
+<script>
+    window.axlNewsPage = window.axlNewsPage || (() => {
+        let observer;
 
-<h1>News</h1>
+        function initializeInfiniteScroll(sentinel, dotNetReference) {
+            if (!sentinel || !dotNetReference) {
+                return;
+            }
 
-<p>This page will feature updates, announcements, and major milestones for Axl Protocol Music.</p>
+            disposeInfiniteScroll();
+
+            observer = new IntersectionObserver(entries => {
+                const visibleEntry = entries.find(entry => entry.isIntersecting);
+                if (!visibleEntry) {
+                    return;
+                }
+
+                dotNetReference.invokeMethodAsync("LoadMoreFromScroll");
+            }, {
+                root: null,
+                rootMargin: "0px 0px 320px 0px",
+                threshold: 0.1
+            });
+
+            observer.observe(sentinel);
+        }
+
+        function disposeInfiniteScroll() {
+            if (observer) {
+                observer.disconnect();
+                observer = null;
+            }
+        }
+
+        return {
+            initializeInfiniteScroll,
+            disposeInfiniteScroll
+        };
+    })();
+</script>
+
+<PageTitle>News Articles</PageTitle>
+
+<div class="news-page">
+    <section class="news-page-header">
+        <div>
+            <p class="eyebrow">Mockup</p>
+            <h1>News Articles</h1>
+            <p class="news-lead">
+                This mockup now follows the product rules we discussed: featured stories at the top, article cards with 50-word previews, modal reading, and scroll loading for the remaining feed.
+            </p>
+        </div>
+
+        <div class="news-summary-card">
+            <p class="summary-label">Dataset</p>
+            <p class="summary-value">@allArticles.Count generated articles</p>
+            <p class="summary-copy">
+                Showing @visibleArticles.Count visible articles
+                @if (isAdmin)
+                {
+                    <span> including admin-only scheduled or unpublished entries.</span>
+                }
+                else
+                {
+                    <span> that are published and live.</span>
+                }
+            </p>
+        </div>
+    </section>
+
+    @if (featuredArticles.Count > 0)
+    {
+        var activeFeaturedArticle = featuredArticles[activeFeaturedArticleIndex];
+
+        <section class="news-carousel" aria-label="Featured news articles">
+            <article class="featured-story" style="@GetFeaturedStyle(activeFeaturedArticle)">
+                <div class="featured-story-overlay">
+                    <p class="eyebrow">Featured Article</p>
+                    <p class="featured-date">@FormatPublicationLabel(activeFeaturedArticle)</p>
+                    <h2>@activeFeaturedArticle.Title</h2>
+                    <p class="featured-preview">@GetPreviewText(activeFeaturedArticle.Content, 36)</p>
+                    <div class="featured-actions">
+                        <button class="btn btn-light" type="button" @onclick="() => OpenArticle(activeFeaturedArticle)">
+                            Read More
+                        </button>
+                        <a class="btn btn-outline-light" href="#news-feed">Jump To Feed</a>
+                    </div>
+                </div>
+            </article>
+
+            @if (featuredArticles.Count > 1)
+            {
+                <div class="carousel-controls">
+                    <button class="carousel-arrow" type="button" @onclick="ShowPreviousFeaturedArticle" aria-label="Previous featured article">
+                        Prev
+                    </button>
+
+                    <div class="hero-carousel-indicators">
+                        @for (var index = 0; index < featuredArticles.Count; index++)
+                        {
+                            var slideIndex = index;
+                            <button
+                                type="button"
+                                class="indicator @(slideIndex == activeFeaturedArticleIndex ? "active" : string.Empty)"
+                                @onclick="@(() => ShowFeaturedArticle(slideIndex))"
+                                aria-label="Show featured article @(slideIndex + 1)">
+                            </button>
+                        }
+                    </div>
+
+                    <button class="carousel-arrow" type="button" @onclick="ShowNextFeaturedArticle" aria-label="Next featured article">
+                        Next
+                    </button>
+                </div>
+            }
+        </section>
+    }
+
+    <section class="news-feed-header" id="news-feed">
+        <div>
+            <p class="eyebrow">Latest Articles</p>
+            <h2>Most Recent Stories</h2>
+        </div>
+
+        <p class="feed-meta">
+            @loadedArticles.Count of @feedArticles.Count articles loaded
+        </p>
+    </section>
+
+    <section class="article-grid" aria-label="News article feed">
+        @foreach (var article in loadedArticles)
+        {
+            <article class="article-card" style="@GetCardStyle(article)">
+                <div class="article-card-overlay">
+                    <div class="article-card-meta">
+                        <p class="article-card-date">@FormatPublicationLabel(article)</p>
+                        @if (isAdmin && !IsLiveForPublic(article))
+                        {
+                            <span class="article-visibility-badge">Admin Preview</span>
+                        }
+                    </div>
+
+                    <h3>@article.Title</h3>
+                    <p class="article-preview">@GetPreviewText(article.Content, 50)</p>
+                    <button class="btn btn-primary" type="button" @onclick="() => OpenArticle(article)">
+                        Read More
+                    </button>
+                </div>
+            </article>
+        }
+    </section>
+
+    @if (hasMoreArticles)
+    {
+        <div class="scroll-loader">
+            <div @ref="loadMoreSentinel" class="news-scroll-sentinel" aria-hidden="true"></div>
+            <p>@(isLoadingMore ? "Loading more articles..." : "Continue scrolling to load more articles.")</p>
+        </div>
+    }
+    else
+    {
+        <div class="scroll-loader is-complete">
+            <p>All visible articles are loaded.</p>
+        </div>
+    }
+</div>
+
+@if (selectedArticle is not null)
+{
+    <div class="news-modal-overlay" tabindex="-1" role="dialog" aria-modal="true" @onclick="CloseArticle">
+        <div class="news-modal-dialog" role="document" @onclick:stopPropagation="true">
+            <div class="news-modal-surface">
+                <div class="news-modal-header">
+                    <div>
+                        <p class="eyebrow">News Article</p>
+                        <h3 class="news-modal-title">@selectedArticle.Title</h3>
+                        <p class="news-modal-date">@FormatPublicationLabel(selectedArticle)</p>
+                    </div>
+
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseArticle"></button>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(selectedArticle.ImageUrl))
+                {
+                    <img class="news-modal-image" src="@selectedArticle.ImageUrl" alt="@selectedArticle.Title hero image" />
+                }
+
+                <div class="news-modal-body">
+                    @foreach (var paragraph in GetParagraphs(selectedArticle.Content))
+                    {
+                        <p>@paragraph</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
+    private const int FeedBatchSize = 9;
+    private static readonly string[] MockImageUrls =
+    [
+        string.Empty,
+        "/uploads/releases/24ecbe52da3f44f9971386b6aa824d39.png",
+        "/uploads/releases/2be94a351134427cbc7d246b2466f5fd.png",
+        "/uploads/releases/6ad4a3897ec144b3bb4970999daca630.png",
+        "/uploads/releases/6af29a343cbd4d1db7cb7c378f345558.png",
+        "/uploads/releases/81cbbdd5332d47418a14261319b98625.png",
+        "/uploads/releases/ba890855935c4e9b97ffc347ca7aea49.png",
+        "/uploads/releases/deea5e23c13d462baebeedd2708386a4.png",
+        "/uploads/releases/e8ab31b5f4904929b4ac7f899706ab59.png",
+        "/Assets/Logo/Site%20Logo.png"
+    ];
+
+    private List<MockNewsArticle> allArticles = [];
+    private List<MockNewsArticle> visibleArticles = [];
+    private List<MockNewsArticle> featuredArticles = [];
+    private List<MockNewsArticle> feedArticles = [];
+    private List<MockNewsArticle> loadedArticles = [];
+    private MockNewsArticle? selectedArticle;
+    private DotNetObjectReference<News>? dotNetReference;
+    private ElementReference loadMoreSentinel;
+    private int activeFeaturedArticleIndex;
+    private bool isAdmin;
+    private bool hasMoreArticles;
+    private bool isLoadingMore;
+    private bool observerInitialized;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState = AuthenticationStateTask is null
+            ? null
+            : await AuthenticationStateTask;
+
+        isAdmin = authenticationState?.User.IsInRole("Admin") == true;
+        allArticles = BuildMockArticles();
+        visibleArticles = allArticles
+            .Where(CanViewArticle)
+            .OrderByDescending(article => article.PublicationDateUtc)
+            .ToList();
+
+        featuredArticles = visibleArticles
+            .Where(article => article.IsFeatured)
+            .OrderByDescending(article => article.PublicationDateUtc)
+            .ToList();
+
+        feedArticles = visibleArticles
+            .Where(article => !article.IsFeatured)
+            .OrderByDescending(article => article.PublicationDateUtc)
+            .ToList();
+
+        LoadNextBatch();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if ((!firstRender && observerInitialized) || !hasMoreArticles)
+        {
+            return;
+        }
+
+        dotNetReference ??= DotNetObjectReference.Create(this);
+        await JSRuntime.InvokeVoidAsync("axlNewsPage.initializeInfiniteScroll", loadMoreSentinel, dotNetReference);
+        observerInitialized = true;
+    }
+
+    [JSInvokable]
+    public async Task LoadMoreFromScroll()
+    {
+        if (!hasMoreArticles || isLoadingMore)
+        {
+            return;
+        }
+
+        isLoadingMore = true;
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(180);
+        LoadNextBatch();
+        isLoadingMore = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void LoadNextBatch()
+    {
+        if (!hasMoreArticles && loadedArticles.Count > 0)
+        {
+            return;
+        }
+
+        var nextItems = feedArticles
+            .Skip(loadedArticles.Count)
+            .Take(FeedBatchSize)
+            .ToList();
+
+        if (nextItems.Count > 0)
+        {
+            loadedArticles.AddRange(nextItems);
+        }
+
+        hasMoreArticles = loadedArticles.Count < feedArticles.Count;
+    }
+
+    private bool CanViewArticle(MockNewsArticle article)
+    {
+        if (isAdmin)
+        {
+            return true;
+        }
+
+        return IsLiveForPublic(article);
+    }
+
+    private static bool IsLiveForPublic(MockNewsArticle article)
+    {
+        return article.IsPublished
+            && article.PublicationDateUtc <= DateTimeOffset.UtcNow;
+    }
+
+    private void OpenArticle(MockNewsArticle article)
+    {
+        selectedArticle = article;
+    }
+
+    private void CloseArticle()
+    {
+        selectedArticle = null;
+    }
+
+    private void ShowPreviousFeaturedArticle()
+    {
+        if (featuredArticles.Count == 0)
+        {
+            return;
+        }
+
+        activeFeaturedArticleIndex = (activeFeaturedArticleIndex - 1 + featuredArticles.Count) % featuredArticles.Count;
+    }
+
+    private void ShowNextFeaturedArticle()
+    {
+        if (featuredArticles.Count == 0)
+        {
+            return;
+        }
+
+        activeFeaturedArticleIndex = (activeFeaturedArticleIndex + 1) % featuredArticles.Count;
+    }
+
+    private void ShowFeaturedArticle(int index)
+    {
+        activeFeaturedArticleIndex = index;
+    }
+
+    private static List<MockNewsArticle> BuildMockArticles()
+    {
+        var articles = new List<MockNewsArticle>(50);
+        var now = DateTimeOffset.UtcNow;
+        var categories =
+            new[]
+            {
+                "Release Update",
+                "Studio Journal",
+                "Creative Process",
+                "Milestone Report",
+                "Catalog Note",
+                "Behind The Scenes"
+            };
+        var headlines =
+            new[]
+            {
+                "Shaping The Next Chapter",
+                "Refining The Sound",
+                "Building Momentum Around The Catalog",
+                "Turning Sessions Into Story",
+                "Mapping The Release Window",
+                "Connecting Music With Narrative"
+            };
+        var focusPoints =
+            new[]
+            {
+                "the release schedule",
+                "the visual identity",
+                "the latest studio sessions",
+                "the growing archive",
+                "the story around each track",
+                "how new milestones connect to older eras"
+            };
+
+        for (var index = 0; index < 50; index++)
+        {
+            var articleNumber = index + 1;
+            var isScheduled = articleNumber % 10 == 0;
+            var publicationDateUtc = isScheduled
+                ? now.AddDays((articleNumber / 10) + 2)
+                : now.AddDays(-(articleNumber - 1) * 2);
+
+            var isPublished = !isScheduled || articleNumber % 20 == 0;
+            var title = $"{categories[index % categories.Length]} {articleNumber}: {headlines[index % headlines.Length]}";
+            var imageUrl = articleNumber % 4 == 0
+                ? string.Empty
+                : MockImageUrls[(index % (MockImageUrls.Length - 1)) + 1];
+
+            articles.Add(new MockNewsArticle
+            {
+                Id = $"mock-news-{articleNumber:00}",
+                Title = title,
+                Slug = $"mock-news-{articleNumber:00}",
+                Content = BuildMockContent(articleNumber, focusPoints[index % focusPoints.Length], title),
+                ImageUrl = imageUrl,
+                PublicationDateUtc = publicationDateUtc,
+                IsPublished = isPublished,
+                IsFeatured = articleNumber <= 5
+            });
+        }
+
+        return articles
+            .OrderByDescending(article => article.PublicationDateUtc)
+            .ToList();
+    }
+
+    private static string BuildMockContent(int articleNumber, string focusPoint, string title)
+    {
+        return string.Join(
+            "\n\n",
+            [
+                $"{title} is part of the News Articles mockup and exists to preview how long-form updates could read once the editorial system is wired into the site. This sample article follows the same model we discussed, with a title, publication date, optional image support, and enough body copy to make the card preview and modal feel realistic.",
+                $"In this sample story, the update focuses on {focusPoint}. The goal is to show how an article can frame context around a release, describe what changed in the creative process, and give visitors a stronger sense of momentum across the broader Axl Protocol Music project without forcing them to leave the news feed immediately.",
+                $"Article {articleNumber} also demonstrates the reading flow for the modal experience. A visitor sees the first fifty words on the card, notices the trailing ellipsis when more text exists, clicks Read More, and then lands in a larger article presentation with the hero image at the top and the full story continuing below it in a clean, readable layout.",
+                $"This dummy copy is intentionally straightforward, but it points toward the structure we can use later for release announcements, studio journals, premiere notes, milestone recaps, or reflections that connect a new post to the timeline and catalog. Once the real backend is added, these placeholders can give way to actual published stories without changing the overall page behavior."
+            ]);
+    }
+
+    private static IEnumerable<string> GetParagraphs(string content)
+    {
+        return content
+            .Split(["\r\n\r\n", "\n\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    private static string GetPreviewText(string content, int wordCount)
+    {
+        var words = Regex.Split(content.Trim(), @"\s+")
+            .Where(word => !string.IsNullOrWhiteSpace(word))
+            .ToList();
+
+        if (words.Count <= wordCount)
+        {
+            return string.Join(' ', words);
+        }
+
+        return $"{string.Join(' ', words.Take(wordCount))}...";
+    }
+
+    private static string FormatPublicationLabel(MockNewsArticle article)
+    {
+        var label = article.PublicationDateUtc.ToLocalTime().ToString("MMMM d, yyyy");
+        if (!article.IsPublished)
+        {
+            return $"Unpublished • {label}";
+        }
+
+        if (article.PublicationDateUtc > DateTimeOffset.UtcNow)
+        {
+            return $"Scheduled • {label}";
+        }
+
+        return label;
+    }
+
+    private static string GetCardStyle(MockNewsArticle article)
+    {
+        if (string.IsNullOrWhiteSpace(article.ImageUrl))
+        {
+            return string.Empty;
+        }
+
+        return $"background-image: linear-gradient(180deg, rgba(8, 14, 28, 0.16), rgba(8, 14, 28, 0.88)), url('{article.ImageUrl}');";
+    }
+
+    private static string GetFeaturedStyle(MockNewsArticle article)
+    {
+        if (string.IsNullOrWhiteSpace(article.ImageUrl))
+        {
+            return string.Empty;
+        }
+
+        return $"background-image: linear-gradient(180deg, rgba(8, 14, 28, 0.24), rgba(8, 14, 28, 0.88)), url('{article.ImageUrl}');";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("axlNewsPage.disposeInfiniteScroll");
+        }
+        catch
+        {
+        }
+
+        dotNetReference?.Dispose();
+    }
+
+    private sealed class MockNewsArticle
+    {
+        public string Id { get; init; } = string.Empty;
+
+        public string Title { get; init; } = string.Empty;
+
+        public string Slug { get; init; } = string.Empty;
+
+        public string Content { get; init; } = string.Empty;
+
+        public string ImageUrl { get; init; } = string.Empty;
+
+        public DateTimeOffset PublicationDateUtc { get; init; }
+
+        public bool IsPublished { get; init; }
+
+        public bool IsFeatured { get; init; }
+    }
+}
