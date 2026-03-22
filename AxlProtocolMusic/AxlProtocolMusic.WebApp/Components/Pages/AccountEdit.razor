@@ -68,7 +68,7 @@ else
 
 @code {
     [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     [SupplyParameterFromQuery]
     public string? Error { get; set; }
@@ -83,7 +83,14 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var user = await UserManager.GetUserAsync(HttpContext.User);
+        var authenticationState = AuthenticationStateTask is null
+            ? null
+            : await AuthenticationStateTask;
+
+        var user = authenticationState is null
+            ? null
+            : await UserManager.GetUserAsync(authenticationState.User);
+
         if (user is null)
         {
             return;

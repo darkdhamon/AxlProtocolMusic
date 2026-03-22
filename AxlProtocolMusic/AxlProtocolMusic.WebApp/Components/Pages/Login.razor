@@ -47,7 +47,7 @@ else
 
 @code {
     [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     [SupplyParameterFromQuery]
     public string? ReturnUrl { get; set; }
@@ -65,9 +65,13 @@ else
             ? ReturnUrl
             : "/admin";
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
-        isAuthenticated = HttpContext.User.Identity?.IsAuthenticated == true;
+        var authenticationState = AuthenticationStateTask is null
+            ? null
+            : await AuthenticationStateTask;
+
+        isAuthenticated = authenticationState?.User.Identity?.IsAuthenticated == true;
 
         if (isAuthenticated)
         {
