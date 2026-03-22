@@ -238,6 +238,22 @@ public sealed class ReleaseServiceTests
     }
 
     [Test]
+    public async Task DeleteReleaseAsync_WhenReleaseExists_DeletesItAndReturnsManagedImagePath()
+    {
+        var existing = CreateRelease("delete-me", 2, true, id: "release-1", title: "Delete Me");
+        existing.CoverImageUrl = "/uploads/releases/delete-me.png";
+
+        var repository = new InMemoryReleaseRepository([existing]);
+        var service = new ReleaseService(repository);
+
+        var result = await service.DeleteReleaseAsync("DELETE-ME");
+
+        Assert.That(result.Succeeded, Is.True);
+        Assert.That(result.ImageStoragePath, Is.EqualTo("/uploads/releases/delete-me.png"));
+        Assert.That(repository.Documents, Is.Empty);
+    }
+
+    [Test]
     public async Task GenerateUniqueSlugAsync_WhenBaseAndDateSlugExist_AppendsIncrementingSuffix()
     {
         var today = DateTimeOffset.UtcNow.ToString("yyMMdd");

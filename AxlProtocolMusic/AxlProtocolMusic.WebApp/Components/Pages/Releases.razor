@@ -1,6 +1,49 @@
 @page "/releases"
 @rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
 @inject IReleaseService ReleaseService
+@implements IAsyncDisposable
+
+<script>
+    window.axlReleasesPage = window.axlReleasesPage || (() => {
+        let observer;
+
+        function initializeInfiniteScroll(sentinel, dotNetReference) {
+            if (!sentinel || !dotNetReference) {
+                return;
+            }
+
+            disposeInfiniteScroll();
+
+            observer = new IntersectionObserver(entries => {
+                const visibleEntry = entries.find(entry => entry.isIntersecting);
+                if (!visibleEntry) {
+                    return;
+                }
+
+                dotNetReference.invokeMethodAsync("LoadMoreFromScroll");
+            }, {
+                root: null,
+                rootMargin: "0px 0px 320px 0px",
+                threshold: 0.1
+            });
+
+            observer.observe(sentinel);
+        }
+
+        function disposeInfiniteScroll() {
+            if (observer) {
+                observer.disconnect();
+                observer = null;
+            }
+        }
+
+        return {
+            initializeInfiniteScroll,
+            disposeInfiniteScroll
+        };
+    })();
+</script>
 
 <PageTitle>Releases</PageTitle>
 
@@ -39,7 +82,7 @@
     {
         <p><em>Loading releases...</em></p>
     }
-    else if (pagedReleases is null || pagedReleases.Items.Count == 0)
+    else if (loadedReleases.Count == 0)
     {
         <div class="empty-results">
             <h2>No releases found</h2>
@@ -54,33 +97,28 @@
     {
         <div class="results-meta">
             <p>
-                Showing @pagedReleases.Items.Count of @pagedReleases.TotalCount releases
-                @if (!string.IsNullOrWhiteSpace(pagedReleases.SearchTerm))
+                Showing @loadedReleases.Count of @totalCount releases
+                @if (!string.IsNullOrWhiteSpace(currentSearchTerm))
                 {
-                    <span> for "@pagedReleases.SearchTerm"</span>
+                    <span> for "@currentSearchTerm"</span>
                 }
             </p>
         </div>
 
         <section class="release-grid">
-            @foreach (var release in pagedReleases.Items)
+            @foreach (var release in loadedReleases)
             {
                 <a class="release-card-link" href="@($"/releases/{release.Slug}")">
                     <article class="release-card">
-                        @if (!string.IsNullOrWhiteSpace(release.CoverImageUrl))
-                        {
-                            <img class="release-artwork" src="@release.CoverImageUrl" alt="@release.Title cover art" />
-                        }
-                        else
-                        {
-                            <div class="release-artwork placeholder">
-                                <span>@release.Title</span>
-                            </div>
-                        }
+                        <img class="release-artwork" src="@GetReleaseArtworkUrl(release.CoverImageUrl)" alt="@release.Title cover art" />
 
                         <div class="release-copy">
                             <div class="release-meta-row">
                                 <p class="release-date">@release.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
+                                @if (IsUpcomingRelease(release.ReleaseDateUtc))
+                                {
+                                    <span class="release-status-badge upcoming-release-badge">Upcoming Release</span>
+                                }
                                 @if (!release.IsPublished)
                                 {
                                     <span class="release-status-badge">Unpublished</span>
@@ -94,27 +132,19 @@
             }
         </section>
 
-        <nav class="pagination-row" aria-label="Release pagination">
-            <button
-                class="btn btn-outline-primary"
-                type="button"
-                @onclick="ShowPreviousPageAsync"
-                disabled="@(pagedReleases.PageNumber <= 1)">
-                Previous
-            </button>
-
-            <span class="page-status">
-                Page @pagedReleases.PageNumber of @pagedReleases.TotalPages
-            </span>
-
-            <button
-                class="btn btn-outline-primary"
-                type="button"
-                @onclick="ShowNextPageAsync"
-                disabled="@(pagedReleases.PageNumber >= pagedReleases.TotalPages)">
-                Next
-            </button>
-        </nav>
+        @if (hasMoreReleases)
+        {
+            <div class="scroll-loader">
+                <div @ref="loadMoreSentinel" class="release-scroll-sentinel" aria-hidden="true"></div>
+                <p>@(isLoadingMore ? "Loading more releases..." : "Continue scrolling to load more releases.")</p>
+            </div>
+        }
+        else
+        {
+            <div class="scroll-loader is-complete">
+                <p>All visible releases are loaded.</p>
+            </div>
+        }
     }
 </div>
 
@@ -123,11 +153,20 @@
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
     private const int PageSize = 6;
+    private const string PlaceholderAlbumArtPath = "/Assets/Misc/Placeholder-AlbumArt.png";
 
-    private PagedReleaseResult? pagedReleases;
+    private readonly List<ReleaseListItemViewModel> loadedReleases = [];
+    private DotNetObjectReference<Releases>? dotNetReference;
+    private ElementReference loadMoreSentinel;
     private string searchInput = string.Empty;
+    private string currentSearchTerm = string.Empty;
+    private int currentPageNumber;
+    private int totalCount;
+    private bool hasMoreReleases;
     private bool isLoading = true;
+    private bool isLoadingMore;
     private bool includeUnpublished;
+    private bool observerInitialized;
 
     protected override async Task OnInitializedAsync()
     {
@@ -136,48 +175,105 @@
             : await AuthenticationStateTask;
 
         includeUnpublished = authenticationState?.User.IsInRole("Admin") == true;
-        await LoadPageAsync(1);
+        await ResetAndLoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!hasMoreReleases || observerInitialized)
+        {
+            return;
+        }
+
+        dotNetReference ??= DotNetObjectReference.Create(this);
+        await JSRuntime.InvokeVoidAsync("axlReleasesPage.initializeInfiniteScroll", loadMoreSentinel, dotNetReference);
+        observerInitialized = true;
+    }
+
+    [JSInvokable]
+    public async Task LoadMoreFromScroll()
+    {
+        if (!hasMoreReleases || isLoading || isLoadingMore)
+        {
+            return;
+        }
+
+        isLoadingMore = true;
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(180);
+        await LoadNextPageAsync();
+        isLoadingMore = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task HandleSearchAsync()
     {
-        await LoadPageAsync(1);
-    }
-
-    private async Task ShowPreviousPageAsync()
-    {
-        if (pagedReleases is null || pagedReleases.PageNumber <= 1)
-        {
-            return;
-        }
-
-        await LoadPageAsync(pagedReleases.PageNumber - 1);
-    }
-
-    private async Task ShowNextPageAsync()
-    {
-        if (pagedReleases is null || pagedReleases.PageNumber >= pagedReleases.TotalPages)
-        {
-            return;
-        }
-
-        await LoadPageAsync(pagedReleases.PageNumber + 1);
+        await ResetAndLoadAsync();
     }
 
     private async Task ClearSearchAsync()
     {
         searchInput = string.Empty;
-        await LoadPageAsync(1);
+        await ResetAndLoadAsync();
     }
 
-    private async Task LoadPageAsync(int pageNumber)
+    private async Task ResetAndLoadAsync()
     {
+        if (observerInitialized)
+        {
+            await JSRuntime.InvokeVoidAsync("axlReleasesPage.disposeInfiniteScroll");
+        }
+
+        observerInitialized = false;
+        currentPageNumber = 0;
+        totalCount = 0;
+        currentSearchTerm = searchInput.Trim();
+        hasMoreReleases = false;
+        loadedReleases.Clear();
+
         isLoading = true;
-        pagedReleases = await ReleaseService.GetPagedReleasesAsync(
+        await LoadNextPageAsync();
+        isLoading = false;
+    }
+
+    private async Task LoadNextPageAsync()
+    {
+        var nextPageNumber = currentPageNumber + 1;
+        var page = await ReleaseService.GetPagedReleasesAsync(
             searchInput,
-            pageNumber,
+            nextPageNumber,
             PageSize,
             includeUnpublished);
-        isLoading = false;
+
+        currentPageNumber = page.PageNumber;
+        totalCount = page.TotalCount;
+        currentSearchTerm = page.SearchTerm;
+        hasMoreReleases = page.PageNumber < page.TotalPages;
+
+        if (page.Items.Count > 0)
+        {
+            loadedReleases.AddRange(page.Items);
+        }
+    }
+
+    private static string GetReleaseArtworkUrl(string? coverImageUrl)
+        => string.IsNullOrWhiteSpace(coverImageUrl)
+            ? PlaceholderAlbumArtPath
+            : coverImageUrl;
+
+    private static bool IsUpcomingRelease(DateTimeOffset releaseDateUtc)
+        => releaseDateUtc > DateTimeOffset.UtcNow;
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("axlReleasesPage.disposeInfiniteScroll");
+        }
+        catch
+        {
+        }
+
+        dotNetReference?.Dispose();
     }
 }

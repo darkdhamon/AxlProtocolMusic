@@ -181,6 +181,9 @@ public sealed class ReleasesControllerTests
             return Task.FromResult(CreateResult);
         }
 
+        public Task<ReleaseDeleteResult> DeleteReleaseAsync(string slug, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
         public Task<string> GenerateUniqueSlugAsync(string? value, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 

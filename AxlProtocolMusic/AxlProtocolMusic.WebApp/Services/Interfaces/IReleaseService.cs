@@ -27,6 +27,10 @@ public interface IReleaseService
         ReleaseUpdateRequest request,
         CancellationToken cancellationToken = default);
 
+    Task<ReleaseDeleteResult> DeleteReleaseAsync(
+        string slug,
+        CancellationToken cancellationToken = default);
+
     Task<string> GenerateUniqueSlugAsync(
         string? value,
         CancellationToken cancellationToken = default);

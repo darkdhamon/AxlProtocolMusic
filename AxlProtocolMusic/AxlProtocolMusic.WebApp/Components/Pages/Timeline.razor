@@ -364,6 +364,7 @@ else
         .GetValues<TimelineEventType>()
         .ToList();
     private const int MonthBatchSize = 4;
+    private const string PlaceholderAlbumArtPath = "/Assets/Misc/Placeholder-AlbumArt.png";
 
     private List<TimelineMonthSection> allTimelineMonths = [];
     private List<TimelineMonthSection> timelineYears = [];
@@ -444,7 +445,7 @@ else
                 release.Title,
                 release.ShortDescription,
                 BuildReleaseHighlights(release),
-                release.CoverImageUrl,
+                GetReleaseArtworkUrl(release.CoverImageUrl),
                 false,
                 null,
                 $"/releases/{Uri.EscapeDataString(release.Slug)}",
@@ -536,6 +537,11 @@ else
 
         return $"{string.Join(' ', words.Take(28))}...";
     }
+
+    private static string GetReleaseArtworkUrl(string? coverImageUrl)
+        => string.IsNullOrWhiteSpace(coverImageUrl)
+            ? PlaceholderAlbumArtPath
+            : coverImageUrl;
 
     private void OpenEditModal(TimelineEntry timelineEvent)
     {

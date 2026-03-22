@@ -44,16 +44,7 @@
                 </div>
 
                 <div class="hero-artwork">
-                    @if (!string.IsNullOrWhiteSpace(activeRelease.CoverImageUrl))
-                    {
-                        <img src="@activeRelease.CoverImageUrl" alt="@activeRelease.Title cover art" />
-                    }
-                    else
-                    {
-                        <div class="cover-placeholder">
-                            <span>@activeRelease.Title</span>
-                        </div>
-                    }
+                    <img src="@GetReleaseArtworkUrl(activeRelease.CoverImageUrl)" alt="@activeRelease.Title cover art" />
                 </div>
             </div>
 
@@ -117,6 +108,7 @@
 </div>
 
 @code {
+    private const string PlaceholderAlbumArtPath = "/Assets/Misc/Placeholder-AlbumArt.png";
     private IReadOnlyList<FeaturedReleaseViewModel> featuredReleases = [];
     private int activeSlideIndex;
     private bool isLoading = true;
@@ -152,4 +144,9 @@
     {
         activeSlideIndex = slideIndex;
     }
+
+    private static string GetReleaseArtworkUrl(string? coverImageUrl)
+        => string.IsNullOrWhiteSpace(coverImageUrl)
+            ? PlaceholderAlbumArtPath
+            : coverImageUrl;
 }

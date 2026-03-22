@@ -299,6 +299,42 @@ public sealed class ReleaseService : IReleaseService
         };
     }
 
+    public async Task<ReleaseDeleteResult> DeleteReleaseAsync(
+        string slug,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedSlug = slug.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedSlug))
+        {
+            return new ReleaseDeleteResult
+            {
+                Succeeded = false,
+                ErrorMessage = "The release slug is required."
+            };
+        }
+
+        var releases = await _releaseRepository.GetAllAsync(cancellationToken);
+        var release = releases.FirstOrDefault(item =>
+            string.Equals(item.Slug, normalizedSlug, StringComparison.OrdinalIgnoreCase));
+
+        if (release is null)
+        {
+            return new ReleaseDeleteResult
+            {
+                Succeeded = false,
+                ErrorMessage = "The release could not be found."
+            };
+        }
+
+        await _releaseRepository.DeleteAsync(release.Id, cancellationToken);
+
+        return new ReleaseDeleteResult
+        {
+            Succeeded = true,
+            ImageStoragePath = release.CoverImageUrl
+        };
+    }
+
     public async Task<string> GenerateUniqueSlugAsync(
         string? value,
         CancellationToken cancellationToken = default)

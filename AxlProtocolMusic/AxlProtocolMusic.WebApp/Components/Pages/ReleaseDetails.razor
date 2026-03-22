@@ -35,9 +35,24 @@ else
 
         <section class="release-hero">
             <div class="release-hero-copy">
-                <p class="eyebrow">Release Details</p>
+                <div class="release-hero-header">
+                    <p class="eyebrow">Release Details</p>
+                    <AuthorizeView Roles="Admin">
+                        <Authorized>
+                            <button class="btn btn-outline-light btn-sm" type="button" @onclick="ShowDeleteModal">
+                                Delete Release
+                            </button>
+                        </Authorized>
+                    </AuthorizeView>
+                </div>
                 <h1>@release.Title</h1>
                 <p class="release-date">@release.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
+                @if (IsUpcomingRelease(release.ReleaseDateUtc))
+                {
+                    <div class="release-hero-badges">
+                        <span class="tag-chip upcoming-release-chip">Upcoming Release</span>
+                    </div>
+                }
                 <p class="release-summary">@release.ShortDescription</p>
 
                 @if (release.Tags.Count > 0)
@@ -82,16 +97,7 @@ else
             </div>
 
             <div class="release-hero-artwork">
-                @if (!string.IsNullOrWhiteSpace(release.CoverImageUrl))
-                {
-                    <img src="@release.CoverImageUrl" alt="@release.Title cover art" />
-                }
-                else
-                {
-                    <div class="release-artwork placeholder">
-                        <span>@release.Title</span>
-                    </div>
-                }
+                <img src="@GetReleaseArtworkUrl(release.CoverImageUrl)" alt="@release.Title cover art" />
             </div>
         </section>
 
@@ -529,8 +535,33 @@ else
     </div>
 }
 
+@if (isDeleteModalOpen && release is not null)
+{
+    <div class="lyrics-modal-overlay" tabindex="-1" role="dialog" aria-modal="true" @onclick="HideDeleteModal">
+        <div class="lyrics-modal-dialog" role="document" @onclick:stopPropagation="true">
+            <div class="lyrics-modal-surface delete-confirm-surface">
+                <div class="lyrics-modal-header">
+                    <h5 class="lyrics-modal-title">Delete Release</h5>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="HideDeleteModal"></button>
+                </div>
+                <div class="delete-confirm-body">
+                    <p>Are you sure you want to delete <strong>@release.Title</strong>?</p>
+                    <p>This removes the release from the catalog and cannot be undone from this page.</p>
+                </div>
+                <div class="delete-confirm-actions">
+                    <button class="btn btn-outline-secondary" type="button" @onclick="HideDeleteModal" disabled="@isDeletingRelease">Cancel</button>
+                    <button class="btn btn-danger" type="button" @onclick="DeleteReleaseAsync" disabled="@isDeletingRelease">
+                        @(isDeletingRelease ? "Deleting..." : "Delete Release")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private const int AutoSaveDelayMilliseconds = 700;
+    private const string PlaceholderAlbumArtPath = "/Assets/Misc/Placeholder-AlbumArt.png";
     [Parameter]
     public string Slug { get; set; } = string.Empty;
 
@@ -549,6 +580,8 @@ else
     private string? editorStatusMessage;
     private string? editorErrorMessage;
     private bool isLyricsModalOpen;
+    private bool isDeleteModalOpen;
+    private bool isDeletingRelease;
     private ReleaseTrack? selectedLyricsTrack;
     private CancellationTokenSource? autosaveCancellationTokenSource;
     private long autosaveVersion;
@@ -1070,6 +1103,14 @@ else
             : Tracks[index].Title.Trim();
     }
 
+    private static string GetReleaseArtworkUrl(string? coverImageUrl)
+        => string.IsNullOrWhiteSpace(coverImageUrl)
+            ? PlaceholderAlbumArtPath
+            : coverImageUrl;
+
+    private static bool IsUpcomingRelease(DateTimeOffset releaseDateUtc)
+        => releaseDateUtc > DateTimeOffset.UtcNow;
+
     private void ShowLyricsModal(ReleaseTrack track)
     {
         if (string.IsNullOrWhiteSpace(track.Lyrics))
@@ -1085,6 +1126,64 @@ else
     {
         isLyricsModalOpen = false;
         selectedLyricsTrack = null;
+    }
+
+    private void ShowDeleteModal()
+    {
+        isDeleteModalOpen = true;
+    }
+
+    private void HideDeleteModal()
+    {
+        if (isDeletingRelease)
+        {
+            return;
+        }
+
+        isDeleteModalOpen = false;
+    }
+
+    private async Task DeleteReleaseAsync()
+    {
+        if (release is null || isDeletingRelease)
+        {
+            return;
+        }
+
+        isDeletingRelease = true;
+        editorErrorMessage = null;
+        editorStatusMessage = null;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var result = await ReleaseService.DeleteReleaseAsync(release.Slug);
+
+            if (!result.Succeeded)
+            {
+                editorErrorMessage = result.ErrorMessage;
+                isDeleteModalOpen = false;
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(result.ImageStoragePath)
+                && ReleaseService.IsManagedImageUrl(result.ImageStoragePath))
+            {
+                await ImageStorageService.DeleteAsync(result.ImageStoragePath);
+            }
+
+            NavigationManager.NavigateTo("/releases?success=Release%20deleted.", forceLoad: true);
+        }
+        catch (Exception exception)
+        {
+            editorErrorMessage = exception.Message;
+            isDeleteModalOpen = false;
+        }
+        finally
+        {
+            isDeletingRelease = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private sealed class EditableCredit

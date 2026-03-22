@@ -127,18 +127,9 @@
     text-transform: uppercase;
 }
 
-.pagination-row {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 1rem;
-}
-
-.page-status {
-    min-width: 8rem;
-    text-align: center;
-    font-weight: 600;
-    color: #344054;
+.upcoming-release-badge {
+    background: rgba(28, 100, 242, 0.14);
+    color: #175cd3;
 }
 
 .empty-results {
@@ -152,6 +143,33 @@
     margin-top: 0;
 }
 
+.scroll-loader {
+    display: grid;
+    place-items: center;
+    gap: 0.75rem;
+    padding: 1.4rem;
+    text-align: center;
+    border: 1px solid rgba(17, 44, 114, 0.12);
+    border-radius: 1.25rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.94));
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.scroll-loader p {
+    margin: 0;
+    color: #475467;
+    font-weight: 600;
+}
+
+.scroll-loader.is-complete {
+    background: linear-gradient(180deg, rgba(17, 44, 114, 0.04), rgba(17, 44, 114, 0.01));
+}
+
+.release-scroll-sentinel {
+    width: 100%;
+    height: 1px;
+}
+
 @media (max-width: 960px) {
     .releases-header {
         grid-template-columns: 1fr;
@@ -163,8 +181,7 @@
 }
 
 @media (max-width: 640px) {
-    .search-row,
-    .pagination-row {
+    .search-row {
         flex-direction: column;
         align-items: stretch;
     }
@@ -172,21 +189,18 @@
     .release-grid {
         grid-template-columns: 1fr;
     }
-
-    .page-status {
-        min-width: 0;
-    }
 }
 
 :root[data-theme="dark"] .lead,
 :root[data-theme="dark"] .results-meta p,
 :root[data-theme="dark"] .release-copy p:last-child,
-:root[data-theme="dark"] .page-status {
+:root[data-theme="dark"] .scroll-loader p {
     color: var(--app-text-muted);
 }
 
 :root[data-theme="dark"] .search-panel,
-:root[data-theme="dark"] .empty-results {
+:root[data-theme="dark"] .empty-results,
+:root[data-theme="dark"] .scroll-loader {
     background: linear-gradient(180deg, var(--app-surface-elevated) 0%, var(--app-surface-muted) 100%);
     border-color: var(--app-border);
     box-shadow: var(--app-shadow);
@@ -205,4 +219,9 @@
 :root[data-theme="dark"] .release-status-badge {
     background: rgba(255, 157, 157, 0.12);
     color: #ffb3b3;
+}
+
+:root[data-theme="dark"] .upcoming-release-badge {
+    background: rgba(142, 186, 255, 0.16);
+    color: #bfd6ff;
 }

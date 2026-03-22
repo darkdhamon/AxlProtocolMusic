@@ -34,6 +34,14 @@
     gap: 0.8rem;
 }
 
+.release-hero-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
 .release-hero-copy h1,
 .release-placeholder-content h2 {
     margin: 0;
@@ -151,6 +159,12 @@
     gap: 0.65rem;
 }
 
+.release-hero-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
 .tag-chip {
     display: inline-flex;
     align-items: center;
@@ -160,6 +174,12 @@
     color: #f7f8fd;
     border: 1px solid rgba(255, 255, 255, 0.16);
     font-weight: 600;
+}
+
+.upcoming-release-chip {
+    background: rgba(142, 186, 255, 0.2);
+    border-color: rgba(191, 214, 255, 0.32);
+    color: #f7f8fd;
 }
 
 .credits-list {
@@ -324,6 +344,29 @@
     max-height: min(65vh, calc(100vh - 7rem));
     overflow: auto;
     padding: 1rem 1rem 1.25rem;
+}
+
+.delete-confirm-surface {
+    padding-bottom: 1.25rem;
+}
+
+.delete-confirm-body {
+    display: grid;
+    gap: 0.85rem;
+    padding: 1.25rem 1.1rem;
+    line-height: 1.7;
+}
+
+.delete-confirm-body p {
+    margin: 0;
+}
+
+.delete-confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 0 1.1rem;
+    flex-wrap: wrap;
 }
 
 .song-lyrics-markdown {
@@ -547,7 +590,8 @@
 :root[data-theme="dark"] .release-links-panel,
 :root[data-theme="dark"] .track-list-panel,
 :root[data-theme="dark"] .lyrics-modal-surface,
-:root[data-theme="dark"] .admin-edit-panel {
+:root[data-theme="dark"] .admin-edit-panel,
+:root[data-theme="dark"] .delete-confirm-surface {
     background: linear-gradient(180deg, var(--app-surface-elevated) 0%, var(--app-surface-muted) 100%);
     border-color: var(--app-border);
     box-shadow: var(--app-shadow);
