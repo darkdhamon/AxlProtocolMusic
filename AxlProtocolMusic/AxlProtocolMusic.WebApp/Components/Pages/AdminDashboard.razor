@@ -1,8 +1,10 @@
 @page "/admin"
 @attribute [Authorize(Roles = "Admin")]
+@using AxlProtocolMusic.WebApp.Models.Chatbot
 @inject IRepository<Release> ReleaseRepository
 @inject IAboutPageService AboutPageService
 @inject IAnalyticsService AnalyticsService
+@inject IChatbotBudgetService ChatbotBudgetService
 
 <PageTitle>Admin Dashboard</PageTitle>
 
@@ -63,6 +65,20 @@ else
 
         <section class="admin-actions-grid">
             <article class="admin-card feature-card">
+                <p class="eyebrow">Chatbot</p>
+                <h2>Budget Guardrail</h2>
+                <p>
+                    Track input and output tokens, estimate spend using the higher GPT-5.4 pricing buffer, and reset the chatbot after budget or quota shutdowns.
+                </p>
+                <div class="card-actions">
+                    <form method="post" action="/admin/chatbot/reset" class="m-0">
+                        <AntiforgeryToken />
+                        <button class="btn btn-primary" type="submit">Reset Chatbot Budget</button>
+                    </form>
+                </div>
+            </article>
+
+            <article class="admin-card feature-card">
                 <p class="eyebrow">Catalog</p>
                 <h2>Release Management</h2>
                 <p>
@@ -98,6 +114,95 @@ else
         </section>
 
         <section class="admin-overview-grid">
+            <article class="overview-panel">
+                <p class="eyebrow">Chatbot</p>
+                <h2>Budget Status</h2>
+
+                @if (chatbotReset)
+                {
+                    <div class="alert alert-success" role="alert">Chatbot budget counters were reset.</div>
+                }
+                @if (chatbotOverrideChanged)
+                {
+                    <div class="alert alert-success" role="alert">Chatbot manual override was updated.</div>
+                }
+
+                <div class="card-actions mb-3">
+                    @if (chatbotBudgetSummary.IsManuallyDisabled)
+                    {
+                        <form method="post" action="/admin/chatbot/enable" class="m-0">
+                            <AntiforgeryToken />
+                            <button class="btn btn-success" type="submit">Enable Chatbot</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="post" action="/admin/chatbot/disable" class="m-0">
+                            <AntiforgeryToken />
+                            <button class="btn btn-outline-danger" type="submit">Disable Chatbot</button>
+                        </form>
+                    }
+                </div>
+
+                <ul class="dashboard-list">
+                    <li>
+                        <strong>Status</strong>
+                        <span class="list-meta">@GetChatbotStatusLabel()</span>
+                    </li>
+                    <li>
+                        <strong>Manual Override</strong>
+                        <span class="list-meta">@(chatbotBudgetSummary.IsManuallyDisabled ? "Disabled by admin" : "Off")</span>
+                    </li>
+                    <li>
+                        <strong>Estimated Spend</strong>
+                        <span class="list-meta">@chatbotBudgetSummary.TotalEstimatedCostUsd.ToString("C") of @chatbotBudgetSummary.DisableThresholdUsd.ToString("C")</span>
+                    </li>
+                    <li>
+                        <strong>Approx Actual Spend</strong>
+                        <span class="list-meta">@GetApproxActualChatbotSpend().ToString("C") using gpt-5-mini pricing</span>
+                    </li>
+                    <li>
+                        <strong>Remaining Budget</strong>
+                        <span class="list-meta">@GetRemainingChatbotBudget().ToString("C")</span>
+                    </li>
+                    <li>
+                        <strong>Input Tokens</strong>
+                        <span class="list-meta">@chatbotBudgetSummary.TotalInputTokens.ToString("N0")</span>
+                    </li>
+                    <li>
+                        <strong>Total Requests</strong>
+                        <span class="list-meta">@chatbotBudgetSummary.TotalRequestCount.ToString("N0")</span>
+                    </li>
+                    <li>
+                        <strong>Output Tokens</strong>
+                        <span class="list-meta">@chatbotBudgetSummary.TotalOutputTokens.ToString("N0")</span>
+                    </li>
+                    <li>
+                        <strong>Cached Input Tokens</strong>
+                        <span class="list-meta">@chatbotBudgetSummary.TotalCachedInputTokens.ToString("N0")</span>
+                    </li>
+                    @if (chatbotBudgetSummary.LastUpdatedUtc.HasValue)
+                    {
+                        <li>
+                            <strong>Last Updated</strong>
+                            <span class="list-meta">@chatbotBudgetSummary.LastUpdatedUtc.Value.ToLocalTime().ToString("MMMM d, yyyy h:mm tt")</span>
+                        </li>
+                    }
+                    @if (chatbotBudgetSummary.LastResetUtc.HasValue)
+                    {
+                        <li>
+                            <strong>Last Reset</strong>
+                            <span class="list-meta">@chatbotBudgetSummary.LastResetUtc.Value.ToLocalTime().ToString("MMMM d, yyyy h:mm tt")</span>
+                        </li>
+                    }
+                </ul>
+
+                @if (chatbotBudgetSummary.IsDisabled && !string.IsNullOrWhiteSpace(chatbotBudgetSummary.DisabledReason))
+                {
+                    <p>@chatbotBudgetSummary.DisabledReason</p>
+                }
+            </article>
+
             <article class="overview-panel">
                 <p class="eyebrow">Audience Metrics</p>
                 <h2>Most Visited Pages</h2>
@@ -187,18 +292,30 @@ else
 }
 
 @code {
+    private const decimal Gpt5MiniInputCostPerMillionUsd = 0.25m;
+    private const decimal Gpt5MiniCachedInputCostPerMillionUsd = 0.025m;
+    private const decimal Gpt5MiniOutputCostPerMillionUsd = 2.00m;
+
+    [SupplyParameterFromQuery(Name = "chatbotReset")]
+    public bool chatbotReset { get; set; }
+
+    [SupplyParameterFromQuery(Name = "chatbotOverrideChanged")]
+    public bool chatbotOverrideChanged { get; set; }
+
     private bool isLoading = true;
     private bool aboutPageReady;
     private int totalReleaseCount;
     private int publishedReleaseCount;
     private int draftReleaseCount;
     private AnalyticsDashboardSummary analyticsSummary = new();
+    private ChatbotBudgetSummary chatbotBudgetSummary = new();
 
     protected override async Task OnInitializedAsync()
     {
         var releases = await ReleaseRepository.GetAllAsync();
         var aboutPage = await AboutPageService.GetAsync();
         analyticsSummary = await AnalyticsService.GetDashboardSummaryAsync();
+        chatbotBudgetSummary = await ChatbotBudgetService.GetSummaryAsync();
 
         totalReleaseCount = releases.Count;
         publishedReleaseCount = releases.Count(release => release.IsPublished);
@@ -218,5 +335,35 @@ else
         }
 
         return $"{seconds / 60:0.0}m";
+    }
+
+    private decimal GetRemainingChatbotBudget()
+    {
+        var remaining = chatbotBudgetSummary.DisableThresholdUsd - chatbotBudgetSummary.TotalEstimatedCostUsd;
+        return remaining > 0 ? remaining : 0;
+    }
+
+    private decimal GetApproxActualChatbotSpend()
+    {
+        var cachedInputTokens = Math.Max(0, chatbotBudgetSummary.TotalCachedInputTokens);
+        var totalInputTokens = Math.Max(0, chatbotBudgetSummary.TotalInputTokens);
+        var nonCachedInputTokens = Math.Max(0, totalInputTokens - cachedInputTokens);
+        var outputTokens = Math.Max(0, chatbotBudgetSummary.TotalOutputTokens);
+
+        var nonCachedInputCost = (nonCachedInputTokens / 1_000_000m) * Gpt5MiniInputCostPerMillionUsd;
+        var cachedInputCost = (cachedInputTokens / 1_000_000m) * Gpt5MiniCachedInputCostPerMillionUsd;
+        var outputCost = (outputTokens / 1_000_000m) * Gpt5MiniOutputCostPerMillionUsd;
+
+        return decimal.Round(nonCachedInputCost + cachedInputCost + outputCost, 6, MidpointRounding.AwayFromZero);
+    }
+
+    private string GetChatbotStatusLabel()
+    {
+        if (chatbotBudgetSummary.IsManuallyDisabled)
+        {
+            return "Disabled (manual override)";
+        }
+
+        return chatbotBudgetSummary.IsDisabled ? "Disabled" : "Enabled";
     }
 }

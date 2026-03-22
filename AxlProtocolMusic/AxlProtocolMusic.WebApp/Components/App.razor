@@ -45,6 +45,62 @@
                 }
             };
 
+            window.axlChatbotStorage = {
+                getState: function () {
+                    try {
+                        return window.localStorage.getItem("axl-chatbot-state") || "";
+                    } catch {
+                        return "";
+                    }
+                },
+                setState: function (value) {
+                    try {
+                        window.localStorage.setItem("axl-chatbot-state", value || "");
+                    } catch {
+                    }
+                },
+                getTranscript: function () {
+                    try {
+                        return window.localStorage.getItem("axl-chatbot-transcript") || "";
+                    } catch {
+                        return "";
+                    }
+                },
+                setTranscript: function (value) {
+                    try {
+                        window.localStorage.setItem("axl-chatbot-transcript", value || "");
+                    } catch {
+                    }
+                }
+            };
+
+            window.axlChatbotPageContext = {
+                getCurrentPage: function () {
+                    var source = document.querySelector("main") || document.querySelector("article") || document.body;
+                    var clone = source ? source.cloneNode(true) : null;
+
+                    if (clone && clone.querySelectorAll) {
+                        clone.querySelectorAll("script, style, noscript, .site-chatbot").forEach(function (node) {
+                            node.remove();
+                        });
+                    }
+
+                    var content = clone && clone.innerText
+                        ? clone.innerText.replace(/\s+/g, " ").trim()
+                        : "";
+
+                    if (content.length > 4000) {
+                        content = content.substring(0, 4000);
+                    }
+
+                    return {
+                        pagePath: (window.location.pathname || "") + (window.location.search || ""),
+                        pageTitle: document.title || "",
+                        pageContent: content
+                    };
+                }
+            };
+
             try {
                 window.axlTheme.initializeTheme();
             } catch {

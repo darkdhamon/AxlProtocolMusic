@@ -10,6 +10,8 @@
 *.userosscache
 *.sln.docstates
 *.env
+appsecrets.json
+appsecrets.*.json
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -219,7 +221,9 @@ PublishScripts/
 /_tools/
 /.dotnet-cli/
 **/.localmongo/
+**/.localkeys/
 **/wwwroot/uploads/
+/_codex_tmp/
 # The packages folder can be ignored because of Package Restore
 **/[Pp]ackages/*
 # except build/, which is used as an MSBuild target.

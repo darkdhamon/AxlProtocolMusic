@@ -4,10 +4,16 @@ using AxlProtocolMusic.WebApp.Extensions;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.Development;
 using AxlProtocolMusic.WebApp.Services.Identity;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using Mongo2Go;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Configuration.AddJsonFile("appsecrets.json", optional: true, reloadOnChange: true);
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+ConfigureDevelopmentDataProtection(builder);
 
 ConfigureDevelopmentMongoDb(builder);
 
@@ -26,9 +32,9 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
+    app.UseHttpsRedirection();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
 
 app.UseAntiforgery();
 app.UseAuthentication();
@@ -54,6 +60,21 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+void ConfigureDevelopmentDataProtection(WebApplicationBuilder webApplicationBuilder)
+{
+    if (!webApplicationBuilder.Environment.IsDevelopment())
+    {
+        return;
+    }
+
+    var keysDirectory = Path.Combine(webApplicationBuilder.Environment.ContentRootPath, ".localkeys");
+    Directory.CreateDirectory(keysDirectory);
+
+    webApplicationBuilder.Services
+        .AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(keysDirectory));
+}
 
 void ConfigureDevelopmentMongoDb(WebApplicationBuilder webApplicationBuilder)
 {

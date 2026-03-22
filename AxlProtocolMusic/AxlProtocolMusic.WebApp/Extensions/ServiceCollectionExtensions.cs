@@ -23,15 +23,22 @@ public static class ServiceCollectionExtensions
             configuration.GetSection(MongoDbSettings.SectionName));
         services.Configure<ImageStorageSettings>(
             configuration.GetSection(ImageStorageSettings.SectionName));
+        services.Configure<ChatbotSettings>(
+            configuration.GetSection(ChatbotSettings.SectionName));
+        services.Configure<OpenAiChatSettings>(
+            configuration.GetSection(OpenAiChatSettings.SectionName));
 
         services.AddHttpContextAccessor();
         services.AddSingleton<IMongoDbService, MongoDbService>();
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
         services.AddScoped<IAboutPageService, AboutPageService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
+        services.AddScoped<IChatbotBudgetService, ChatbotBudgetService>();
         services.AddScoped<INewsArticleService, NewsArticleService>();
         services.AddScoped<IPrivacyPreferencesService, PrivacyPreferencesService>();
         services.AddScoped<IReleaseService, ReleaseService>();
+        services.AddScoped<ISiteChatbotContextBuilder, SiteChatbotContextBuilder>();
+        services.AddHttpClient<ISiteChatbotService, SiteChatbotService>();
         services.AddScoped<ITimelineEventService, TimelineEventService>();
         services.AddScoped<IImageStorageService, DiskImageStorageService>();
         services.AddScoped<MarkdownService>();

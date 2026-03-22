@@ -1,0 +1,473 @@
+@using AxlProtocolMusic.WebApp.Configuration
+@using AxlProtocolMusic.WebApp.Models.Chatbot
+@using System.Text.Json
+@using Microsoft.Extensions.Options
+@inject IChatbotBudgetService ChatbotBudgetService
+@inject IJSRuntime JSRuntime
+@inject ISiteChatbotService SiteChatbotService
+@inject IOptions<ChatbotSettings> ChatbotOptions
+
+@if (ChatbotOptions.Value.Enabled && IsChatbotVisible() && !chatbotBudgetSummary.IsManuallyDisabled)
+{
+    <div class="site-chatbot @(isOpen ? "is-open" : string.Empty)" style="@chatbotAccentStyle">
+        <button
+            class="chatbot-launcher"
+            type="button"
+            @onclick="ToggleOpen"
+            aria-expanded="@isOpen"
+            aria-controls="site-chatbot-panel">
+            @(isOpen ? "Close Assistant" : "Ask The Site")
+        </button>
+
+        @if (isOpen)
+        {
+            <section id="site-chatbot-panel" class="chatbot-panel" aria-label="Site assistant">
+                <header class="chatbot-header">
+                    <div class="chatbot-header-row">
+                        <div>
+                            <p class="chatbot-eyebrow">Catalog Assistant</p>
+                            <h2>Axl Protocol Music</h2>
+                        </div>
+                        <button class="chatbot-reset" type="button" @onclick="ResetChatAsync" disabled="@(messages.Count == 0 && string.IsNullOrWhiteSpace(pendingMessage))">Reset Chat</button>
+                    </div>
+                </header>
+
+                <div class="chatbot-body">
+                    @if (messages.Count == 0)
+                    {
+                        <div class="chatbot-empty-state">
+                            <p>Ask about releases, timeline events, news, or the artist background on this site.</p>
+
+                            <div class="chatbot-suggestions">
+                                @foreach (var suggestion in suggestions)
+                                {
+                                    <button class="chatbot-suggestion" type="button" @onclick="@(() => UseSuggestionAsync(suggestion))">
+                                        @suggestion
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="chatbot-message-list">
+                            @if (isBusy)
+                            {
+                                <article class="chatbot-message assistant is-pending">
+                                    <p class="chatbot-message-role">Assistant</p>
+                                    <p>Thinking...</p>
+                                </article>
+                            }
+
+                            @foreach (var message in messages.AsEnumerable().Reverse())
+                            {
+                                <article class="chatbot-message @message.Role">
+                                    <p class="chatbot-message-role">@(message.Role == "assistant" ? "Assistant" : "You")</p>
+
+                                    @if (message.Role == "assistant")
+                                    {
+                                        <MarkdownRenderer Content="@message.Content" CssClass="chatbot-markdown" />
+                                    }
+                                    else
+                                    {
+                                        <p>@message.Content</p>
+                                    }
+                                </article>
+                            }
+
+                        </div>
+                    }
+                </div>
+
+                <div class="chatbot-compose">
+                    <label class="visually-hidden" for="chatbot-input">Ask the site assistant</label>
+                    <textarea
+                        id="chatbot-input"
+                        class="chatbot-input"
+                        rows="3"
+                        placeholder="Ask about a release, news article, or the timeline..."
+                        @bind="pendingMessage"
+                        @bind:event="oninput"
+                        @onkeydown="HandleKeyDown"></textarea>
+
+                    <div class="chatbot-actions">
+                        <p class="chatbot-hint">Press Enter to send. Use Shift+Enter for a new line.</p>
+                        <button class="btn btn-primary" type="button" @onclick="SendAsync" disabled="@isBusy">Send</button>
+                    </div>
+                </div>
+            </section>
+        }
+    </div>
+}
+
+@code {
+    private readonly List<ChatMessage> messages = [];
+    private readonly string[] suggestions =
+    [
+        "What should I listen to first?",
+        "Summarize the Axl Protocol story.",
+        "What are the latest releases?",
+        "What happened on the timeline in 2025?"
+    ];
+
+    private bool isOpen;
+    private bool isBusy;
+    private string pendingMessage = string.Empty;
+    private ChatbotBudgetSummary chatbotBudgetSummary = new();
+    private string chatbotAccentStyle = string.Empty;
+    private bool hasLoadedStoredTranscript;
+    private int consecutiveNoCount;
+    private DateTimeOffset? browserDisabledUntilUtc;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshBudgetVisualsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || hasLoadedStoredTranscript)
+        {
+            return;
+        }
+
+        hasLoadedStoredTranscript = true;
+        await LoadStoredTranscriptAsync();
+        StateHasChanged();
+    }
+
+    private void ToggleOpen()
+    {
+        isOpen = !isOpen;
+    }
+
+    private async Task UseSuggestionAsync(string suggestion)
+    {
+        pendingMessage = suggestion;
+        await SendAsync();
+    }
+
+    private async Task ResetChatAsync()
+    {
+        messages.Clear();
+        pendingMessage = string.Empty;
+        consecutiveNoCount = 0;
+        await PersistStateAsync();
+    }
+
+    private async Task SendAsync()
+    {
+        var message = pendingMessage.Trim();
+        if (string.IsNullOrWhiteSpace(message) || isBusy)
+        {
+            return;
+        }
+
+        if (IsBrowserDisabled())
+        {
+            pendingMessage = string.Empty;
+            await PersistStateAsync();
+            return;
+        }
+
+        var history = messages
+            .Select(item => new ChatbotConversationMessage
+            {
+                Role = item.Role,
+                Content = item.Content
+            })
+            .ToList();
+
+        messages.Add(new ChatMessage("user", message));
+        pendingMessage = string.Empty;
+
+        if (ShouldRefuseLocally(message))
+        {
+            RegisterAssistantNo();
+            await PersistStateAsync();
+            return;
+        }
+
+        isBusy = true;
+
+        try
+        {
+            var currentPage = await GetCurrentPageContextAsync();
+            var response = await SiteChatbotService.GenerateReplyAsync(message, history, currentPage);
+            messages.Add(new ChatMessage("assistant", response.Message));
+
+            if (string.Equals(response.Message?.Trim(), "No", StringComparison.Ordinal))
+            {
+                RegisterNoStrike();
+            }
+            else
+            {
+                consecutiveNoCount = 0;
+            }
+
+            await RefreshBudgetVisualsAsync();
+            await PersistStateAsync();
+        }
+        catch (Exception exception)
+        {
+            messages.Add(new ChatMessage("assistant", $"The site assistant hit an error: {exception.Message}"));
+            consecutiveNoCount = 0;
+            await PersistStateAsync();
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private bool ShouldRefuseLocally(string message)
+    {
+        return IsBoundaryProbe(message) || IsOffScopeRequest(message);
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter" && !args.ShiftKey)
+        {
+            await SendAsync();
+        }
+    }
+
+    private async Task RefreshBudgetVisualsAsync()
+    {
+        chatbotBudgetSummary = await ChatbotBudgetService.GetSummaryAsync();
+
+        var threshold = chatbotBudgetSummary.DisableThresholdUsd <= 0
+            ? 10m
+            : chatbotBudgetSummary.DisableThresholdUsd;
+        var spentRatio = threshold <= 0
+            ? 0m
+            : Math.Clamp(chatbotBudgetSummary.TotalEstimatedCostUsd / threshold, 0m, 1m);
+        var remainingRatio = 1m - spentRatio;
+
+        var hue = 4m + (remainingRatio * 164m);
+        var primary = $"hsl({hue:0} 62% 34%)";
+        var secondary = $"hsl({Math.Max(0m, hue - 18m):0} 68% 44%)";
+        var soft = $"hsl({hue:0} 56% 34% / 0.10)";
+        var border = $"hsl({hue:0} 42% 52% / 0.24)";
+
+        chatbotAccentStyle = $"--chatbot-primary:{primary};--chatbot-secondary:{secondary};--chatbot-soft:{soft};--chatbot-border:{border};";
+    }
+
+    private async Task LoadStoredTranscriptAsync()
+    {
+        try
+        {
+            var storedState = await JSRuntime.InvokeAsync<string>("axlChatbotStorage.getState");
+            if (!string.IsNullOrWhiteSpace(storedState))
+            {
+                var parsedState = JsonSerializer.Deserialize<StoredChatbotState>(storedState);
+                if (parsedState is not null)
+                {
+                    consecutiveNoCount = Math.Max(0, parsedState.ConsecutiveNoCount);
+                    browserDisabledUntilUtc = parsedState.BrowserDisabledUntilUtc;
+
+                    if (parsedState.Messages is not null)
+                    {
+                        messages.Clear();
+                        messages.AddRange(parsedState.Messages
+                            .Where(item =>
+                                !string.IsNullOrWhiteSpace(item.Role)
+                                && !string.IsNullOrWhiteSpace(item.Content)
+                                && (string.Equals(item.Role, "user", StringComparison.OrdinalIgnoreCase)
+                                    || string.Equals(item.Role, "assistant", StringComparison.OrdinalIgnoreCase)))
+                            .Select(item => new ChatMessage(
+                                string.Equals(item.Role, "assistant", StringComparison.OrdinalIgnoreCase) ? "assistant" : "user",
+                                item.Content.Trim())));
+                    }
+
+                    return;
+                }
+            }
+
+            var storedTranscript = await JSRuntime.InvokeAsync<string>("axlChatbotStorage.getTranscript");
+            if (string.IsNullOrWhiteSpace(storedTranscript))
+            {
+                return;
+            }
+
+            var parsed = JsonSerializer.Deserialize<List<StoredChatMessage>>(storedTranscript);
+            if (parsed is null || parsed.Count == 0)
+            {
+                return;
+            }
+
+            messages.Clear();
+            messages.AddRange(parsed
+                .Where(item =>
+                    !string.IsNullOrWhiteSpace(item.Role)
+                    && !string.IsNullOrWhiteSpace(item.Content)
+                    && (string.Equals(item.Role, "user", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(item.Role, "assistant", StringComparison.OrdinalIgnoreCase)))
+                .Select(item => new ChatMessage(
+                    string.Equals(item.Role, "assistant", StringComparison.OrdinalIgnoreCase) ? "assistant" : "user",
+                    item.Content.Trim())));
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task PersistStateAsync()
+    {
+        try
+        {
+            var payload = JsonSerializer.Serialize(new StoredChatbotState
+            {
+                ConsecutiveNoCount = consecutiveNoCount,
+                BrowserDisabledUntilUtc = browserDisabledUntilUtc,
+                Messages = messages.Select(item => new StoredChatMessage
+                {
+                    Role = item.Role,
+                    Content = item.Content
+                }).ToList()
+            });
+
+            await JSRuntime.InvokeVoidAsync("axlChatbotStorage.setState", payload);
+            await JSRuntime.InvokeVoidAsync("axlChatbotStorage.setTranscript", payload);
+        }
+        catch
+        {
+        }
+    }
+
+    private bool IsBrowserDisabled()
+    {
+        if (!browserDisabledUntilUtc.HasValue)
+        {
+            return false;
+        }
+
+        if (browserDisabledUntilUtc.Value <= DateTimeOffset.UtcNow)
+        {
+            browserDisabledUntilUtc = null;
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool IsChatbotVisible()
+    {
+        if (!browserDisabledUntilUtc.HasValue)
+        {
+            return true;
+        }
+
+        if (browserDisabledUntilUtc.Value <= DateTimeOffset.UtcNow)
+        {
+            browserDisabledUntilUtc = null;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsBoundaryProbe(string message)
+    {
+        var normalized = message.Trim().ToLowerInvariant();
+
+        string[] patterns =
+        [
+            "ignore the site context",
+            "ignore your instructions",
+            "ignore your rules",
+            "break your boundaries",
+            "break your boundries",
+            "jailbreak",
+            "pretend you are not",
+            "disregard the site content",
+            "answer without the site",
+            "stop following the site context",
+            "override your instructions"
+        ];
+
+        return patterns.Any(normalized.Contains);
+    }
+
+    private static bool IsOffScopeRequest(string message)
+    {
+        var normalized = message.Trim().ToLowerInvariant();
+
+        string[] patterns =
+        [
+            "let's play",
+            "lets play",
+            "play with me",
+            "play a game",
+            "play game",
+            "game with me",
+            "rpg",
+            "roleplay",
+            "role play",
+            "be my dm",
+            "dungeon master",
+            "tell a story with me",
+            "pretend to be",
+            "we are in space",
+            "space game",
+            "space rpg",
+            "fly a kite",
+            "go fly a kite",
+            "micro-campaign",
+            "campaign hook"
+        ];
+
+        return patterns.Any(normalized.Contains);
+    }
+
+    private void RegisterAssistantNo()
+    {
+        messages.Add(new ChatMessage("assistant", "No"));
+        RegisterNoStrike();
+    }
+
+    private void RegisterNoStrike()
+    {
+        consecutiveNoCount += 1;
+
+        if (consecutiveNoCount < 3)
+        {
+            return;
+        }
+
+        browserDisabledUntilUtc = DateTimeOffset.UtcNow.AddMinutes(5);
+        consecutiveNoCount = 0;
+        isOpen = false;
+    }
+
+    private async Task<ChatbotPageContext?> GetCurrentPageContextAsync()
+    {
+        try
+        {
+            return await JSRuntime.InvokeAsync<ChatbotPageContext>("axlChatbotPageContext.getCurrentPage");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private sealed record ChatMessage(string Role, string Content);
+
+    private sealed class StoredChatMessage
+    {
+        public string Role { get; set; } = string.Empty;
+
+        public string Content { get; set; } = string.Empty;
+    }
+
+    private sealed class StoredChatbotState
+    {
+        public int ConsecutiveNoCount { get; set; }
+
+        public DateTimeOffset? BrowserDisabledUntilUtc { get; set; }
+
+        public List<StoredChatMessage> Messages { get; set; } = [];
+    }
+}
