@@ -124,6 +124,7 @@
     position: relative;
     display: grid;
     gap: 1.5rem;
+    max-width: 1120px;
 }
 
 .timeline-track::before {
@@ -131,10 +132,9 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    left: 50%;
+    left: 12rem;
     width: 2px;
     background: linear-gradient(180deg, rgba(16, 42, 105, 0.16), rgba(22, 86, 125, 0.36));
-    transform: translateX(-50%);
 }
 
 .era-section {
@@ -144,17 +144,17 @@
 }
 
 .era-header {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0;
-    align-items: start;
+    display: flex;
+    justify-content: flex-end;
+    padding-right: 1rem;
 }
 
 .era-marker {
     position: relative;
     z-index: 1;
     display: flex;
-    justify-content: center;
+    justify-content: flex-end;
+    width: 100%;
 }
 
 .era-year {
@@ -167,65 +167,51 @@
     background: #f7f9ff;
     color: #102a69;
     font-weight: 700;
+    box-shadow: 0 10px 24px rgba(16, 42, 105, 0.08);
 }
 
 .era-events {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 3.5rem minmax(0, 1fr);
+    grid-template-columns: 10.5rem 3rem minmax(0, 720px);
     align-items: start;
-    gap: 1rem;
+    gap: 1.15rem;
     padding-left: 0;
 }
 
-.timeline-event-side {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 360px));
-    min-width: 0;
-    align-content: start;
-    align-items: start;
-    justify-content: start;
-    justify-items: start;
-    gap: 1rem;
-}
-
-.timeline-event-side-left {
-    justify-content: end;
-    justify-items: end;
-    padding-right: 1.25rem;
-}
-
-.timeline-event-side-right {
-    padding-left: 1.25rem;
-}
-
 .timeline-event-center {
+    position: relative;
     min-height: 100%;
 }
 
-.timeline-release-grid {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 360px));
-    align-items: start;
-    justify-content: start;
+.timeline-event-center::before {
+    content: "";
+    position: absolute;
+    top: 0.5rem;
+    left: 50%;
+    width: 0.95rem;
+    height: 0.95rem;
+    border-radius: 999px;
+    background: #f7f9ff;
+    border: 3px solid #102a69;
+    transform: translateX(-50%);
+}
+
+.timeline-event-list {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
 }
 
 .event-card {
     display: grid;
     gap: 0.85rem;
     padding: 1.25rem;
-    max-width: 600px;
+    max-width: 720px;
     align-self: start;
     border-radius: 1.1rem;
     background: #fff;
     border: 1px solid rgba(17, 44, 114, 0.08);
     box-shadow: 0 14px 28px rgba(17, 44, 114, 0.05);
-}
-
-.event-card-manual {
-    justify-self: end;
-}
-
-.event-card-release {
-    justify-self: start;
 }
 
 .event-artwork {
@@ -313,6 +299,14 @@
 
 .event-link {
     color: #102a69;
+}
+
+.event-card-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.85rem;
+    align-items: center;
 }
 
 .event-link:hover,
@@ -408,51 +402,38 @@
 
 @media (max-width: 1100px) {
     .era-events {
-        grid-template-columns: minmax(0, 1fr) 2.75rem minmax(0, 1fr);
-    }
-
-    .timeline-event-side,
-    .timeline-release-grid {
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        grid-template-columns: 9rem 2.5rem minmax(0, 1fr);
     }
 }
 
 @media (max-width: 900px) {
-    .timeline-hero,
-    .era-header {
+    .timeline-hero {
         grid-template-columns: 1fr;
     }
 
     .timeline-track::before {
-        display: none;
+        left: 1rem;
     }
 
     .era-marker {
         justify-content: flex-start;
     }
 
-    .era-marker::after {
-        display: none;
+    .era-header {
+        padding-right: 0;
     }
 
     .era-events {
         grid-template-columns: 1fr;
         gap: 1rem;
-        padding-left: 0;
     }
 
-    .timeline-event-side-left,
-    .timeline-event-side-right,
-    .event-card-manual,
-    .event-card-release {
-        justify-items: stretch;
-        justify-self: stretch;
-        padding-left: 0;
-        padding-right: 0;
+    .timeline-event-center {
+        display: none;
     }
 
-    .timeline-release-grid {
-        grid-template-columns: 1fr;
+    .timeline-event-list {
+        padding-left: 2rem;
     }
 }
 
@@ -468,6 +449,12 @@
     background: var(--app-surface-elevated);
     color: #dce9ff;
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+}
+
+:root[data-theme="dark"] .timeline-event-center::before {
+    background: var(--app-surface-elevated);
+    border-color: #9dc1ff;
+    box-shadow: 0 0 0 6px rgba(9, 20, 43, 0.4);
 }
 
 :root[data-theme="dark"] .event-card,

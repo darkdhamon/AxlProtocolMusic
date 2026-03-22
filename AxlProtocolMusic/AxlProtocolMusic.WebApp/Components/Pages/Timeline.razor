@@ -56,17 +56,19 @@ else
             @foreach (var month in timelineYears)
             {
                 <article class="era-section">
-                    <div class="era-header">
-                        <div class="era-marker">
-                            <span class="era-year">@month.MonthLabelShort</span>
-                        </div>
-                    </div>
-
                     <div class="era-events">
-                        <div class="timeline-event-side timeline-event-side-left">
-                            @foreach (var timelineEvent in month.Events.Where(item => item.IsManualEvent || item.Tag == "News"))
+                        <div class="era-header">
+                            <div class="era-marker">
+                                <span class="era-year">@month.MonthLabelShort</span>
+                            </div>
+                        </div>
+
+                        <div class="timeline-event-center"></div>
+
+                        <div class="timeline-event-list">
+                            @foreach (var timelineEvent in month.Events)
                             {
-                                <article class="event-card event-card-manual">
+                                <article class="event-card">
                                     <div class="event-meta">
                                         <span class="event-date">@timelineEvent.DateLabel</span>
                                         <span class="event-tag @timelineEvent.TagClass">@timelineEvent.Tag</span>
@@ -92,67 +94,35 @@ else
                                         </ul>
                                     }
 
-                                    <AuthorizeView Roles="Admin">
-                                        <Authorized>
-                                            @if (timelineEvent.IsManualEvent)
-                                            {
-                                            <div class="event-admin-actions">
-                                                <button
-                                                    class="btn btn-outline-primary btn-sm event-edit-button"
-                                                    type="button"
-                                                    @onclick="() => OpenEditModal(timelineEvent)">
-                                                    Edit Event
-                                                </button>
+                                    <div class="event-card-footer">
+                                        @if (!string.IsNullOrWhiteSpace(timelineEvent.Href))
+                                        {
+                                            <a class="event-link" href="@timelineEvent.Href">@timelineEvent.LinkLabel</a>
+                                        }
 
-                                                <button
-                                                    class="btn btn-outline-danger btn-sm"
-                                                    type="button"
-                                                    @onclick="() => OpenDeleteModal(timelineEvent)">
-                                                    Delete
-                                                </button>
-                                            </div>
-                                            }
-                                        </Authorized>
-                                    </AuthorizeView>
-                                </article>
-                            }
-                        </div>
+                                        <AuthorizeView Roles="Admin">
+                                            <Authorized>
+                                                @if (timelineEvent.IsManualEvent)
+                                                {
+                                                    <div class="event-admin-actions">
+                                                        <button
+                                                            class="btn btn-outline-primary btn-sm event-edit-button"
+                                                            type="button"
+                                                            @onclick="() => OpenEditModal(timelineEvent)">
+                                                            Edit Event
+                                                        </button>
 
-                        <div class="timeline-event-center"></div>
-
-                        <div class="timeline-event-side timeline-event-side-right timeline-release-grid">
-                            @foreach (var timelineEvent in month.Events.Where(item => !item.IsManualEvent && item.Tag == "Release"))
-                            {
-                                <article class="event-card event-card-release">
-                                    @if (!string.IsNullOrWhiteSpace(timelineEvent.ImageUrl))
-                                    {
-                                        <div class="event-artwork">
-                                            <img src="@timelineEvent.ImageUrl" alt="@($"{timelineEvent.Title} cover art")" />
-                                        </div>
-                                    }
-
-                                    <div class="event-meta">
-                                        <span class="event-date">@timelineEvent.DateLabel</span>
-                                        <span class="event-tag @timelineEvent.TagClass">@timelineEvent.Tag</span>
+                                                        <button
+                                                            class="btn btn-outline-danger btn-sm"
+                                                            type="button"
+                                                            @onclick="() => OpenDeleteModal(timelineEvent)">
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                }
+                                            </Authorized>
+                                        </AuthorizeView>
                                     </div>
-
-                                    <h3>@timelineEvent.Title</h3>
-                                    <p>@timelineEvent.Description</p>
-
-                                    @if (timelineEvent.Highlights.Count > 0)
-                                    {
-                                        <ul class="event-highlights">
-                                            @foreach (var highlight in timelineEvent.Highlights)
-                                            {
-                                                <li>@highlight</li>
-                                            }
-                                        </ul>
-                                    }
-
-                                    @if (!string.IsNullOrWhiteSpace(timelineEvent.Href))
-                                    {
-                                        <a class="event-link" href="@timelineEvent.Href">@timelineEvent.LinkLabel</a>
-                                    }
                                 </article>
                             }
                         </div>
