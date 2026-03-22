@@ -1,0 +1,38 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": ".NET Launch Web App",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-webapp",
+      "program": "${workspaceFolder}/AxlProtocolMusic/AxlProtocolMusic.WebApp/bin/Debug/net10.0/AxlProtocolMusic.WebApp.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/AxlProtocolMusic/AxlProtocolMusic.WebApp",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5214"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(http://\\S+)"
+      }
+    },
+    {
+      "name": "Launch Edge against Web App",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:5214",
+      "webRoot": "${workspaceFolder}"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Run Web App and Open Browser",
+      "configurations": [
+        ".NET Launch Web App"
+      ]
+    }
+  ]
+}

@@ -45,6 +45,157 @@
                 }
             };
 
+            window.axlChatbotStorage = {
+                getState: function () {
+                    try {
+                        return window.localStorage.getItem("axl-chatbot-state") || "";
+                    } catch {
+                        return "";
+                    }
+                },
+                setState: function (value) {
+                    try {
+                        window.localStorage.setItem("axl-chatbot-state", value || "");
+                    } catch {
+                    }
+                },
+                getTranscript: function () {
+                    try {
+                        return window.localStorage.getItem("axl-chatbot-transcript") || "";
+                    } catch {
+                        return "";
+                    }
+                },
+                setTranscript: function (value) {
+                    try {
+                        window.localStorage.setItem("axl-chatbot-transcript", value || "");
+                    } catch {
+                    }
+                }
+            };
+
+            window.axlChatbotPageContext = {
+                getCurrentPage: function () {
+                    var source = document.querySelector("main") || document.querySelector("article") || document.body;
+                    var clone = source ? source.cloneNode(true) : null;
+
+                    if (clone && clone.querySelectorAll) {
+                        clone.querySelectorAll("script, style, noscript, .site-chatbot").forEach(function (node) {
+                            node.remove();
+                        });
+                    }
+
+                    var content = clone && clone.innerText
+                        ? clone.innerText.replace(/\s+/g, " ").trim()
+                        : "";
+
+                    if (content.length > 4000) {
+                        content = content.substring(0, 4000);
+                    }
+
+                    return {
+                        pagePath: (window.location.pathname || "") + (window.location.search || ""),
+                        pageTitle: document.title || "",
+                        pageContent: content
+                    };
+                }
+            };
+
+            window.axlChatbotUi = {
+                initializePanel: function (rootSelector, panelSelector, handleSelector, dotNetRef) {
+                    var root = document.querySelector(rootSelector);
+                    var panel = document.querySelector(panelSelector);
+                    var handle = root ? root.querySelector(handleSelector) : null;
+
+                    if (!root || !panel || !handle || root.dataset.chatbotUiInitialized === "true") {
+                        return;
+                    }
+
+                    root.dataset.chatbotUiInitialized = "true";
+
+                    var emitLayout = function () {
+                        var rootRect = root.getBoundingClientRect();
+                        var panelRect = panel.getBoundingClientRect();
+
+                        dotNetRef.invokeMethodAsync(
+                            "UpdatePanelLayout",
+                            Math.round(rootRect.left),
+                            Math.round(rootRect.top),
+                            Math.round(panelRect.width),
+                            Math.round(panelRect.height));
+                    };
+
+                    var dragging = false;
+                    var startPointerX = 0;
+                    var startPointerY = 0;
+                    var startLeft = 0;
+                    var startTop = 0;
+
+                    handle.addEventListener("pointerdown", function (event) {
+                        if (event.target.closest("button")) {
+                            return;
+                        }
+
+                        var rootRect = root.getBoundingClientRect();
+                        dragging = true;
+                        startPointerX = event.clientX;
+                        startPointerY = event.clientY;
+                        startLeft = rootRect.left;
+                        startTop = rootRect.top;
+
+                        root.style.right = "auto";
+                        root.style.bottom = "auto";
+
+                        document.body.style.userSelect = "none";
+                    });
+
+                    window.addEventListener("pointermove", function (event) {
+                        if (!dragging) {
+                            return;
+                        }
+
+                        root.style.left = (startLeft + (event.clientX - startPointerX)) + "px";
+                        root.style.top = (startTop + (event.clientY - startPointerY)) + "px";
+                    });
+
+                    window.addEventListener("pointerup", function () {
+                        if (!dragging) {
+                            return;
+                        }
+
+                        dragging = false;
+                        document.body.style.userSelect = "";
+                        emitLayout();
+                    });
+
+                    var resizeObserver = new ResizeObserver(function () {
+                        emitLayout();
+                    });
+
+                    resizeObserver.observe(panel);
+                },
+                resetPanel: function (rootSelector) {
+                    var root = document.querySelector(rootSelector);
+                    if (!root) {
+                        return;
+                    }
+
+                    root.dataset.chatbotUiInitialized = "false";
+                    root.style.left = "";
+                    root.style.top = "";
+                    root.style.right = "";
+                    root.style.bottom = "";
+                },
+                scrollToBottom: function (selector) {
+                    var element = document.querySelector(selector);
+                    if (!element) {
+                        return;
+                    }
+
+                    element.scrollTop = element.scrollHeight;
+                }
+            };
+
             try {
                 window.axlTheme.initializeTheme();
             } catch {
