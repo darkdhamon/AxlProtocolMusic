@@ -1,11 +1,53 @@
 @page "/timeline"
 @rendermode InteractiveServer
 @using System.Text.RegularExpressions
+@inject IJSRuntime JSRuntime
 @inject IReleaseService ReleaseService
 @inject INewsArticleService NewsArticleService
 @inject ITimelineEventService TimelineEventService
 @inject NavigationManager NavigationManager
-@implements IDisposable
+@implements IAsyncDisposable
+
+<script>
+    window.axlTimelinePage = window.axlTimelinePage || (() => {
+        let observer;
+
+        function initializeInfiniteScroll(sentinel, dotNetReference) {
+            if (!sentinel || !dotNetReference) {
+                return;
+            }
+
+            disposeInfiniteScroll();
+
+            observer = new IntersectionObserver(entries => {
+                const visibleEntry = entries.find(entry => entry.isIntersecting);
+                if (!visibleEntry) {
+                    return;
+                }
+
+                dotNetReference.invokeMethodAsync("LoadMoreFromScroll");
+            }, {
+                root: null,
+                rootMargin: "0px 0px 400px 0px",
+                threshold: 0.1
+            });
+
+            observer.observe(sentinel);
+        }
+
+        function disposeInfiniteScroll() {
+            if (observer) {
+                observer.disconnect();
+                observer = null;
+            }
+        }
+
+        return {
+            initializeInfiniteScroll,
+            disposeInfiniteScroll
+        };
+    })();
+</script>
 
 <PageTitle>Timeline</PageTitle>
 
@@ -130,6 +172,20 @@ else
                 </article>
             }
         </section>
+
+        @if (hasMoreMonths)
+        {
+            <div class="timeline-scroll-loader">
+                <div @ref="loadMoreSentinel" class="timeline-scroll-sentinel" aria-hidden="true"></div>
+                <p>@(isLoadingMore ? "Loading older months..." : "Scroll to load older months.")</p>
+            </div>
+        }
+        else if (!isLoading)
+        {
+            <div class="timeline-scroll-loader is-complete">
+                <p>All timeline months are loaded.</p>
+            </div>
+        }
 
     </div>
 }
@@ -258,7 +314,9 @@ else
     private static readonly IReadOnlyList<TimelineEventType> timelineEventTypes = Enum
         .GetValues<TimelineEventType>()
         .ToList();
+    private const int MonthBatchSize = 4;
 
+    private List<TimelineMonthSection> allTimelineMonths = [];
     private List<TimelineMonthSection> timelineYears = [];
     private bool isLoading = true;
     private int releaseEventCount;
@@ -270,12 +328,17 @@ else
     private bool isCreatingTimelineEvent;
     private bool isDeleteModalOpen;
     private bool isDeletingEvent;
+    private bool hasMoreMonths;
+    private bool isLoadingMore;
+    private bool observerInitialized;
     private string? editErrorMessage;
     private string? editStatusMessage;
     private string? deleteErrorMessage;
     private TimelineEvent? editableTimelineEvent;
     private TimelineEntry? timelineEventPendingDelete;
     private DateTime editableEventDate;
+    private DotNetObjectReference<Timeline>? dotNetReference;
+    private ElementReference loadMoreSentinel;
 
     protected override async Task OnInitializedAsync()
     {
@@ -284,8 +347,38 @@ else
         OpenCreateModalIfRequested();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if ((!firstRender && observerInitialized) || !hasMoreMonths)
+        {
+            return;
+        }
+
+        dotNetReference ??= DotNetObjectReference.Create(this);
+        await JSRuntime.InvokeVoidAsync("axlTimelinePage.initializeInfiniteScroll", loadMoreSentinel, dotNetReference);
+        observerInitialized = true;
+    }
+
+    [JSInvokable]
+    public async Task LoadMoreFromScroll()
+    {
+        if (!hasMoreMonths || isLoadingMore)
+        {
+            return;
+        }
+
+        isLoadingMore = true;
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(180);
+        LoadNextMonthBatch();
+        isLoadingMore = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
     private async Task LoadTimelineAsync()
     {
+        var loadedMonthCount = timelineYears.Count;
+
         var releaseResult = await ReleaseService.GetPagedReleasesAsync(
             searchTerm: null,
             pageNumber: 1,
@@ -353,7 +446,7 @@ else
 
         totalTimelineEvents = combinedEvents.Count;
 
-        timelineYears = combinedEvents
+        allTimelineMonths = combinedEvents
             .GroupBy(item => new DateTime(item.EventDateUtc.Year, item.EventDateUtc.Month, 1))
             .OrderByDescending(group => group.Key)
             .Select(group => new TimelineMonthSection(
@@ -361,7 +454,19 @@ else
                 group.ToList()))
             .ToList();
 
+        timelineYears = [];
+        LoadNextMonthBatch(Math.Max(loadedMonthCount, MonthBatchSize));
         isLoading = false;
+    }
+
+    private void LoadNextMonthBatch(int? targetCount = null)
+    {
+        var nextCount = targetCount ?? (timelineYears.Count + MonthBatchSize);
+        timelineYears = allTimelineMonths
+            .Take(Math.Min(nextCount, allTimelineMonths.Count))
+            .ToList();
+
+        hasMoreMonths = timelineYears.Count < allTimelineMonths.Count;
     }
 
     private static IReadOnlyList<string> BuildReleaseHighlights(ReleaseListItemViewModel release)
@@ -605,8 +710,17 @@ else
         public string DateLabel => EventDateUtc.ToString("MMMM d, yyyy");
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         NavigationManager.LocationChanged -= HandleLocationChanged;
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("axlTimelinePage.disposeInfiniteScroll");
+        }
+        catch
+        {
+        }
+
+        dotNetReference?.Dispose();
     }
 }
