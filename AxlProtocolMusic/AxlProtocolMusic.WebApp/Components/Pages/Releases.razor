@@ -110,7 +110,11 @@
             {
                 <a class="release-card-link" href="@($"/releases/{release.Slug}")">
                     <article class="release-card">
-                        <img class="release-artwork" src="@GetReleaseArtworkUrl(release.CoverImageUrl)" alt="@release.Title cover art" />
+                        <img
+                            class="release-artwork"
+                            src="@GetReleaseArtworkUrl(release.CoverImageUrl)"
+                            alt="@release.Title cover art"
+                            onerror="this.onerror=null;this.src='/Assets/Misc/Placeholder-AlbumArt.png';" />
 
                         <div class="release-copy">
                             <div class="release-meta-row">

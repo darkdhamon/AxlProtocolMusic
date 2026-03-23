@@ -97,7 +97,10 @@ else
             </div>
 
             <div class="release-hero-artwork">
-                <img src="@GetReleaseArtworkUrl(release.CoverImageUrl)" alt="@release.Title cover art" />
+                <img
+                    src="@GetReleaseArtworkUrl(release.CoverImageUrl)"
+                    alt="@release.Title cover art"
+                    onerror="this.onerror=null;this.src='/Assets/Misc/Placeholder-AlbumArt.png';" />
             </div>
         </section>
 
