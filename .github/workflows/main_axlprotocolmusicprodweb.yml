@@ -15,7 +15,7 @@ jobs:
     env:
       PROJECT_PATH: AxlProtocolMusic/AxlProtocolMusic.WebApp/AxlProtocolMusic.WebApp.csproj
       PUBLISH_PATH: ${{ github.workspace }}/published-app
-      RUNTIME_IDENTIFIER: win-x64
+      RUNTIME_IDENTIFIER: win-x86
     permissions:
       contents: read #This is required for actions/checkout
 
