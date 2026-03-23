@@ -2,11 +2,9 @@ using AxlProtocolMusic.WebApp.Components;
 using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Extensions;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
-using AxlProtocolMusic.WebApp.Services.Development;
 using AxlProtocolMusic.WebApp.Services.Identity;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
-using Mongo2Go;
 using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,8 +14,6 @@ builder.Configuration.AddEnvironmentVariables();
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 ConfigureDevelopmentDataProtection(builder);
-
-ConfigureDevelopmentMongoDb(builder);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -120,37 +116,4 @@ void ConfigureDevelopmentDataProtection(WebApplicationBuilder webApplicationBuil
     webApplicationBuilder.Services
         .AddDataProtection()
         .PersistKeysToFileSystem(new DirectoryInfo(keysDirectory));
-}
-
-void ConfigureDevelopmentMongoDb(WebApplicationBuilder webApplicationBuilder)
-{
-    if (!webApplicationBuilder.Environment.IsDevelopment())
-    {
-        return;
-    }
-
-    var developmentMongoSettings = webApplicationBuilder.Configuration
-        .GetSection(DevelopmentMongoDbSettings.SectionName)
-        .Get<DevelopmentMongoDbSettings>()
-        ?? new DevelopmentMongoDbSettings();
-
-    if (!developmentMongoSettings.Enabled)
-    {
-        return;
-    }
-
-    var dataDirectory = Path.GetFullPath(
-        Path.Combine(webApplicationBuilder.Environment.ContentRootPath, developmentMongoSettings.DataDirectory));
-
-    Directory.CreateDirectory(dataDirectory);
-
-    var runner = MongoDbRunner.StartForDebugging(dataDirectory: dataDirectory);
-
-    webApplicationBuilder.Services.AddSingleton(new DevelopmentMongoDbRunner(runner));
-
-    webApplicationBuilder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-    {
-        [$"{MongoDbSettings.SectionName}:ConnectionString"] = runner.ConnectionString,
-        [$"{MongoDbSettings.SectionName}:DatabaseName"] = developmentMongoSettings.DatabaseName
-    });
 }
