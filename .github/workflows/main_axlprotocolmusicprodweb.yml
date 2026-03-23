@@ -12,6 +12,9 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      PROJECT_PATH: AxlProtocolMusic/AxlProtocolMusic.WebApp/AxlProtocolMusic.WebApp.csproj
+      PUBLISH_PATH: ${{ github.workspace }}/published-app
     permissions:
       contents: read #This is required for actions/checkout
 
@@ -24,16 +27,16 @@ jobs:
           dotnet-version: '10.x'
 
       - name: Build with dotnet
-        run: dotnet build --configuration Release
+        run: dotnet build "${{ env.PROJECT_PATH }}" --configuration Release
 
       - name: dotnet publish
-        run: dotnet publish -c Release -o "${{env.DOTNET_ROOT}}/myapp"
+        run: dotnet publish "${{ env.PROJECT_PATH }}" -c Release -o "${{ env.PUBLISH_PATH }}" --no-build
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
+          path: ${{ env.PUBLISH_PATH }}
 
   deploy:
     runs-on: windows-latest
