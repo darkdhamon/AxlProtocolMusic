@@ -4,6 +4,10 @@ public sealed class ImageStorageSettings
 {
     public const string SectionName = "ImageStorage";
 
+    public string ConnectionString { get; init; } = string.Empty;
+
+    public string ContainerName { get; init; } = string.Empty;
+
     public string UploadRoot { get; init; } = "uploads";
 
     public long MaxFileSizeBytes { get; init; } = 5 * 1024 * 1024;

@@ -95,7 +95,7 @@ public sealed class ReleasesController : Controller
 
         if (request.CoverImageFile is not null
             && !string.IsNullOrWhiteSpace(previousCoverImageUrl)
-            && _releaseService.IsManagedImageUrl(previousCoverImageUrl)
+            && _imageStorageService.IsManagedImageUrl(previousCoverImageUrl)
             && !string.Equals(previousCoverImageUrl, request.CoverImageUrl, StringComparison.OrdinalIgnoreCase))
         {
             await _imageStorageService.DeleteAsync(previousCoverImageUrl);

@@ -6,6 +6,8 @@ public interface IImageStorageService
         IFormFile file,
         CancellationToken cancellationToken = default);
 
+    bool IsManagedImageUrl(string? imageUrl);
+
     Task DeleteAsync(
         string storagePath,
         CancellationToken cancellationToken = default);

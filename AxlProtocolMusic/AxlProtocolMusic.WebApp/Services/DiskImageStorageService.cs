@@ -29,20 +29,7 @@ public sealed class DiskImageStorageService : IImageStorageService
         IFormFile file,
         CancellationToken cancellationToken = default)
     {
-        if (file.Length <= 0)
-        {
-            throw new InvalidOperationException("The uploaded image file is empty.");
-        }
-
-        if (file.Length > _settings.MaxFileSizeBytes)
-        {
-            throw new InvalidOperationException("The uploaded image exceeds the size limit.");
-        }
-
-        if (!AllowedContentTypes.Contains(file.ContentType))
-        {
-            throw new InvalidOperationException("Only JPG, PNG, WEBP, and GIF images are supported.");
-        }
+        ValidateImage(file, _settings.MaxFileSizeBytes);
 
         var extension = Path.GetExtension(file.FileName);
         if (string.IsNullOrWhiteSpace(extension))
@@ -76,6 +63,12 @@ public sealed class DiskImageStorageService : IImageStorageService
         };
     }
 
+    public bool IsManagedImageUrl(string? imageUrl)
+    {
+        return !string.IsNullOrWhiteSpace(imageUrl)
+            && imageUrl.StartsWith($"/{_settings.UploadRoot}/", StringComparison.OrdinalIgnoreCase);
+    }
+
     public Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(storagePath))
@@ -92,5 +85,23 @@ public sealed class DiskImageStorageService : IImageStorageService
         }
 
         return Task.CompletedTask;
+    }
+
+    internal static void ValidateImage(IFormFile file, long maxFileSizeBytes)
+    {
+        if (file.Length <= 0)
+        {
+            throw new InvalidOperationException("The uploaded image file is empty.");
+        }
+
+        if (file.Length > maxFileSizeBytes)
+        {
+            throw new InvalidOperationException("The uploaded image exceeds the size limit.");
+        }
+
+        if (!AllowedContentTypes.Contains(file.ContentType))
+        {
+            throw new InvalidOperationException("Only JPG, PNG, WEBP, and GIF images are supported.");
+        }
     }
 }

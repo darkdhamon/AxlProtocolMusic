@@ -19,6 +19,11 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var imageStorageSettings = configuration
+            .GetSection(ImageStorageSettings.SectionName)
+            .Get<ImageStorageSettings>()
+            ?? new ImageStorageSettings();
+
         services.Configure<MongoDbSettings>(
             configuration.GetSection(MongoDbSettings.SectionName));
         services.Configure<ImageStorageSettings>(
@@ -40,7 +45,15 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISiteChatbotContextBuilder, SiteChatbotContextBuilder>();
         services.AddHttpClient<ISiteChatbotService, SiteChatbotService>();
         services.AddScoped<ITimelineEventService, TimelineEventService>();
-        services.AddScoped<IImageStorageService, DiskImageStorageService>();
+        if (!string.IsNullOrWhiteSpace(imageStorageSettings.ConnectionString)
+            && !string.IsNullOrWhiteSpace(imageStorageSettings.ContainerName))
+        {
+            services.AddSingleton<IImageStorageService, BlobImageStorageService>();
+        }
+        else
+        {
+            services.AddScoped<IImageStorageService, DiskImageStorageService>();
+        }
         services.AddScoped<MarkdownService>();
 
         return services;
