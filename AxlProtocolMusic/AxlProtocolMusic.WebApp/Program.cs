@@ -11,6 +11,7 @@ using Mongo2Go;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Configuration.AddJsonFile("appsecrets.json", optional: true, reloadOnChange: true);
+builder.Configuration.AddEnvironmentVariables();
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 ConfigureDevelopmentDataProtection(builder);
