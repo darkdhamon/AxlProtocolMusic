@@ -15,7 +15,6 @@ jobs:
     env:
       PROJECT_PATH: AxlProtocolMusic/AxlProtocolMusic.WebApp/AxlProtocolMusic.WebApp.csproj
       PUBLISH_PATH: ${{ github.workspace }}/published-app
-      RUNTIME_IDENTIFIER: win-x86
     permissions:
       contents: read #This is required for actions/checkout
 
@@ -28,10 +27,10 @@ jobs:
           dotnet-version: '10.x'
 
       - name: Build with dotnet
-        run: dotnet build "${{ env.PROJECT_PATH }}" --configuration Release -r "${{ env.RUNTIME_IDENTIFIER }}"
+        run: dotnet build "${{ env.PROJECT_PATH }}" --configuration Release
 
       - name: dotnet publish
-        run: dotnet publish "${{ env.PROJECT_PATH }}" -c Release -r "${{ env.RUNTIME_IDENTIFIER }}" --self-contained true -o "${{ env.PUBLISH_PATH }}"
+        run: dotnet publish "${{ env.PROJECT_PATH }}" -c Release --no-build -o "${{ env.PUBLISH_PATH }}"
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4

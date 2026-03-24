@@ -123,13 +123,8 @@ Admin traffic is intentionally excluded from analytics reporting.
 The repository includes a GitHub Actions workflow that:
 
 - builds `AxlProtocolMusic/AxlProtocolMusic.WebApp/AxlProtocolMusic.WebApp.csproj`
-- publishes a self-contained Windows deployment
+- publishes the app without forcing a specific Windows architecture
 - deploys the artifact to the Azure Web App `axlprotocolmusicprodweb`
-
-The workflow currently targets:
-
-- .NET `10.x`
-- runtime identifier `win-x86`
 
 Before deploying, make sure production app settings and secrets are configured in Azure, especially MongoDB, admin bootstrap, image storage, and OpenAI settings.
 
