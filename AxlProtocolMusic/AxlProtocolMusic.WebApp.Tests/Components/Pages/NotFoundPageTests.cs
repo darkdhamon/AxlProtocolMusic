@@ -17,9 +17,13 @@ public sealed class NotFoundPageTests
         Assert.That(cut.Markup, Does.Contain("Page not found"));
         Assert.That(cut.Markup, Does.Contain("The page you requested does not exist or may have moved."));
         Assert.That(cut.Markup, Does.Contain("Use the site navigation to get back to the section you were looking for."));
-        Assert.That(cut.Markup, Does.Not.Contain("You Might Like"));
-        Assert.That(cut.Markup, Does.Not.Contain("View Article"));
-        Assert.That(cut.Markup, Does.Not.Contain("View Release"));
+        Assert.That(cut.Markup, Does.Contain("You Might Like"));
+        Assert.That(cut.Markup, Does.Contain("Behind the latest release"));
+        Assert.That(cut.Markup, Does.Contain("Explore a featured release"));
+        Assert.That(cut.Markup, Does.Contain("View Article"));
+        Assert.That(cut.Markup, Does.Contain("View Release"));
+        Assert.That(cut.Markup, Does.Contain("/news"));
+        Assert.That(cut.Markup, Does.Contain("/releases"));
 
         var image = cut.Find("img");
         Assert.That(image.GetAttribute("src"), Is.EqualTo("/Assets/Misc/404-Graphic.png"));
