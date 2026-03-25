@@ -76,6 +76,7 @@ public sealed class NewsPageTests
     {
         using var context = CreateContext(out var newsService);
         context.AddAuthorization().SetNotAuthorized();
+        var navigation = context.Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
         newsService.Articles =
         [
             new NewsArticle
@@ -91,8 +92,9 @@ public sealed class NewsPageTests
             }
         ];
 
-        var cut = context.Render<News>(parameters => parameters
-            .Add(component => component.ArticleSlug, "launch-story"));
+        navigation.NavigateTo("/news?article=launch-story");
+
+        var cut = context.Render<News>();
 
         cut.WaitForAssertion(() =>
         {
