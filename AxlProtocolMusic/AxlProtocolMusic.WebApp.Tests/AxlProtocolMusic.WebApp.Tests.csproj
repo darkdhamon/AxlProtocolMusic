@@ -9,10 +9,17 @@
     <IsPackable>false</IsPackable>
     <EnableNUnitRunner>true</EnableNUnitRunner>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <CollectCoverage>true</CollectCoverage>
+    <CoverletOutput>..\TestResults\Coverage\coverage</CoverletOutput>
+    <CoverletOutputFormat>json,cobertura</CoverletOutputFormat>
+    <Exclude>[AxlProtocolMusic.WebApp.Tests*]*</Exclude>
+    <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+    <ExcludeByFile>**/Models/**/*.cs,**/Configuration/**/*.cs,**/Services/Interfaces/**/*.cs,**/Repositories/Interfaces/**/*.cs,**/Services/ServiceModels/**/*.cs,**/Program.cs,**/*Seed*.cs,**/*Seeder*.cs</ExcludeByFile>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="coverlet.msbuild" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.0" />
     <PackageReference Include="NUnit" Version="4.3.2" />
     <PackageReference Include="NUnit.Analyzers" Version="4.7.0" />

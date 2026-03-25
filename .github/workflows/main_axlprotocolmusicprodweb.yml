@@ -14,7 +14,12 @@ jobs:
     runs-on: windows-latest
     env:
       PROJECT_PATH: AxlProtocolMusic/AxlProtocolMusic.WebApp/AxlProtocolMusic.WebApp.csproj
+      TEST_PROJECT_PATH: AxlProtocolMusic/AxlProtocolMusic.WebApp.Tests/AxlProtocolMusic.WebApp.Tests.csproj
       PUBLISH_PATH: ${{ github.workspace }}/published-app
+      COVERAGE_OUTPUT_DIR: ${{ github.workspace }}/AxlProtocolMusic/TestResults/Coverage
+      COVERAGE_OUTPUT_PREFIX: ${{ github.workspace }}/AxlProtocolMusic/TestResults/Coverage/coverage
+      COVERAGE_WARNING_THRESHOLD: '90'
+      COVERAGE_FAIL_THRESHOLD: '25'
     permissions:
       contents: read #This is required for actions/checkout
 
@@ -26,11 +31,55 @@ jobs:
         with:
           dotnet-version: '10.x'
 
+      - name: Restore dependencies
+        run: dotnet restore "${{ env.TEST_PROJECT_PATH }}"
+
       - name: Build with dotnet
-        run: dotnet build "${{ env.PROJECT_PATH }}" --configuration Release
+        run: dotnet build "${{ env.TEST_PROJECT_PATH }}" --configuration Release --no-restore
+
+      - name: Run unit tests with coverage
+        run: >
+          dotnet test "${{ env.TEST_PROJECT_PATH }}"
+          --configuration Release
+          --no-build
+
+      - name: Evaluate coverage thresholds
+        shell: pwsh
+        run: |
+          $coveragePath = Join-Path $env:COVERAGE_OUTPUT_DIR 'coverage.cobertura.xml'
+          if (-not (Test-Path $coveragePath)) {
+            throw "Coverage report not found at $coveragePath."
+          }
+
+          [xml]$coverage = Get-Content $coveragePath
+          $lineRate = [math]::Round(([double]$coverage.coverage.'line-rate' * 100), 2)
+          $warningThreshold = [double]$env:COVERAGE_WARNING_THRESHOLD
+          $failThreshold = [double]$env:COVERAGE_FAIL_THRESHOLD
+
+          "Line coverage: $lineRate%" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "Warning threshold: $warningThreshold%" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          "Fail threshold: $failThreshold%" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+          if ($lineRate -lt $warningThreshold) {
+            Write-Host "::warning::Line coverage is $lineRate%, below the warning threshold of $warningThreshold%."
+          }
+
+          if ($lineRate -lt $failThreshold) {
+            throw "Line coverage is $lineRate%, below the fail threshold of $failThreshold%."
+          }
 
       - name: dotnet publish
         run: dotnet publish "${{ env.PROJECT_PATH }}" -c Release --no-build -o "${{ env.PUBLISH_PATH }}"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            ${{ env.COVERAGE_OUTPUT_DIR }}/coverage.json
+            ${{ env.COVERAGE_OUTPUT_DIR }}/coverage.cobertura.xml
+            AxlProtocolMusic/AxlProtocolMusic.WebApp.Tests/bin/Release/net10.0/TestResults/**/*
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4

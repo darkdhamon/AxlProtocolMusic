@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector
+        friendlyName="Code Coverage"
+        uri="datacollector://Microsoft/CodeCoverage/2.0"
+        assemblyQualifiedName="Microsoft.VisualStudio.Coverage.DynamicCoverageDataCollector, Microsoft.VisualStudio.TraceCollector, Version=11.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+        <Configuration>
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+          <CodeCoverage>
+            <ModulePaths>
+              <Exclude>
+                <ModulePath>.*\\AxlProtocolMusic\.WebApp\.Tests\.dll$</ModulePath>
+              </Exclude>
+            </ModulePaths>
+            <Attributes>
+              <Exclude>
+                <Attribute>^System\.CodeDom\.Compiler\.GeneratedCodeAttribute$</Attribute>
+                <Attribute>^System\.Runtime\.CompilerServices\.CompilerGeneratedAttribute$</Attribute>
+                <Attribute>^System\.Diagnostics\.CodeAnalysis\.ExcludeFromCodeCoverageAttribute$</Attribute>
+              </Exclude>
+            </Attributes>
+            <Sources>
+              <Exclude>
+                <Source>.*\\AxlProtocolMusic\.WebApp\\Configuration\\.*</Source>
+                <Source>.*\\AxlProtocolMusic\.WebApp\\Models\\.*</Source>
+                <Source>.*\\AxlProtocolMusic\.WebApp\\Services\\Interfaces\\.*</Source>
+                <Source>.*\\AxlProtocolMusic\.WebApp\\Repositories\\Interfaces\\.*</Source>
+                <Source>.*\\AxlProtocolMusic\.WebApp\\Services\\ServiceModels\\.*</Source>
+                <Source>.*\\AxlProtocolMusic\.WebApp\\Program\.cs</Source>
+                <Source>.*\\AxlProtocolMusic\.WebApp\\.*Seed.*\.cs</Source>
+                <Source>.*\\AxlProtocolMusic\.WebApp\\.*Seeder.*\.cs</Source>
+              </Exclude>
+            </Sources>
+          </CodeCoverage>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

@@ -228,6 +228,9 @@ public sealed class ReleasesControllerTests
             return Task.CompletedTask;
         }
 
+        public bool IsManagedImageUrl(string? imageUrl)
+            => !string.IsNullOrWhiteSpace(imageUrl) && imageUrl.StartsWith("/images/", StringComparison.OrdinalIgnoreCase);
+
         public Task<ImageSaveResult> SaveReleaseImageAsync(IFormFile file, CancellationToken cancellationToken = default)
         {
             SavedFiles.Add(file);

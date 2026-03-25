@@ -137,5 +137,8 @@ public sealed class SiteChatbotServiceTests
 
         public Task ResetAsync(CancellationToken cancellationToken = default)
             => Task.CompletedTask;
+
+        public Task<ChatbotBudgetSummary> SetManualDisabledAsync(bool isDisabled, CancellationToken cancellationToken = default)
+            => Task.FromResult(new ChatbotBudgetSummary());
     }
 }
