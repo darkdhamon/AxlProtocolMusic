@@ -66,7 +66,6 @@ jobs:
             "failed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
             "message=$message" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-            Write-Host "::error::$message"
             $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
             if ($platformLogPath -and (Test-Path $platformLogPath)) {
@@ -82,7 +81,6 @@ jobs:
                 "Failed tests:" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
                 foreach ($failedTest in $failedTests) {
                   "- $failedTest" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-                  Write-Host "::error::Failed test: $failedTest"
                 }
               }
 

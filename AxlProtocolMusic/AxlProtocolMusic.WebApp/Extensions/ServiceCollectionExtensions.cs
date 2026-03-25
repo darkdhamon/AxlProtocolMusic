@@ -39,6 +39,8 @@ public static class ServiceCollectionExtensions
             configuration.GetSection(OpenAiChatSettings.SectionName));
 
         services.AddHttpContextAccessor();
+        services.AddSingleton<IChatbotActivationMonitor, ChatbotActivationMonitor>();
+        services.AddHostedService<ChatbotActivationPollingService>();
         services.AddSingleton<IMongoDbService, MongoDbService>();
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
         services.AddScoped<IAboutPageService, AboutPageService>();

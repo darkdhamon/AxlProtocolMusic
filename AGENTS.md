@@ -56,3 +56,28 @@ Notes:
 - This is currently the reliable path for forcing a fresh persisted coverage snapshot in this repo.
 - Keep the fast `dotnet test` flow for ordinary verification, and use this workaround when the task specifically requires refreshed saved coverage numbers.
 - When comparing against ReSharper/dotCover, treat the app package entry as the comparable scope. dotCover usually shows app-only statement coverage, while Cobertura reports line coverage.
+
+### Avoiding Static Web Asset Compression File Locks
+
+Problem:
+- Running `dotnet build` for `AxlProtocolMusic.WebApp` in parallel with `dotnet test` for `AxlProtocolMusic.WebApp.Tests` can fail in `Microsoft.NET.Sdk.StaticWebAssets.Compression.targets`.
+- The observed error is `The process cannot access the file ... obj\Debug\net10.0\compressed\*.gz because it is being used by another process.`
+
+Verified workaround:
+1. Do not run the web app build and test commands in parallel in this repo.
+2. Run `dotnet test` first and wait for it to exit before starting `dotnet build`.
+3. If the lock already happened, rerun the exact same `dotnet build` command after the test process finishes.
+
+Working commands:
+
+```powershell
+dotnet test "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.Tests\AxlProtocolMusic.WebApp.Tests.csproj"
+```
+
+```powershell
+dotnet build "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\AxlProtocolMusic.WebApp.csproj"
+```
+
+Notes:
+- Serial execution cleared the lock immediately in this repo without deleting `bin` or `obj`.
+- The contention shows up under `AxlProtocolMusic.WebApp\obj\Debug\net10.0\compressed`.
