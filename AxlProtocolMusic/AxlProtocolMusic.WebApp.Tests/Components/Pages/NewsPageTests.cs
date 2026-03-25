@@ -310,7 +310,7 @@ public sealed class NewsPageTests
                 Title = request.Title,
                 Slug = request.Title.Trim().ToLowerInvariant().Replace(' ', '-'),
                 Content = request.Content,
-                ImageUrl = request.ImageUrl,
+                ImageUrl = request.ImageUrl ?? string.Empty,
                 PublicationDateUtc = new DateTimeOffset(request.PublicationDate, TimeSpan.Zero),
                 IsPublished = request.IsPublished,
                 IsFeatured = request.IsFeatured
@@ -326,7 +326,7 @@ public sealed class NewsPageTests
             var existing = Articles.First(article => string.Equals(article.Slug, request.OriginalSlug, StringComparison.OrdinalIgnoreCase));
             existing.Title = request.Title;
             existing.Content = request.Content;
-            existing.ImageUrl = request.ImageUrl;
+            existing.ImageUrl = request.ImageUrl ?? string.Empty;
             existing.PublicationDateUtc = new DateTimeOffset(request.PublicationDate, TimeSpan.Zero);
             existing.IsPublished = request.IsPublished;
             existing.IsFeatured = request.IsFeatured;

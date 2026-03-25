@@ -23,8 +23,8 @@ jobs:
       COVERAGE_OUTPUT_DIR: ${{ github.workspace }}/AxlProtocolMusic/TestResults/Coverage
       COVERAGE_OUTPUT_PREFIX: ${{ github.workspace }}/AxlProtocolMusic/TestResults/Coverage/coverage
       COVERAGE_PACKAGE_NAME: 'AxlProtocolMusic.WebApp'
-      COVERAGE_WARNING_THRESHOLD: '90'
-      COVERAGE_FAIL_THRESHOLD: '65'
+      COVERAGE_WARNING_THRESHOLD: '80'
+      COVERAGE_FAIL_THRESHOLD: '75'
     permissions:
       contents: read #This is required for actions/checkout
 
