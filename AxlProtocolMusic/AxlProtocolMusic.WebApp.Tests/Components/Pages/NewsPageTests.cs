@@ -71,6 +71,36 @@ public sealed class NewsPageTests
         Assert.That(newsService.LastIncludeUnpublished, Is.True);
     }
 
+    [Test]
+    public void News_WhenArticleQueryParameterIsProvided_OpensMatchingArticle()
+    {
+        using var context = CreateContext(out var newsService);
+        context.AddAuthorization().SetNotAuthorized();
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "article-1",
+                Title = "Launch Story",
+                Slug = "launch-story",
+                Content = "This is the featured article content for the launch story.",
+                ImageUrl = "https://cdn.example/launch.jpg",
+                PublicationDateUtc = DateTimeOffset.UtcNow.AddDays(-1),
+                IsPublished = true,
+                IsFeatured = false
+            }
+        ];
+
+        var cut = context.Render<News>(parameters => parameters
+            .Add(component => component.ArticleSlug, "launch-story"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("News Article"));
+            Assert.That(cut.Markup, Does.Contain("Launch Story"));
+        });
+    }
+
     private static BunitContext CreateContext(out FakeNewsArticleService newsService)
     {
         var context = new BunitContext();
