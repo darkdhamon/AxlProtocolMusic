@@ -43,7 +43,6 @@ jobs:
       - name: Run unit tests with coverage
         id: tests
         shell: pwsh
-        continue-on-error: true
         run: |
           New-Item -ItemType Directory -Force -Path $env:TEST_RESULTS_DIR | Out-Null
           $testLogPath = Join-Path $env:TEST_RESULTS_DIR 'dotnet-test.log'
@@ -55,38 +54,115 @@ jobs:
           if ($exitCode -ne 0) {
             $message = "Unit tests failed. Review the dotnet-test.log artifact for details."
             $summaryLine = $testOutput | Select-String -Pattern 'Failed:\s*\d+,\s*Passed:\s*\d+,\s*Skipped:\s*\d+,\s*Total:\s*\d+' | Select-Object -Last 1
+            $platformLogPath = $testOutput |
+              Select-String -Pattern "Tests failed:\s*'([^']+\.log)'" |
+              ForEach-Object { $_.Matches[0].Groups[1].Value } |
+              Select-Object -Last 1
+
             if ($summaryLine) {
               $message = "Unit tests failed. $($summaryLine.Matches[0].Value). Review the dotnet-test.log artifact for details."
             }
 
+            "failed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "message=$message" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
             Write-Host "::error::$message"
             $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            exit 1
+
+            if ($platformLogPath -and (Test-Path $platformLogPath)) {
+              $copiedPlatformLogPath = Join-Path $env:TEST_RESULTS_DIR 'testing-platform.log'
+              Copy-Item -Path $platformLogPath -Destination $copiedPlatformLogPath -Force
+
+              $platformLogContent = Get-Content -Path $platformLogPath
+              $failedTests = $platformLogContent |
+                Select-String -Pattern '^\s*failed\s+(.+?)\s+\(' |
+                ForEach-Object { $_.Matches[0].Groups[1].Value.Trim() }
+
+              if ($failedTests.Count -gt 0) {
+                "Failed tests:" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                foreach ($failedTest in $failedTests) {
+                  "- $failedTest" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                  Write-Host "::error::Failed test: $failedTest"
+                }
+              }
+
+              $failureDetails = New-Object System.Collections.Generic.List[string]
+              $currentBlock = New-Object System.Collections.Generic.List[string]
+              $capturingBlock = $false
+
+              foreach ($line in $platformLogContent) {
+                if ($line -match '^\s*failed\s+') {
+                  if ($capturingBlock -and $currentBlock.Count -gt 0) {
+                    $failureDetails.Add(($currentBlock -join [Environment]::NewLine))
+                    $currentBlock.Clear()
+                  }
+
+                  $capturingBlock = $true
+                  $currentBlock.Add($line)
+                  continue
+                }
+
+                if ($capturingBlock) {
+                  if ($line -match '^(passed|skipped)\s+' -or
+                      $line -match '^NUnit Adapter' -or
+                      $line -match '^Test run summary:' -or
+                      $line -match '^=== COMMAND LINE ===') {
+                    if ($currentBlock.Count -gt 0) {
+                      $failureDetails.Add(($currentBlock -join [Environment]::NewLine))
+                      $currentBlock.Clear()
+                    }
+
+                    $capturingBlock = $false
+                    continue
+                  }
+
+                  $currentBlock.Add($line)
+                }
+              }
+
+              if ($capturingBlock -and $currentBlock.Count -gt 0) {
+                $failureDetails.Add(($currentBlock -join [Environment]::NewLine))
+              }
+
+              if ($failureDetails.Count -gt 0) {
+                "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                "Failure details:" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                foreach ($detail in $failureDetails) {
+                  "```text" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                  $detail | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                  "```" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                }
+              }
+            }
+
+            exit 0
           }
 
+          "failed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "Unit tests passed." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
       - name: Evaluate coverage thresholds
         id: coverage
-        if: ${{ always() && steps.tests.outcome == 'success' }}
-        continue-on-error: true
+        if: ${{ always() && steps.tests.outputs.failed != 'true' }}
         shell: pwsh
         run: |
           $coveragePath = Join-Path $env:COVERAGE_OUTPUT_DIR 'coverage.cobertura.xml'
           if (-not (Test-Path $coveragePath)) {
             $message = "Coverage report not found at $coveragePath."
-            Write-Host "::error::$message"
+            "failed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "message=$message" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
             $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            exit 1
+            exit 0
           }
 
           [xml]$coverage = Get-Content $coveragePath
           $package = $coverage.coverage.packages.package | Where-Object { $_.name -eq $env:COVERAGE_PACKAGE_NAME } | Select-Object -First 1
           if ($null -eq $package) {
             $message = "Coverage package '$($env:COVERAGE_PACKAGE_NAME)' was not found in $coveragePath."
-            Write-Host "::error::$message"
+            "failed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "message=$message" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
             $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            exit 1
+            exit 0
           }
 
           $lineRate = [math]::Round(([double]$package.'line-rate' * 100), 2)
@@ -104,34 +180,34 @@ jobs:
 
           if ($lineRate -lt $failThreshold) {
             $message = "Line coverage for $($env:COVERAGE_PACKAGE_NAME) is $lineRate%, below the fail threshold of $failThreshold%."
-            Write-Host "::error::$message"
+            "failed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "message=$message" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
             $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            exit 1
+            exit 0
           }
+
+          "failed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Fail build with clear reason
         if: always()
         shell: pwsh
         run: |
-          $failures = @()
+          $messages = @()
 
-          if ("${{ steps.tests.outcome }}" -eq "failure") {
-            $failures += "unit tests failed"
+          if ("${{ steps.tests.outputs.failed }}" -eq "true") {
+            $messages += "${{ steps.tests.outputs.message }}"
           }
 
-          if ("${{ steps.coverage.outcome }}" -eq "failure") {
-            $failures += "coverage checks failed"
+          if ("${{ steps.coverage.outputs.failed }}" -eq "true") {
+            $messages += "${{ steps.coverage.outputs.message }}"
           }
 
-          if ($failures.Count -gt 0) {
-            $message = "Build failed because " + ($failures -join " and ") + "."
-            Write-Host "::error::$message"
-            $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          if ($messages.Count -gt 0) {
             exit 1
           }
 
       - name: dotnet publish
-        if: ${{ steps.tests.outcome == 'success' && steps.coverage.outcome == 'success' }}
+        if: ${{ steps.tests.outputs.failed != 'true' && steps.coverage.outputs.failed != 'true' }}
         run: dotnet publish "${{ env.PROJECT_PATH }}" -c Release --no-build -o "${{ env.PUBLISH_PATH }}"
 
       - name: Upload test results

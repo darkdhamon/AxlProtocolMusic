@@ -21,7 +21,8 @@ Verified workaround:
 1. Run `dotnet test` from PowerShell and pipe the combined output through `Tee-Object`.
 2. Save that output to `AxlProtocolMusic/TestResults/UnitTests/dotnet-test.log`.
 3. Parse the saved console output for the `Failed: X, Passed: Y, Skipped: Z, Total: T` summary line and emit it through `::error::` plus `GITHUB_STEP_SUMMARY`.
-4. Upload the saved log as a workflow artifact instead of depending on a `.trx` file.
+4. Extract the Microsoft Testing Platform `.log` path from the `Tests failed: '...log'` line, copy that log into `AxlProtocolMusic/TestResults/UnitTests/testing-platform.log`, and parse its `failed ...` blocks.
+5. Write the failed test names and the matching exception/stack sections into `GITHUB_STEP_SUMMARY`, then upload both logs as workflow artifacts instead of depending on a `.trx` file.
 
 ### Refreshing Persisted Coverage Results
 
