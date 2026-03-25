@@ -15,6 +15,11 @@ namespace AxlProtocolMusic.WebApp.Extensions;
 
 public static class ServiceCollectionExtensions
 {
+    public delegate IdentityBuilder IdentityRegistrationFactory(
+        IServiceCollection services,
+        Action<IdentityOptions> configureIdentity,
+        string connectionString);
+
     public static IServiceCollection AddMongoDataAccess(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -62,6 +67,12 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddApplicationAuthentication(
         this IServiceCollection services,
         IConfiguration configuration)
+        => AddApplicationAuthentication(services, configuration, null);
+
+    public static IServiceCollection AddApplicationAuthentication(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IdentityRegistrationFactory? identityRegistrationFactory)
     {
         var mongoSettings = configuration
             .GetSection(MongoDbSettings.SectionName)
@@ -71,8 +82,14 @@ public static class ServiceCollectionExtensions
         services.Configure<AdminBootstrapSettings>(
             configuration.GetSection(AdminBootstrapSettings.SectionName));
 
-        services
-            .AddIdentityMongoDbProvider<ApplicationUser, ApplicationRole, string>(
+        var connectionString = BuildIdentityConnectionString(mongoSettings);
+        identityRegistrationFactory ??= static (serviceCollection, identityConfiguration, configuredConnectionString) =>
+            serviceCollection.AddIdentityMongoDbProvider<ApplicationUser, ApplicationRole, string>(
+                identityConfiguration,
+                mongo => mongo.ConnectionString = configuredConnectionString);
+
+        identityRegistrationFactory(
+                services,
                 identity =>
                 {
                     identity.Password.RequiredLength = 12;
@@ -82,10 +99,7 @@ public static class ServiceCollectionExtensions
                     identity.Password.RequireNonAlphanumeric = true;
                     identity.User.RequireUniqueEmail = true;
                 },
-                mongo =>
-                {
-                    mongo.ConnectionString = BuildIdentityConnectionString(mongoSettings);
-                })
+                connectionString)
             .AddDefaultTokenProviders();
 
         services.ConfigureApplicationCookie(options =>

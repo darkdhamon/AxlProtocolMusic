@@ -93,7 +93,7 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Test]
-    public void AddApplicationAuthentication_RegistersIdentityAndConfiguresOptions()
+    public void AddApplicationAuthentication_WithMockIdentityProvider_RegistersIdentityAndConfiguresOptions()
     {
         var services = new ServiceCollection();
         var configuration = CreateConfiguration(new Dictionary<string, string?>
@@ -105,7 +105,7 @@ public sealed class ServiceCollectionExtensionsTests
             [$"{AdminBootstrapSettings.SectionName}:Password"] = "SecretPassword123!"
         });
 
-        var returnedServices = services.AddApplicationAuthentication(configuration);
+        var returnedServices = services.AddApplicationAuthentication(configuration, AddMockIdentityProvider);
         using var provider = services.BuildServiceProvider();
 
         Assert.That(returnedServices, Is.SameAs(services));
@@ -173,6 +173,17 @@ public sealed class ServiceCollectionExtensionsTests
         return new ConfigurationBuilder()
             .AddInMemoryCollection(values)
             .Build();
+    }
+
+    private static IdentityBuilder AddMockIdentityProvider(
+        IServiceCollection services,
+        Action<IdentityOptions> configureIdentity,
+        string connectionString)
+    {
+        Assert.That(connectionString, Does.StartWith("mongodb://localhost"));
+        Assert.That(connectionString, Does.EndWith("/IdentityDb"));
+
+        return services.AddIdentity<ApplicationUser, ApplicationRole>(configureIdentity);
     }
 
     private static ServiceDescriptor FindDescriptor(IServiceCollection services, Type serviceType)
