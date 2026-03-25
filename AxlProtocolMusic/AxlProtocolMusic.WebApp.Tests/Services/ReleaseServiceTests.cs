@@ -9,6 +9,25 @@ namespace AxlProtocolMusic.WebApp.Tests.Services;
 public sealed class ReleaseServiceTests
 {
     [Test]
+    public async Task GetFeaturedReleasesAsync_WhenAtLeastThreeRecentPublishedReleasesExist_UsesOnlyRecentReleases()
+    {
+        var repository = new InMemoryReleaseRepository(
+        [
+            CreateRelease("old", daysAgo: 60, isPublished: true),
+            CreateRelease("recent-1", daysAgo: 20, isPublished: true),
+            CreateRelease("recent-2", daysAgo: 10, isPublished: true),
+            CreateRelease("recent-3", daysAgo: 1, isPublished: true),
+            CreateRelease("draft-recent", daysAgo: 2, isPublished: false)
+        ]);
+
+        var service = new ReleaseService(repository);
+
+        var result = await service.GetFeaturedReleasesAsync();
+
+        Assert.That(result.Select(item => item.Slug), Is.EqualTo(new[] { "recent-3", "recent-2", "recent-1" }));
+    }
+
+    [Test]
     public async Task GetFeaturedReleasesAsync_WhenRecentPublishedCountIsLessThanThree_FallsBackToLatestPublished()
     {
         var repository = new InMemoryReleaseRepository(
@@ -47,6 +66,26 @@ public sealed class ReleaseServiceTests
         Assert.That(result.PageNumber, Is.EqualTo(2));
         Assert.That(result.PageSize, Is.EqualTo(1));
         Assert.That(result.Items.Select(item => item.Slug), Is.EqualTo(new[] { "beta" }));
+    }
+
+    [Test]
+    public async Task GetPagedReleasesAsync_WhenIncludeUnpublishedIsTrue_ReturnsDraftsAndKeepsMinimumPaging()
+    {
+        var repository = new InMemoryReleaseRepository(
+        [
+            CreateRelease("published", 10, true),
+            CreateRelease("draft", 1, false)
+        ]);
+
+        var service = new ReleaseService(repository);
+
+        var result = await service.GetPagedReleasesAsync(searchTerm: null, pageNumber: 0, pageSize: 0, includeUnpublished: true);
+
+        Assert.That(result.TotalCount, Is.EqualTo(2));
+        Assert.That(result.PageNumber, Is.EqualTo(1));
+        Assert.That(result.PageSize, Is.EqualTo(1));
+        Assert.That(result.Items.Select(item => item.Slug), Is.EqualTo(new[] { "draft" }));
+        Assert.That(result.Items[0].IsPublished, Is.False);
     }
 
     [Test]
@@ -105,6 +144,23 @@ public sealed class ReleaseServiceTests
         Assert.That(result.Succeeded, Is.False);
         Assert.That(result.ErrorMessage, Is.EqualTo("That release slug is already in use."));
         Assert.That(repository.CreatedDocuments, Is.Empty);
+    }
+
+    [Test]
+    public async Task CreateReleaseAsync_WhenSlugIsBlank_ReturnsError()
+    {
+        var service = new ReleaseService(new InMemoryReleaseRepository([]));
+
+        var result = await service.CreateReleaseAsync(new ReleaseUpdateRequest
+        {
+            Title = "New release",
+            Slug = "   ",
+            ShortDescription = "Description",
+            ReleaseDate = new DateTime(2026, 3, 21)
+        });
+
+        Assert.That(result.Succeeded, Is.False);
+        Assert.That(result.ErrorMessage, Is.EqualTo("Slug is required."));
     }
 
     [Test]
@@ -192,6 +248,43 @@ public sealed class ReleaseServiceTests
     }
 
     [Test]
+    public async Task UpdateReleaseAsync_WhenReleaseDoesNotExist_ReturnsError()
+    {
+        var service = new ReleaseService(new InMemoryReleaseRepository([]));
+
+        var result = await service.UpdateReleaseAsync(new ReleaseUpdateRequest
+        {
+            OriginalSlug = "missing",
+            Title = "Updated",
+            Slug = "updated",
+            ShortDescription = "Updated",
+            ReleaseDate = new DateTime(2026, 3, 21)
+        });
+
+        Assert.That(result.Succeeded, Is.False);
+        Assert.That(result.ErrorMessage, Is.EqualTo("The release could not be found."));
+    }
+
+    [Test]
+    public async Task UpdateReleaseAsync_WhenSlugIsBlank_ReturnsError()
+    {
+        var existing = CreateRelease("original", 10, true, id: "release-1");
+        var service = new ReleaseService(new InMemoryReleaseRepository([existing]));
+
+        var result = await service.UpdateReleaseAsync(new ReleaseUpdateRequest
+        {
+            OriginalSlug = "original",
+            Title = "Updated",
+            Slug = "   ",
+            ShortDescription = "Updated",
+            ReleaseDate = new DateTime(2026, 3, 21)
+        });
+
+        Assert.That(result.Succeeded, Is.False);
+        Assert.That(result.ErrorMessage, Is.EqualTo("Slug is required."));
+    }
+
+    [Test]
     public async Task UpdateReleaseAsync_WhenSuccessful_NormalizesAndPersistsChanges()
     {
         var existing = CreateRelease("original", 20, true, id: "release-1", title: "Original");
@@ -251,6 +344,48 @@ public sealed class ReleaseServiceTests
         Assert.That(result.Succeeded, Is.True);
         Assert.That(result.ImageStoragePath, Is.EqualTo("/uploads/releases/delete-me.png"));
         Assert.That(repository.Documents, Is.Empty);
+    }
+
+    [Test]
+    public async Task DeleteReleaseAsync_WhenSlugIsBlank_ReturnsError()
+    {
+        var service = new ReleaseService(new InMemoryReleaseRepository([]));
+
+        var result = await service.DeleteReleaseAsync("   ");
+
+        Assert.That(result.Succeeded, Is.False);
+        Assert.That(result.ErrorMessage, Is.EqualTo("The release slug is required."));
+    }
+
+    [Test]
+    public async Task DeleteReleaseAsync_WhenReleaseDoesNotExist_ReturnsError()
+    {
+        var service = new ReleaseService(new InMemoryReleaseRepository([]));
+
+        var result = await service.DeleteReleaseAsync("missing");
+
+        Assert.That(result.Succeeded, Is.False);
+        Assert.That(result.ErrorMessage, Is.EqualTo("The release could not be found."));
+    }
+
+    [Test]
+    public async Task GenerateUniqueSlugAsync_WhenBaseSlugIsAvailable_ReturnsNormalizedBaseSlug()
+    {
+        var service = new ReleaseService(new InMemoryReleaseRepository([]));
+
+        var result = await service.GenerateUniqueSlugAsync("  My Release!  ");
+
+        Assert.That(result, Is.EqualTo("my-release"));
+    }
+
+    [Test]
+    public async Task GenerateUniqueSlugAsync_WhenInputNormalizesToNothing_UsesFallbackSlug()
+    {
+        var service = new ReleaseService(new InMemoryReleaseRepository([]));
+
+        var result = await service.GenerateUniqueSlugAsync(" !!! ");
+
+        Assert.That(result, Is.EqualTo("release"));
     }
 
     [Test]
