@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="AxlProtocolMusic.WebApp.IntegrationTests/AxlProtocolMusic.WebApp.IntegrationTests.csproj" />
   <Project Path="AxlProtocolMusic.WebApp.Tests/AxlProtocolMusic.WebApp.Tests.csproj" />
   <Project Path="AxlProtocolMusic.WebApp/AxlProtocolMusic.WebApp.csproj" />
 </Solution>

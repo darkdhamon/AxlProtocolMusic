@@ -31,6 +31,8 @@ The site combines a public-facing music catalog with built-in admin editing tool
 ## Repository layout
 
 - `AxlProtocolMusic/AxlProtocolMusic.WebApp` - main web application
+- `AxlProtocolMusic/AxlProtocolMusic.WebApp.Tests` - unit test project
+- `AxlProtocolMusic/AxlProtocolMusic.WebApp.IntegrationTests` - integration test project for external-provider coverage such as MongoDB via `Mongo2Go`
 - `.github/workflows/main_axlprotocolmusicprodweb.yml` - CI/CD workflow for Azure App Service
 - `_buildcheck` - local published-output snapshots used for build checks
 - `_tools` - local tooling, including a bundled `rg.exe`
@@ -123,6 +125,7 @@ Admin traffic is intentionally excluded from analytics reporting.
 The repository includes a GitHub Actions workflow that:
 
 - builds `AxlProtocolMusic/AxlProtocolMusic.WebApp/AxlProtocolMusic.WebApp.csproj`
+- runs only `AxlProtocolMusic/AxlProtocolMusic.WebApp.Tests/AxlProtocolMusic.WebApp.Tests.csproj` in CI right now
 - publishes the app without forcing a specific Windows architecture
 - deploys the artifact to the Azure Web App `axlprotocolmusicprodweb`
 

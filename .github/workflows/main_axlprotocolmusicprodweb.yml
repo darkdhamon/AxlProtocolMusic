@@ -14,6 +14,7 @@ jobs:
     runs-on: windows-latest
     env:
       PROJECT_PATH: AxlProtocolMusic/AxlProtocolMusic.WebApp/AxlProtocolMusic.WebApp.csproj
+      # Integration tests live in AxlProtocolMusic.WebApp.IntegrationTests and are intentionally excluded for now.
       TEST_PROJECT_PATH: AxlProtocolMusic/AxlProtocolMusic.WebApp.Tests/AxlProtocolMusic.WebApp.Tests.csproj
       PUBLISH_PATH: ${{ github.workspace }}/published-app
       COVERAGE_OUTPUT_DIR: ${{ github.workspace }}/AxlProtocolMusic/TestResults/Coverage
