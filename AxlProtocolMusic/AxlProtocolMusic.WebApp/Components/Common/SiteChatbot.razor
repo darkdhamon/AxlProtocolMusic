@@ -1,12 +1,26 @@
 @using AxlProtocolMusic.WebApp.Configuration
 @using AxlProtocolMusic.WebApp.Models.Chatbot
+@using AxlProtocolMusic.WebApp.Services.Interfaces
+@using AxlProtocolMusic.WebApp.Services.ServiceModels
 @using System.Text.Json
 @using Microsoft.Extensions.Options
 @implements IAsyncDisposable
+@inject IChatbotActivationMonitor ChatbotActivationMonitor
 @inject IChatbotBudgetService ChatbotBudgetService
 @inject IJSRuntime JSRuntime
 @inject ISiteChatbotService SiteChatbotService
 @inject IOptions<ChatbotSettings> ChatbotOptions
+
+@if (showAdminDisabledPopup)
+{
+    <div class="chatbot-admin-popup-backdrop" role="presentation">
+        <section class="chatbot-admin-popup" role="alertdialog" aria-live="assertive" aria-label="Chatbot disabled">
+            <p class="chatbot-admin-popup-title">Chatbot Disabled</p>
+            <p class="chatbot-admin-popup-message">Admin has disabled the chatbot for all users.</p>
+            <button class="btn btn-primary" type="button" @onclick="DismissAdminDisabledPopup">Close</button>
+        </section>
+    </div>
+}
 
 @if (ChatbotOptions.Value.Enabled && IsChatbotVisible() && !chatbotBudgetSummary.IsManuallyDisabled)
 {
@@ -116,6 +130,7 @@
     private string pendingMessage = string.Empty;
     private ChatbotBudgetSummary chatbotBudgetSummary = new();
     private string chatbotAccentStyle = string.Empty;
+    private bool showAdminDisabledPopup;
     private bool hasLoadedStoredTranscript;
     private int consecutiveNoCount;
     private DateTimeOffset? browserDisabledUntilUtc;
@@ -124,12 +139,14 @@
     private int? panelWidth;
     private int? panelHeight;
     private DotNetObjectReference<SiteChatbot>? dotNetReference;
+    private IDisposable? chatbotActivationSubscription;
     private bool hasInitializedPanelUi;
     private int lastRenderedMessageCount = -1;
     private bool lastRenderedBusyState;
 
     protected override async Task OnInitializedAsync()
     {
+        chatbotActivationSubscription = ChatbotActivationMonitor.Subscribe(HandleActivationChangedAsync);
         await RefreshBudgetVisualsAsync();
     }
 
@@ -295,6 +312,40 @@
         var border = $"hsl({hue:0} 42% 52% / 0.24)";
 
         chatbotAccentStyle = $"--chatbot-primary:{primary};--chatbot-secondary:{secondary};--chatbot-soft:{soft};--chatbot-border:{border};";
+    }
+
+    private ValueTask HandleActivationChangedAsync(ChatbotActivationState state)
+    {
+        return new ValueTask(InvokeAsync(async () =>
+        {
+            var wasManuallyDisabled = chatbotBudgetSummary.IsManuallyDisabled;
+            var wasOpen = isOpen;
+
+            await RefreshBudgetVisualsAsync();
+
+            if (!wasManuallyDisabled && state.IsManuallyDisabled)
+            {
+                if (wasOpen)
+                {
+                    showAdminDisabledPopup = true;
+                }
+
+                isOpen = false;
+                await PersistStateAsync();
+            }
+
+            if (wasManuallyDisabled && !state.IsManuallyDisabled)
+            {
+                showAdminDisabledPopup = false;
+            }
+
+            StateHasChanged();
+        }));
+    }
+
+    private void DismissAdminDisabledPopup()
+    {
+        showAdminDisabledPopup = false;
     }
 
     private string GetChatbotRootStyle()
@@ -544,6 +595,7 @@
 
     public ValueTask DisposeAsync()
     {
+        chatbotActivationSubscription?.Dispose();
         dotNetReference?.Dispose();
         return ValueTask.CompletedTask;
     }
