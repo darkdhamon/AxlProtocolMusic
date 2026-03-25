@@ -9,6 +9,7 @@
     <IsPackable>false</IsPackable>
     <EnableNUnitRunner>true</EnableNUnitRunner>
     <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+    <NoWarn>$(NoWarn);MTP0001</NoWarn>
     <CollectCoverage>true</CollectCoverage>
     <CoverletOutput>..\TestResults\Coverage\coverage</CoverletOutput>
     <CoverletOutputFormat>json,cobertura</CoverletOutputFormat>
