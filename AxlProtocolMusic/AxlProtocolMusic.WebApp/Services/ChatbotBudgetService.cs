@@ -1,6 +1,7 @@
 using AxlProtocolMusic.WebApp.Models.Chatbot;
 using AxlProtocolMusic.WebApp.Repositories.Interfaces;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using AxlProtocolMusic.WebApp.Services.ServiceModels;
 
 namespace AxlProtocolMusic.WebApp.Services;
 
@@ -12,13 +13,16 @@ public sealed class ChatbotBudgetService : IChatbotBudgetService
 
     private readonly IRepository<ChatbotBudgetState> _budgetStateRepository;
     private readonly IRepository<ChatbotUsageRecord> _usageRecordRepository;
+    private readonly IChatbotActivationMonitor _chatbotActivationMonitor;
 
     public ChatbotBudgetService(
         IRepository<ChatbotBudgetState> budgetStateRepository,
-        IRepository<ChatbotUsageRecord> usageRecordRepository)
+        IRepository<ChatbotUsageRecord> usageRecordRepository,
+        IChatbotActivationMonitor chatbotActivationMonitor)
     {
         _budgetStateRepository = budgetStateRepository;
         _usageRecordRepository = usageRecordRepository;
+        _chatbotActivationMonitor = chatbotActivationMonitor;
     }
 
     public async Task<ChatbotBudgetSummary> GetSummaryAsync(CancellationToken cancellationToken = default)
@@ -65,6 +69,7 @@ public sealed class ChatbotBudgetService : IChatbotBudgetService
             WasSuccessful = true,
             TriggeredDisable = triggeredDisable
         }, cancellationToken);
+        await PublishActivationStateAsync(state, cancellationToken);
 
         return MapSummary(state);
     }
@@ -93,6 +98,7 @@ public sealed class ChatbotBudgetService : IChatbotBudgetService
             WasSuccessful = false,
             TriggeredDisable = true
         }, cancellationToken);
+        await PublishActivationStateAsync(state, cancellationToken);
     }
 
     public async Task RecordFailureAsync(
@@ -115,6 +121,7 @@ public sealed class ChatbotBudgetService : IChatbotBudgetService
             ErrorMessage = errorMessage.Trim(),
             WasSuccessful = false
         }, cancellationToken);
+        await PublishActivationStateAsync(state, cancellationToken);
     }
 
     public async Task ResetAsync(CancellationToken cancellationToken = default)
@@ -131,6 +138,7 @@ public sealed class ChatbotBudgetService : IChatbotBudgetService
         state.LastResetUtc = state.LastUpdatedUtc;
 
         await _budgetStateRepository.UpdateAsync(state, cancellationToken);
+        await PublishActivationStateAsync(state, cancellationToken);
     }
 
     public async Task<ChatbotBudgetSummary> SetManualDisabledAsync(
@@ -145,6 +153,7 @@ public sealed class ChatbotBudgetService : IChatbotBudgetService
         state.LastUpdatedUtc = DateTimeOffset.UtcNow;
 
         await _budgetStateRepository.UpdateAsync(state, cancellationToken);
+        await PublishActivationStateAsync(state, cancellationToken);
         return MapSummary(state);
     }
 
@@ -199,5 +208,20 @@ public sealed class ChatbotBudgetService : IChatbotBudgetService
         var outputCost = (normalizedOutput / 1_000_000m) * OutputCostPerMillionUsd;
 
         return decimal.Round(inputCost + outputCost, 6, MidpointRounding.AwayFromZero);
+    }
+
+    private async Task PublishActivationStateAsync(
+        ChatbotBudgetState state,
+        CancellationToken cancellationToken)
+    {
+        await _chatbotActivationMonitor.PublishAsync(new ChatbotActivationState
+        {
+            IsDisabled = state.IsDisabled || state.IsManuallyDisabled,
+            IsManuallyDisabled = state.IsManuallyDisabled,
+            DisabledReason = state.IsManuallyDisabled
+                ? state.ManualDisabledReason
+                : state.DisabledReason,
+            LastUpdatedUtc = state.LastUpdatedUtc == default ? null : state.LastUpdatedUtc
+        }, cancellationToken);
     }
 }
