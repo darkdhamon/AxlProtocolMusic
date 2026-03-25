@@ -348,6 +348,9 @@
     [SupplyParameterFromQuery(Name = "editor")]
     public string? EditorMode { get; set; }
 
+    [SupplyParameterFromQuery(Name = "article")]
+    public string? ArticleSlug { get; set; }
+
     private const int FeedBatchSize = 9;
 
     private List<NewsArticle> allArticles = [];
@@ -389,6 +392,8 @@
 
     protected override void OnParametersSet()
     {
+        SyncSelectedArticleFromQuery();
+
         if (isAdmin
             && !isEditModalOpen
             && string.Equals(EditorMode, "new", StringComparison.OrdinalIgnoreCase))
@@ -459,6 +464,7 @@
     private void CloseArticle()
     {
         selectedArticle = null;
+        RemoveArticleQueryParameter();
     }
 
     private void OpenEditArticle(NewsArticle article)
@@ -768,6 +774,19 @@
         {
             selectedArticle = visibleArticles.FirstOrDefault(article => article.Id == selectedArticle.Id);
         }
+        
+        SyncSelectedArticleFromQuery();
+    }
+
+    private void SyncSelectedArticleFromQuery()
+    {
+        if (string.IsNullOrWhiteSpace(ArticleSlug))
+        {
+            return;
+        }
+
+        selectedArticle = visibleArticles.FirstOrDefault(article =>
+            string.Equals(article.Slug, ArticleSlug, StringComparison.OrdinalIgnoreCase));
     }
 
     private NewsArticleUpdateRequest BuildUpdateRequest()
@@ -786,17 +805,27 @@
 
     private void RemoveEditorQueryParameter()
     {
+        var targetUri = BuildUriWithoutQueryKeys("editor");
+        NavigationManager.NavigateTo(targetUri, replace: true);
+    }
+
+    private void RemoveArticleQueryParameter()
+    {
+        var targetUri = BuildUriWithoutQueryKeys("article");
+        NavigationManager.NavigateTo(targetUri, replace: true);
+    }
+
+    private string BuildUriWithoutQueryKeys(params string[] keysToRemove)
+    {
         var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
         var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
         var filteredEntries = query
-            .Where(entry => !string.Equals(entry.Key, "editor", StringComparison.OrdinalIgnoreCase))
+            .Where(entry => !keysToRemove.Any(key => string.Equals(entry.Key, key, StringComparison.OrdinalIgnoreCase)))
             .SelectMany(entry => entry.Value, (entry, value) => new KeyValuePair<string, string?>(entry.Key, value));
 
-        var targetUri = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
             uri.GetLeftPart(UriPartial.Path),
             filteredEntries);
-
-        NavigationManager.NavigateTo(targetUri, replace: true);
     }
 
     private static NewsArticle CloneArticle(NewsArticle article)

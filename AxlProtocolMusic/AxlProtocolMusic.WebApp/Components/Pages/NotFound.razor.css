@@ -1,0 +1,189 @@
+.not-found-page {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.not-found-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+    gap: 2rem;
+    align-items: center;
+    padding: 2.5rem;
+    border-radius: 1.5rem;
+    background:
+        radial-gradient(circle at top left, rgba(255, 203, 107, 0.24), transparent 32%),
+        linear-gradient(135deg, #0a1838 0%, #12326d 52%, #0d5674 100%);
+    color: #f7f8fd;
+    box-shadow: 0 20px 60px rgba(6, 14, 35, 0.24);
+}
+
+.not-found-copy {
+    display: grid;
+    gap: 1rem;
+}
+
+.eyebrow {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(247, 248, 253, 0.72);
+}
+
+.not-found-copy h1 {
+    margin: 0;
+    font-size: clamp(2.4rem, 6vw, 4.8rem);
+    line-height: 0.95;
+}
+
+.lead,
+.not-found-copy p:last-of-type {
+    margin: 0;
+}
+
+.lead {
+    font-size: 1.08rem;
+    font-weight: 600;
+    color: rgba(247, 248, 253, 0.92);
+}
+
+.not-found-copy p:last-of-type {
+    max-width: 34rem;
+    line-height: 1.6;
+    color: rgba(247, 248, 253, 0.86);
+}
+
+.not-found-artwork {
+    display: grid;
+    justify-items: center;
+}
+
+.not-found-artwork img {
+    width: min(100%, 31rem);
+    max-height: 32rem;
+    object-fit: contain;
+    border-radius: 1.2rem;
+    filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.28));
+}
+
+.recommendations-section {
+    display: grid;
+    gap: 1rem;
+}
+
+.recommendations-header .eyebrow {
+    color: rgba(17, 44, 114, 0.58);
+}
+
+.recommendations-header {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.recommendations-header h2 {
+    margin: 0;
+    color: var(--app-heading);
+}
+
+.recommendations-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.recommendation-card {
+    display: grid;
+    min-height: 21rem;
+    border-radius: 1.3rem;
+    overflow: hidden;
+    background-color: #102449;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-image:
+        linear-gradient(180deg, rgba(250, 252, 255, 0.08), rgba(8, 14, 28, 0.72)),
+        var(--card-image);
+    border: 1px solid rgba(17, 44, 114, 0.1);
+    box-shadow: 0 18px 40px rgba(10, 22, 51, 0.18);
+}
+
+.recommendation-card-overlay {
+    display: grid;
+    align-content: end;
+    gap: 0.8rem;
+    min-height: 100%;
+    padding: 1.5rem;
+    color: #f7f8fd;
+}
+
+.recommendation-label {
+    margin: 0;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(247, 248, 253, 0.78);
+}
+
+.recommendation-card h3,
+.recommendation-card p {
+    margin: 0;
+}
+
+.recommendation-card h3 {
+    font-size: clamp(1.45rem, 3vw, 2rem);
+}
+
+.recommendation-card p:not(.recommendation-label) {
+    line-height: 1.6;
+    color: rgba(247, 248, 253, 0.9);
+}
+
+.recommendation-link {
+    width: fit-content;
+    color: #f7f8fd;
+    font-weight: 700;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(247, 248, 253, 0.42);
+}
+
+.recommendation-link:hover {
+    color: #f7f8fd;
+    border-bottom-color: #f7f8fd;
+}
+
+@media (max-width: 900px) {
+    .not-found-shell {
+        grid-template-columns: 1fr;
+        padding: 1.5rem;
+    }
+
+    .not-found-artwork {
+        order: -1;
+    }
+
+    .recommendations-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+:root[data-theme="dark"] .not-found-shell {
+    box-shadow: var(--app-shadow-strong);
+}
+
+:root[data-theme="dark"] .recommendations-header .eyebrow {
+    color: rgba(247, 248, 253, 0.72);
+}
+
+:root[data-theme="dark"] .recommendations-header h2 {
+    color: #f7f8fd;
+}
+
+:root[data-theme="dark"] .recommendation-card {
+    background-image:
+        linear-gradient(180deg, rgba(8, 14, 28, 0.2), rgba(8, 14, 28, 0.88)),
+        var(--card-image);
+    border-color: rgba(146, 178, 230, 0.12);
+    box-shadow: var(--app-shadow);
+}
