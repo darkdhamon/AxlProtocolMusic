@@ -1,5 +1,23 @@
-﻿@page "/not-found"
+@page "/not-found"
 @layout MainLayout
 
-<h3>Not Found</h3>
-<p>Sorry, the content you are looking for does not exist.</p>
+<PageTitle>Page Not Found</PageTitle>
+
+<div class="not-found-page">
+    <section class="not-found-shell">
+        <div class="not-found-copy">
+            <p class="eyebrow">404 Error</p>
+            <h1>Page not found</h1>
+            <p class="lead">
+                The page you requested does not exist or may have moved.
+            </p>
+            <p>
+                Use the site navigation to get back to the section you were looking for.
+            </p>
+        </div>
+
+        <div class="not-found-artwork">
+            <img src="/Assets/Misc/404-Graphic.png" alt="Stylized 404 graphic" />
+        </div>
+    </section>
+</div>
