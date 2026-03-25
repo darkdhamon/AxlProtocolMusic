@@ -19,7 +19,7 @@ Problem:
 Verified workaround:
 1. Run the unit test project through a disposable `dotnet-coverage` tool invocation instead of relying on the normal test run to rewrite the saved report.
 2. Write the output directly to `AxlProtocolMusic/TestResults/Coverage/coverage.cobertura.xml`.
-3. Read the Cobertura XML for refreshed line and branch percentages.
+3. Read the `AxlProtocolMusic.WebApp` package entry from the Cobertura XML, not the root coverage total, because the root total can include the test assembly and overstate app coverage.
 
 Working commands:
 
@@ -33,10 +33,12 @@ dotnet tool install --tool-path "C:\GitHub\AxlProtocolMusic\_codex_tmp\tools" do
 
 ```powershell
 [xml]$coverage = Get-Content "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\TestResults\Coverage\coverage.cobertura.xml"
-[math]::Round(([double]$coverage.coverage.'line-rate' * 100), 2)
-[math]::Round(([double]$coverage.coverage.'branch-rate' * 100), 2)
+$package = $coverage.coverage.packages.package | Where-Object { $_.name -eq 'AxlProtocolMusic.WebApp' } | Select-Object -First 1
+[math]::Round(([double]$package.'line-rate' * 100), 2)
+[math]::Round(([double]$package.'branch-rate' * 100), 2)
 ```
 
 Notes:
 - This is currently the reliable path for forcing a fresh persisted coverage snapshot in this repo.
 - Keep the fast `dotnet test` flow for ordinary verification, and use this workaround when the task specifically requires refreshed saved coverage numbers.
+- When comparing against ReSharper/dotCover, treat the app package entry as the comparable scope. dotCover usually shows app-only statement coverage, while Cobertura reports line coverage.

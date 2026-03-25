@@ -19,6 +19,7 @@ jobs:
       PUBLISH_PATH: ${{ github.workspace }}/published-app
       COVERAGE_OUTPUT_DIR: ${{ github.workspace }}/AxlProtocolMusic/TestResults/Coverage
       COVERAGE_OUTPUT_PREFIX: ${{ github.workspace }}/AxlProtocolMusic/TestResults/Coverage/coverage
+      COVERAGE_PACKAGE_NAME: 'AxlProtocolMusic.WebApp'
       COVERAGE_WARNING_THRESHOLD: '90'
       COVERAGE_FAIL_THRESHOLD: '35'
     permissions:
@@ -53,20 +54,26 @@ jobs:
           }
 
           [xml]$coverage = Get-Content $coveragePath
-          $lineRate = [math]::Round(([double]$coverage.coverage.'line-rate' * 100), 2)
+          $package = $coverage.coverage.packages.package | Where-Object { $_.name -eq $env:COVERAGE_PACKAGE_NAME } | Select-Object -First 1
+          if ($null -eq $package) {
+            throw "Coverage package '$($env:COVERAGE_PACKAGE_NAME)' was not found in $coveragePath."
+          }
+
+          $lineRate = [math]::Round(([double]$package.'line-rate' * 100), 2)
           $warningThreshold = [double]$env:COVERAGE_WARNING_THRESHOLD
           $failThreshold = [double]$env:COVERAGE_FAIL_THRESHOLD
 
+          "Coverage package: $($env:COVERAGE_PACKAGE_NAME)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           "Line coverage: $lineRate%" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           "Warning threshold: $warningThreshold%" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
           "Fail threshold: $failThreshold%" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
           if ($lineRate -lt $warningThreshold) {
-            Write-Host "::warning::Line coverage is $lineRate%, below the warning threshold of $warningThreshold%."
+            Write-Host "::warning::Line coverage for $($env:COVERAGE_PACKAGE_NAME) is $lineRate%, below the warning threshold of $warningThreshold%."
           }
 
           if ($lineRate -lt $failThreshold) {
-            throw "Line coverage is $lineRate%, below the fail threshold of $failThreshold%."
+            throw "Line coverage for $($env:COVERAGE_PACKAGE_NAME) is $lineRate%, below the fail threshold of $failThreshold%."
           }
 
       - name: dotnet publish
