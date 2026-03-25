@@ -128,9 +128,9 @@ jobs:
                 "" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
                 "Failure details:" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
                 foreach ($detail in $failureDetails) {
-                  "```text" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                  '```text' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
                   $detail | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
-                  "```" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+                  '```' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
                 }
               }
             }
