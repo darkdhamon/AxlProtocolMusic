@@ -71,6 +71,87 @@ public sealed class ReleaseCreatePageTests
         });
     }
 
+    [Test]
+    public void ReleaseCreate_WhenCreditsRolesTracksLinksAndTagsAreManaged_UpdatesFormState()
+    {
+        using var context = new BunitContext();
+        context.AddAuthorization().SetAuthorized("admin");
+        context.Services.AddSingleton<IReleaseService>(new FakeReleaseService());
+        context.Services.AddSingleton<MarkdownService>();
+
+        var cut = context.Render<ReleaseCreate>();
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Add Credit").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.FindAll("input[id^='credit-name-']"), Has.Count.EqualTo(1));
+        });
+
+        cut.Find("#credit-name-0").Input("Axl Protocol");
+        cut.Find("#credit-role-input-0").Input("Production");
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Add Role").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Production x"));
+            Assert.That(cut.FindAll("input[type='hidden'][name='Credits[0].Roles[0]']"), Has.Count.EqualTo(1));
+        });
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Add Track").Click();
+        cut.Find("#track-title-0").Input("Neon Run");
+        cut.Find("#track-duration-0").Input("3:45");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain(">Single</strong>"));
+        });
+
+        cut.FindAll("button").Single(button => button.TextContent.Trim() == "Add Link").Click();
+        cut.Find("#link-platform-0").Input("Bandcamp");
+        cut.Find("#link-url-0").Input("https://bandcamp.example/neon-run");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Find("#link-platform-0").GetAttribute("value"), Is.EqualTo("Bandcamp"));
+            Assert.That(cut.Find("#link-url-0").GetAttribute("value"), Is.EqualTo("https://bandcamp.example/neon-run"));
+        });
+
+        cut.Find("#tag-input").Input("Synthwave");
+        cut.FindAll("button").Where(button => button.TextContent.Trim() == "Add Tag").Last().Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Synthwave x"));
+            Assert.That(cut.FindAll("input[type='hidden'][name='Tags[0]']"), Has.Count.EqualTo(1));
+        });
+
+        cut.FindAll("button.role-chip-edit").Single(button => button.TextContent.Trim() == "Production x").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Not.Contain("Production x"));
+        });
+
+        cut.FindAll("button.role-chip-edit").Single(button => button.TextContent.Trim() == "Synthwave x").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Not.Contain("Synthwave x"));
+        });
+    }
+
+    [Test]
+    public void ReleaseCreate_WhenReleaseTypeOverrideChanges_ShowsOverrideValue()
+    {
+        using var context = new BunitContext();
+        context.AddAuthorization().SetAuthorized("admin");
+        context.Services.AddSingleton<IReleaseService>(new FakeReleaseService());
+        context.Services.AddSingleton<MarkdownService>();
+
+        var cut = context.Render<ReleaseCreate>();
+
+        cut.Find("#releaseTypeOverride").Change("Album");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain(">Album</strong>"));
+        });
+    }
+
     private sealed class FakeReleaseService : IReleaseService
     {
         public Task<IReadOnlyList<FeaturedReleaseViewModel>> GetFeaturedReleasesAsync(CancellationToken cancellationToken = default)
