@@ -10,6 +10,19 @@ Repository guidance for Codex-style agents working in `C:\GitHub\AxlProtocolMusi
 
 ## Workarounds
 
+### Capturing Unit Test Failure Details In GitHub Actions
+
+Problem:
+- `AxlProtocolMusic.WebApp.Tests` uses the Microsoft Testing Platform (`EnableNUnitRunner` + `TestingPlatformDotnetTestSupport`).
+- In this repo, adding a classic `--logger "trx;LogFileName=..."` argument to `dotnet test` does not reliably produce a `.trx` file under the expected results directory.
+- Relying on `.trx` output in the workflow can therefore leave GitHub Actions with only a generic `Process completed with exit code 1`.
+
+Verified workaround:
+1. Run `dotnet test` from PowerShell and pipe the combined output through `Tee-Object`.
+2. Save that output to `AxlProtocolMusic/TestResults/UnitTests/dotnet-test.log`.
+3. Parse the saved console output for the `Failed: X, Passed: Y, Skipped: Z, Total: T` summary line and emit it through `::error::` plus `GITHUB_STEP_SUMMARY`.
+4. Upload the saved log as a workflow artifact instead of depending on a `.trx` file.
+
 ### Refreshing Persisted Coverage Results
 
 Problem:

@@ -16,6 +16,7 @@ jobs:
       PROJECT_PATH: AxlProtocolMusic/AxlProtocolMusic.WebApp/AxlProtocolMusic.WebApp.csproj
       # Integration tests live in AxlProtocolMusic.WebApp.IntegrationTests and are intentionally excluded for now.
       TEST_PROJECT_PATH: AxlProtocolMusic/AxlProtocolMusic.WebApp.Tests/AxlProtocolMusic.WebApp.Tests.csproj
+      TEST_RESULTS_DIR: ${{ github.workspace }}/AxlProtocolMusic/TestResults/UnitTests
       PUBLISH_PATH: ${{ github.workspace }}/published-app
       COVERAGE_OUTPUT_DIR: ${{ github.workspace }}/AxlProtocolMusic/TestResults/Coverage
       COVERAGE_OUTPUT_PREFIX: ${{ github.workspace }}/AxlProtocolMusic/TestResults/Coverage/coverage
@@ -40,23 +41,52 @@ jobs:
         run: dotnet build "${{ env.TEST_PROJECT_PATH }}" --configuration Release --no-restore
 
       - name: Run unit tests with coverage
-        run: >
-          dotnet test "${{ env.TEST_PROJECT_PATH }}"
-          --configuration Release
-          --no-build
+        id: tests
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          New-Item -ItemType Directory -Force -Path $env:TEST_RESULTS_DIR | Out-Null
+          $testLogPath = Join-Path $env:TEST_RESULTS_DIR 'dotnet-test.log'
+          $testOutput = dotnet test "${{ env.TEST_PROJECT_PATH }}" `
+            --configuration Release `
+            --no-build 2>&1 | Tee-Object -FilePath $testLogPath
+          $exitCode = $LASTEXITCODE
+
+          if ($exitCode -ne 0) {
+            $message = "Unit tests failed. Review the dotnet-test.log artifact for details."
+            $summaryLine = $testOutput | Select-String -Pattern 'Failed:\s*\d+,\s*Passed:\s*\d+,\s*Skipped:\s*\d+,\s*Total:\s*\d+' | Select-Object -Last 1
+            if ($summaryLine) {
+              $message = "Unit tests failed. $($summaryLine.Matches[0].Value). Review the dotnet-test.log artifact for details."
+            }
+
+            Write-Host "::error::$message"
+            $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit 1
+          }
+
+          "Unit tests passed." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
 
       - name: Evaluate coverage thresholds
+        id: coverage
+        if: ${{ always() && steps.tests.outcome == 'success' }}
+        continue-on-error: true
         shell: pwsh
         run: |
           $coveragePath = Join-Path $env:COVERAGE_OUTPUT_DIR 'coverage.cobertura.xml'
           if (-not (Test-Path $coveragePath)) {
-            throw "Coverage report not found at $coveragePath."
+            $message = "Coverage report not found at $coveragePath."
+            Write-Host "::error::$message"
+            $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit 1
           }
 
           [xml]$coverage = Get-Content $coveragePath
           $package = $coverage.coverage.packages.package | Where-Object { $_.name -eq $env:COVERAGE_PACKAGE_NAME } | Select-Object -First 1
           if ($null -eq $package) {
-            throw "Coverage package '$($env:COVERAGE_PACKAGE_NAME)' was not found in $coveragePath."
+            $message = "Coverage package '$($env:COVERAGE_PACKAGE_NAME)' was not found in $coveragePath."
+            Write-Host "::error::$message"
+            $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit 1
           }
 
           $lineRate = [math]::Round(([double]$package.'line-rate' * 100), 2)
@@ -73,10 +103,35 @@ jobs:
           }
 
           if ($lineRate -lt $failThreshold) {
-            throw "Line coverage for $($env:COVERAGE_PACKAGE_NAME) is $lineRate%, below the fail threshold of $failThreshold%."
+            $message = "Line coverage for $($env:COVERAGE_PACKAGE_NAME) is $lineRate%, below the fail threshold of $failThreshold%."
+            Write-Host "::error::$message"
+            $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit 1
+          }
+
+      - name: Fail build with clear reason
+        if: always()
+        shell: pwsh
+        run: |
+          $failures = @()
+
+          if ("${{ steps.tests.outcome }}" -eq "failure") {
+            $failures += "unit tests failed"
+          }
+
+          if ("${{ steps.coverage.outcome }}" -eq "failure") {
+            $failures += "coverage checks failed"
+          }
+
+          if ($failures.Count -gt 0) {
+            $message = "Build failed because " + ($failures -join " and ") + "."
+            Write-Host "::error::$message"
+            $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit 1
           }
 
       - name: dotnet publish
+        if: ${{ steps.tests.outcome == 'success' && steps.coverage.outcome == 'success' }}
         run: dotnet publish "${{ env.PROJECT_PATH }}" -c Release --no-build -o "${{ env.PUBLISH_PATH }}"
 
       - name: Upload test results
@@ -87,7 +142,7 @@ jobs:
           path: |
             ${{ env.COVERAGE_OUTPUT_DIR }}/coverage.json
             ${{ env.COVERAGE_OUTPUT_DIR }}/coverage.cobertura.xml
-            AxlProtocolMusic/AxlProtocolMusic.WebApp.Tests/bin/Release/net10.0/TestResults/**/*
+            ${{ env.TEST_RESULTS_DIR }}/**/*
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v6
