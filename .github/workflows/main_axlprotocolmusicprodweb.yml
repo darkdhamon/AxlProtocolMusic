@@ -12,6 +12,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    outputs:
+      should_deploy: ${{ steps.changes.outputs.should_deploy }}
     env:
       PROJECT_PATH: AxlProtocolMusic/AxlProtocolMusic.WebApp/AxlProtocolMusic.WebApp.csproj
       # Integration tests live in AxlProtocolMusic.WebApp.IntegrationTests and are intentionally excluded for now.
@@ -28,6 +30,43 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect deployable web app changes
+        id: changes
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "should_deploy=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "Workflow dispatched manually; deployment will run after a successful build." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit 0
+          }
+
+          $before = "${{ github.event.before }}"
+          $after = "${{ github.sha }}"
+
+          if ([string]::IsNullOrWhiteSpace($before) -or $before -eq "0000000000000000000000000000000000000000") {
+            $changedFiles = git diff-tree --no-commit-id --name-only -r $after
+          }
+          else {
+            $changedFiles = git diff --name-only $before $after
+          }
+
+          $changedFiles = @($changedFiles | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+          $deployChangedFiles = @($changedFiles | Where-Object { $_ -like 'AxlProtocolMusic/AxlProtocolMusic.WebApp/*' -or $_ -like 'AxlProtocolMusic/AxlProtocolMusic.WebApp/**/*' })
+
+          if ($deployChangedFiles.Count -gt 0) {
+            "should_deploy=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "Deployable web app changes detected:" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            foreach ($file in $deployChangedFiles) {
+              "- $file" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            }
+          }
+          else {
+            "should_deploy=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "No files under AxlProtocolMusic/AxlProtocolMusic.WebApp changed in this push, so deployment will be skipped." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
 
       - name: Set up .NET Core
         uses: actions/setup-dotnet@v5
@@ -205,7 +244,7 @@ jobs:
           }
 
       - name: dotnet publish
-        if: ${{ steps.tests.outputs.failed != 'true' && steps.coverage.outputs.failed != 'true' }}
+        if: ${{ steps.tests.outputs.failed != 'true' && steps.coverage.outputs.failed != 'true' && steps.changes.outputs.should_deploy == 'true' }}
         run: dotnet publish "${{ env.PROJECT_PATH }}" -c Release --no-build -o "${{ env.PUBLISH_PATH }}"
 
       - name: Upload test results
@@ -219,6 +258,7 @@ jobs:
             ${{ env.TEST_RESULTS_DIR }}/**/*
 
       - name: Upload artifact for deployment job
+        if: ${{ steps.changes.outputs.should_deploy == 'true' }}
         uses: actions/upload-artifact@v6
         with:
           name: .net-app
@@ -227,6 +267,7 @@ jobs:
   deploy:
     runs-on: windows-latest
     needs: build
+    if: ${{ needs.build.outputs.should_deploy == 'true' }}
     permissions:
       id-token: write #This is required for requesting the JWT
       contents: read #This is required for actions/checkout
