@@ -116,13 +116,162 @@ public sealed class ReleaseDetailsTests
         Assert.That(releaseService.LastIncludeUnpublished, Is.True);
     }
 
+    [Test]
+    public void ReleaseDetails_WhenTrackHasLyrics_OpensAndClosesLyricsModal()
+    {
+        using var context = CreateContext(out var releaseService);
+        releaseService.Release = new ReleaseDetailsViewModel
+        {
+            Id = "release-3",
+            Title = "Signals",
+            Slug = "signals",
+            ShortDescription = "A cinematic synth release.",
+            ReleaseType = "EP",
+            ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(-1),
+            Tracks =
+            [
+                new ReleaseTrack
+                {
+                    Title = "Neon Run",
+                    Lyrics = "Night drive"
+                }
+            ]
+        };
+
+        var cut = context.Render<ReleaseDetails>(parameters => parameters
+            .Add(component => component.Slug, "signals"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("See Lyrics"));
+        });
+
+        cut.Find("button.btn.btn-outline-primary.btn-sm").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Neon Run Lyrics"));
+            Assert.That(cut.Markup, Does.Contain("Night drive"));
+        });
+
+        cut.Find("button.btn-close").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Not.Contain("Track Lyrics"));
+        });
+    }
+
+    [Test]
+    public void ReleaseDetails_WhenDeleteFails_ShowsErrorAndDoesNotNavigate()
+    {
+        using var context = CreateContext(out var releaseService, out var imageStorageService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        releaseService.Release = new ReleaseDetailsViewModel
+        {
+            Id = "release-4",
+            Title = "Vault",
+            Slug = "vault",
+            ShortDescription = "Private preview.",
+            ReleaseType = "Single",
+            ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(-5),
+            CoverImageUrl = "managed://vault-art"
+        };
+        releaseService.DeleteResult = new ReleaseDeleteResult
+        {
+            Succeeded = false,
+            ErrorMessage = "Delete failed."
+        };
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+
+        var cut = context.Render<ReleaseDetails>(parameters => parameters
+            .Add(component => component.Slug, "vault"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Delete Release"));
+        });
+
+        cut.Find("button.btn.btn-outline-light.btn-sm").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Are you sure you want to delete"));
+        });
+
+        cut.Find("button.btn.btn-danger").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Delete failed."));
+        });
+
+        Assert.That(releaseService.LastDeletedSlug, Is.EqualTo("vault"));
+        Assert.That(imageStorageService.DeletedStoragePaths, Is.Empty);
+        Assert.That(navigation.Uri, Does.EndWith("/"));
+    }
+
+    [Test]
+    public void ReleaseDetails_WhenDeleteSucceeds_DeletesManagedImageAndNavigatesToReleases()
+    {
+        using var context = CreateContext(out var releaseService, out var imageStorageService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        releaseService.Release = new ReleaseDetailsViewModel
+        {
+            Id = "release-5",
+            Title = "Vault",
+            Slug = "vault",
+            ShortDescription = "Private preview.",
+            ReleaseType = "Single",
+            ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(-5),
+            CoverImageUrl = "managed://vault-art"
+        };
+        releaseService.ManagedImageUrls.Add("managed://vault-art");
+        releaseService.DeleteResult = new ReleaseDeleteResult
+        {
+            Succeeded = true,
+            ImageStoragePath = "managed://vault-art"
+        };
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+
+        var cut = context.Render<ReleaseDetails>(parameters => parameters
+            .Add(component => component.Slug, "vault"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Delete Release"));
+        });
+
+        cut.Find("button.btn.btn-outline-light.btn-sm").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Are you sure you want to delete"));
+        });
+
+        cut.Find("button.btn.btn-danger").Click();
+
+        Assert.That(releaseService.LastDeletedSlug, Is.EqualTo("vault"));
+        Assert.That(imageStorageService.DeletedStoragePaths, Is.EqualTo(["managed://vault-art"]));
+        Assert.That(navigation.Uri, Does.Contain("/releases?success=Release%20deleted."));
+    }
+
     private static BunitContext CreateContext(out FakeReleaseService releaseService)
+    {
+        return CreateContext(out releaseService, out _);
+    }
+
+    private static BunitContext CreateContext(out FakeReleaseService releaseService, out FakeImageStorageService imageStorageService)
     {
         var context = new BunitContext();
         releaseService = new FakeReleaseService();
+        imageStorageService = new FakeImageStorageService();
         context.AddAuthorization().SetNotAuthorized();
         context.Services.AddSingleton<IReleaseService>(releaseService);
-        context.Services.AddSingleton<IImageStorageService, FakeImageStorageService>();
+        context.Services.AddSingleton<IImageStorageService>(imageStorageService);
         context.Services.AddSingleton<MarkdownService>();
         return context;
     }
@@ -134,6 +283,12 @@ public sealed class ReleaseDetailsTests
         public string? RequestedSlug { get; private set; }
 
         public bool LastIncludeUnpublished { get; private set; }
+
+        public string? LastDeletedSlug { get; private set; }
+
+        public ReleaseDeleteResult DeleteResult { get; set; } = new();
+
+        public HashSet<string> ManagedImageUrls { get; } = [];
 
         public Task<IReadOnlyList<FeaturedReleaseViewModel>> GetFeaturedReleasesAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<FeaturedReleaseViewModel>>([]);
@@ -155,7 +310,10 @@ public sealed class ReleaseDetailsTests
             => Task.FromResult(new ReleaseCreateResult());
 
         public Task<ReleaseDeleteResult> DeleteReleaseAsync(string slug, CancellationToken cancellationToken = default)
-            => Task.FromResult(new ReleaseDeleteResult());
+        {
+            LastDeletedSlug = slug;
+            return Task.FromResult(DeleteResult);
+        }
 
         public Task<string> GenerateUniqueSlugAsync(string? value, CancellationToken cancellationToken = default)
             => Task.FromResult(value ?? string.Empty);
@@ -169,17 +327,22 @@ public sealed class ReleaseDetailsTests
         public Task<IReadOnlyList<string>> GetKnownTagsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>(["Synthwave", "Instrumental"]);
 
-        public bool IsManagedImageUrl(string? imageUrl) => false;
+        public bool IsManagedImageUrl(string? imageUrl) => !string.IsNullOrWhiteSpace(imageUrl) && ManagedImageUrls.Contains(imageUrl);
     }
 
     private sealed class FakeImageStorageService : IImageStorageService
     {
+        public List<string> DeletedStoragePaths { get; } = [];
+
         public Task<ImageSaveResult> SaveReleaseImageAsync(IFormFile file, CancellationToken cancellationToken = default)
             => Task.FromResult(new ImageSaveResult());
 
         public bool IsManagedImageUrl(string? imageUrl) => false;
 
         public Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        {
+            DeletedStoragePaths.Add(storagePath);
+            return Task.CompletedTask;
+        }
     }
 }
