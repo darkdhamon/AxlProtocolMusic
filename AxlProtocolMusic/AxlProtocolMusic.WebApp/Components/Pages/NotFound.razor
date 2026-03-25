@@ -147,7 +147,7 @@
     }
 
     private static string GetCardStyle(string backgroundImageUrl)
-        => $"background-image: linear-gradient(180deg, rgba(8, 14, 28, 0.2), rgba(8, 14, 28, 0.88)), url('{backgroundImageUrl}');";
+        => $"--card-image: url('{backgroundImageUrl}');";
 
     private static bool IsLiveForPublic(NewsArticle article)
         => article.IsPublished && article.PublicationDateUtc <= DateTimeOffset.UtcNow;

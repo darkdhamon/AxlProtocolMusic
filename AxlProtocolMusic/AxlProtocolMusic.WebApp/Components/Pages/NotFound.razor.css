@@ -72,6 +72,10 @@
     gap: 1rem;
 }
 
+.recommendations-header .eyebrow {
+    color: rgba(17, 44, 114, 0.58);
+}
+
 .recommendations-header {
     display: grid;
     gap: 0.4rem;
@@ -79,6 +83,7 @@
 
 .recommendations-header h2 {
     margin: 0;
+    color: var(--app-heading);
 }
 
 .recommendations-grid {
@@ -92,10 +97,14 @@
     min-height: 21rem;
     border-radius: 1.3rem;
     overflow: hidden;
-    background-color: #0f2448;
+    background-color: #102449;
     background-position: center;
     background-repeat: no-repeat;
     background-size: cover;
+    background-image:
+        linear-gradient(180deg, rgba(250, 252, 255, 0.08), rgba(8, 14, 28, 0.72)),
+        var(--card-image);
+    border: 1px solid rgba(17, 44, 114, 0.1);
     box-shadow: 0 18px 40px rgba(10, 22, 51, 0.18);
 }
 
@@ -163,6 +172,18 @@
     box-shadow: var(--app-shadow-strong);
 }
 
+:root[data-theme="dark"] .recommendations-header .eyebrow {
+    color: rgba(247, 248, 253, 0.72);
+}
+
+:root[data-theme="dark"] .recommendations-header h2 {
+    color: #f7f8fd;
+}
+
 :root[data-theme="dark"] .recommendation-card {
+    background-image:
+        linear-gradient(180deg, rgba(8, 14, 28, 0.2), rgba(8, 14, 28, 0.88)),
+        var(--card-image);
+    border-color: rgba(146, 178, 230, 0.12);
     box-shadow: var(--app-shadow);
 }
