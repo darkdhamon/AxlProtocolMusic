@@ -2,6 +2,7 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.Extensions.Options;
 
 namespace AxlProtocolMusic.WebApp.Services;

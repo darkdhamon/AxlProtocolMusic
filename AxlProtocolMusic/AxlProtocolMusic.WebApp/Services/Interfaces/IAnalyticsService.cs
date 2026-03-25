@@ -1,4 +1,5 @@
 using AxlProtocolMusic.WebApp.Models.Analytics;
+using AxlProtocolMusic.WebApp.Services.ServiceModels;
 
 namespace AxlProtocolMusic.WebApp.Services.Interfaces;
 

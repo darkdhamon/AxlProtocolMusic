@@ -3,6 +3,7 @@ using AxlProtocolMusic.WebApp.Controllers;
 using AxlProtocolMusic.WebApp.Models.Content;
 using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -196,13 +197,13 @@ public sealed class ReleasesControllerTests
         public Task<IReadOnlyList<string>> GetKnownTagsAsync(CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<AxlProtocolMusic.WebApp.Services.PagedReleaseResult> GetPagedReleasesAsync(string? searchTerm, int pageNumber, int pageSize, bool includeUnpublished = false, CancellationToken cancellationToken = default)
+        public Task<PagedReleaseResult> GetPagedReleasesAsync(string? searchTerm, int pageNumber, int pageSize, bool includeUnpublished = false, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<AxlProtocolMusic.WebApp.Services.ReleaseDetailsViewModel?> GetReleaseBySlugAsync(string slug, bool includeUnpublished = false, CancellationToken cancellationToken = default)
+        public Task<ReleaseDetailsViewModel?> GetReleaseBySlugAsync(string slug, bool includeUnpublished = false, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<IReadOnlyList<AxlProtocolMusic.WebApp.Services.FeaturedReleaseViewModel>> GetFeaturedReleasesAsync(CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<FeaturedReleaseViewModel>> GetFeaturedReleasesAsync(CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
         public bool IsManagedImageUrl(string? imageUrl) => ManagedImageUrl;

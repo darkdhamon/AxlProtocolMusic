@@ -1,6 +1,7 @@
 @page "/admin"
 @attribute [Authorize(Roles = "Admin")]
 @using AxlProtocolMusic.WebApp.Models.Chatbot
+@using AxlProtocolMusic.WebApp.Services.ServiceModels
 @inject IRepository<Release> ReleaseRepository
 @inject IAboutPageService AboutPageService
 @inject IAnalyticsService AnalyticsService

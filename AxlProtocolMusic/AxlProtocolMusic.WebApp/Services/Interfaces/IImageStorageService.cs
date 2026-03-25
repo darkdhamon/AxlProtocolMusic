@@ -1,3 +1,5 @@
+using AxlProtocolMusic.WebApp.Services.ServiceModels;
+
 namespace AxlProtocolMusic.WebApp.Services.Interfaces;
 
 public interface IImageStorageService

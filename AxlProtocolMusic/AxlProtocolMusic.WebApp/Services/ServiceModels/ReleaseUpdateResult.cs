@@ -1,4 +1,4 @@
-namespace AxlProtocolMusic.WebApp.Services;
+namespace AxlProtocolMusic.WebApp.Services.ServiceModels;
 
 public sealed class ReleaseUpdateResult
 {

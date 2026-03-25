@@ -1,5 +1,6 @@
 using AxlProtocolMusic.WebApp.Controllers;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -94,10 +95,10 @@ public sealed class PrivacyControllerTests
         public Task DeleteVisitorLocationDataAsync(string clientId, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
 
-        public Task<AxlProtocolMusic.WebApp.Services.AnalyticsDashboardSummary> GetDashboardSummaryAsync(CancellationToken cancellationToken = default)
+        public Task<AnalyticsDashboardSummary> GetDashboardSummaryAsync(CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
-        public Task<AxlProtocolMusic.WebApp.Services.VisitorCollectedDataViewModel> GetVisitorCollectedDataAsync(string clientId, CancellationToken cancellationToken = default)
+        public Task<VisitorCollectedDataViewModel> GetVisitorCollectedDataAsync(string clientId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
         public Task RecordExternalLinkClickAsync(AxlProtocolMusic.WebApp.Models.Analytics.ExternalLinkClickMetric metric, CancellationToken cancellationToken = default)

@@ -1,6 +1,6 @@
 using AxlProtocolMusic.WebApp.Models.Content;
 
-namespace AxlProtocolMusic.WebApp.Services;
+namespace AxlProtocolMusic.WebApp.Services.ServiceModels;
 
 public sealed class ReleaseDetailsViewModel
 {

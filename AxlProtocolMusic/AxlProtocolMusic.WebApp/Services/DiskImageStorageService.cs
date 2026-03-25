@@ -1,5 +1,6 @@
 using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.Extensions.Options;
 
 namespace AxlProtocolMusic.WebApp.Services;
