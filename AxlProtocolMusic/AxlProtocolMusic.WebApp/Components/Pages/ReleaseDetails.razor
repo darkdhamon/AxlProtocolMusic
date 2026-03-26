@@ -22,7 +22,7 @@ else
 {
     <PageTitle>@($"{release.Title} | Release Details")</PageTitle>
     <div class="release-details-page">
-        <div class="release-details-layout">
+        <div class="@(isAdminUser ? "release-details-layout release-details-layout-with-sidebar" : "release-details-layout")">
             <div class="release-details-content">
         @if (!string.IsNullOrWhiteSpace(Error))
         {
@@ -581,6 +581,7 @@ else
     private ReleaseDetailsViewModel? release;
     private ReleaseUpdateRequest editableRelease = new();
     private bool isLoading = true;
+    private bool isAdminUser;
     private string? editorStatusMessage;
     private string? editorErrorMessage;
     private bool isLyricsModalOpen;
@@ -623,7 +624,8 @@ else
             ? null
             : await AuthenticationStateTask;
 
-        var includeUnpublished = authenticationState?.User.IsInRole("Admin") == true;
+        isAdminUser = authenticationState?.User.IsInRole("Admin") == true;
+        var includeUnpublished = isAdminUser;
         release = await ReleaseService.GetReleaseBySlugAsync(Slug, includeUnpublished);
         SyncEditableState();
         isLoading = false;

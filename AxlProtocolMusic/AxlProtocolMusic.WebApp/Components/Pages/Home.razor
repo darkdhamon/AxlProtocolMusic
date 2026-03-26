@@ -49,20 +49,7 @@
             var isUpcomingRelease = IsUpcomingRelease(activeRelease.ReleaseDateUtc);
 
             <div class="carousel-stage">
-                <div class="hero-shell">
-                    <div class="hero-copy">
-                        <p class="eyebrow">Latest Releases</p>
-                        <h1>@activeRelease.Title</h1>
-                        <p class="hero-date">@activeRelease.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
-                        <p class="hero-description">@activeRelease.ShortDescription</p>
-                        <div class="hero-actions">
-                            <a class="btn btn-light" href="@($"/releases/{activeRelease.Slug}")">View Release</a>
-                            <button class="btn btn-outline-light" type="button" @onclick="ShowNextSlide">
-                                Next Release
-                            </button>
-                        </div>
-                    </div>
-
+                <div class="hero-shell hero-shell-image-left">
                     <div class="hero-artwork">
                         <div class="hero-artwork-frame">
                             <img
@@ -80,6 +67,19 @@
                                     </div>
                                 </div>
                             }
+                        </div>
+                    </div>
+
+                    <div class="hero-copy">
+                        <p class="eyebrow">Latest Releases</p>
+                        <h1>@activeRelease.Title</h1>
+                        <p class="hero-date">@activeRelease.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
+                        <p class="hero-description">@activeRelease.ShortDescription</p>
+                        <div class="hero-actions">
+                            <a class="btn btn-light" href="@($"/releases/{activeRelease.Slug}")">View Release</a>
+                            <button class="btn btn-outline-light" type="button" @onclick="ShowNextSlide">
+                                Next Release
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -17,21 +17,57 @@
 }
 
 .release-hero {
+    position: relative;
+    isolation: isolate;
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+    grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
     gap: 1.75rem;
     padding: 2rem;
     border-radius: 1.4rem;
-    background:
+    background-image:
         radial-gradient(circle at top left, rgba(255, 203, 107, 0.2), transparent 32%),
         linear-gradient(135deg, #0b1738 0%, #112c72 55%, #0f4b6e 100%);
+    background-position:
+        center center,
+        center center;
+    background-repeat:
+        no-repeat,
+        no-repeat;
+    background-size:
+        auto,
+        auto;
     color: #f7f8fd;
+    overflow: hidden;
+}
+
+.release-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: url('/Assets/Logo/Logo-Text-Only.png');
+    background-position: right center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    opacity: 0.1;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.release-hero > * {
+    position: relative;
+    z-index: 1;
 }
 
 .release-hero-copy {
+    order: 2;
     display: grid;
     align-content: center;
     gap: 0.8rem;
+}
+
+.release-hero-artwork {
+    order: 1;
 }
 
 .release-hero-header {
@@ -573,7 +609,7 @@
 }
 
 @media (min-width: 901px) {
-    .release-details-layout {
+    .release-details-layout-with-sidebar {
         grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.85fr);
         align-items: start;
     }

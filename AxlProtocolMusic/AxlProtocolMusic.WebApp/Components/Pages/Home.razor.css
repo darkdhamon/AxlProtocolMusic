@@ -14,22 +14,62 @@
 }
 
 .hero-shell {
+    position: relative;
+    isolation: isolate;
     display: grid;
-    grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
+    grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.3fr);
     gap: 2rem;
     padding: 2.5rem;
     border-radius: 1.5rem;
-    background:
+    background-image:
         radial-gradient(circle at top left, rgba(255, 203, 107, 0.22), transparent 34%),
         linear-gradient(135deg, #0b1738 0%, #112c72 55%, #0f4b6e 100%);
+    background-position:
+        center center,
+        center center;
+    background-repeat:
+        no-repeat,
+        no-repeat;
+    background-size:
+        auto,
+        auto;
     color: #f7f8fd;
     box-shadow: 0 20px 60px rgba(6, 14, 35, 0.24);
+    overflow: hidden;
+}
+
+.hero-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: url('/Assets/Logo/Logo-Text-Only.png');
+    background-position: right center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    opacity: 0.1;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.hero-shell > * {
+    position: relative;
+    z-index: 1;
+}
+
+.hero-shell-image-left .hero-artwork {
+    order: 1;
+}
+
+.hero-shell-image-left .hero-copy {
+    order: 2;
 }
 
 .hero-copy {
     display: grid;
     align-content: center;
     gap: 0.85rem;
+    max-width: 42rem;
 }
 
 .eyebrow {
@@ -74,32 +114,6 @@
     gap: 0.75rem;
     flex-wrap: wrap;
     margin-top: 0.5rem;
-}
-
-.hero-artwork {
-    display: grid;
-    align-items: center;
-}
-
-.hero-artwork-frame {
-    position: relative;
-}
-
-.hero-artwork img,
-.cover-placeholder {
-    width: 100%;
-    aspect-ratio: 1 / 1;
-    border-radius: 1.2rem;
-}
-
-.hero-artwork img {
-    object-fit: cover;
-    display: block;
-    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
-}
-
-.hero-artwork img.is-upcoming {
-    filter: grayscale(1);
 }
 
 .hero-artwork-overlay {
@@ -268,8 +282,8 @@
     }
 
     .hero-shell {
-        grid-template-columns: 1fr;
         padding: 1.5rem;
+        grid-template-columns: 1fr;
     }
 
     .carousel-arrow-overlay {
@@ -312,4 +326,35 @@
 :root[data-theme="dark"] .release-coming-soon-group span {
     background: rgba(15, 23, 42, 0.63);
     color: #f8fafc;
+}
+
+:root[data-theme="dark"] .hero-shell {
+    background-image:
+        radial-gradient(circle at top left, rgba(142, 186, 255, 0.12), transparent 34%),
+        linear-gradient(135deg, #08111f 0%, #0b1f4a 55%, #103a5a 100%);
+}
+.hero-artwork {
+    display: grid;
+    align-items: center;
+}
+
+.hero-artwork-frame {
+    position: relative;
+}
+
+.hero-artwork img,
+.cover-placeholder {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 1.2rem;
+}
+
+.hero-artwork img {
+    object-fit: cover;
+    display: block;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
+}
+
+.hero-artwork img.is-upcoming {
+    filter: grayscale(1);
 }

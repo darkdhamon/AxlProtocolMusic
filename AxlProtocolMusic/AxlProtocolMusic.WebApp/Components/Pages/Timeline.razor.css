@@ -8,15 +8,46 @@
 }
 
 .timeline-hero {
+    position: relative;
+    isolation: isolate;
     display: grid;
     grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
     gap: 1.5rem;
     padding: 2rem;
     border-radius: 1.5rem;
-    background:
+    background-image:
         radial-gradient(circle at top left, rgba(243, 181, 84, 0.18), transparent 28%),
         linear-gradient(145deg, #0a1633 0%, #102a69 52%, #16567d 100%);
+    background-position:
+        center center,
+        center center;
+    background-repeat:
+        no-repeat,
+        no-repeat;
+    background-size:
+        auto,
+        auto;
     color: #f7f8fd;
+    overflow: hidden;
+}
+
+.timeline-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: url('/Assets/Logo/Logo-Text-Only.png');
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    opacity: 0.1;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.timeline-hero > * {
+    position: relative;
+    z-index: 1;
 }
 
 .timeline-hero-copy {

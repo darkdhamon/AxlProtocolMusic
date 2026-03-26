@@ -16,7 +16,7 @@ else if (content is null)
 else
 {
     <div class="about-page">
-        <div class="about-page-layout">
+        <div class="@(isAdminUser ? "about-page-layout about-page-layout-with-sidebar" : "about-page-layout")">
             <div class="about-page-content">
                 <section class="about-hero">
                     <div class="about-hero-copy">
@@ -254,9 +254,13 @@ else
 
 @code {
     private const int AutoSaveDelayMilliseconds = 700;
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
     private AboutPageContent? content;
     private AboutPageContent editableContent = new();
     private bool isLoading = true;
+    private bool isAdminUser;
     private string? statusMessage;
     private string? errorMessage;
     private CancellationTokenSource? autosaveCancellationTokenSource;
@@ -274,6 +278,10 @@ else
         isLoading = true;
         statusMessage = null;
         errorMessage = null;
+        var authenticationState = AuthenticationStateTask is null
+            ? null
+            : await AuthenticationStateTask;
+        isAdminUser = authenticationState?.User.IsInRole("Admin") == true;
         content = await AboutPageService.GetAsync();
         editableContent = Clone(content);
         isLoading = false;
