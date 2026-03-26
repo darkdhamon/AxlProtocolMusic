@@ -109,7 +109,7 @@ public sealed class ServiceCollectionExtensionsTests
         using var provider = services.BuildServiceProvider();
 
         Assert.That(returnedServices, Is.SameAs(services));
-        AssertScoped<AdminIdentitySeeder, AdminIdentitySeeder>(services);
+        AssertScoped<IAdminIdentitySeeder, AdminIdentitySeeder>(services);
         AssertScoped<NewsArticleSeedService, NewsArticleSeedService>(services);
         AssertScoped<ReleaseSeedService, ReleaseSeedService>(services);
         AssertScoped<DevelopmentDatabaseResetService, DevelopmentDatabaseResetService>(services);

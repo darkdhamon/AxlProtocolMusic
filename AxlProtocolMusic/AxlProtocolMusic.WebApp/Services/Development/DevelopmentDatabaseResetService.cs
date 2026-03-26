@@ -8,8 +8,9 @@ namespace AxlProtocolMusic.WebApp.Services.Development;
 
 public sealed class DevelopmentDatabaseResetService
 {
+    private readonly Func<string, IMongoClient> _mongoClientFactory;
     private readonly MongoDbSettings _mongoDbSettings;
-    private readonly AdminIdentitySeeder _adminIdentitySeeder;
+    private readonly IAdminIdentitySeeder _adminIdentitySeeder;
     private readonly IAboutPageService _aboutPageService;
     private readonly NewsArticleSeedService _newsArticleSeedService;
     private readonly ReleaseSeedService _releaseSeedService;
@@ -17,11 +18,30 @@ public sealed class DevelopmentDatabaseResetService
 
     public DevelopmentDatabaseResetService(
         IOptions<MongoDbSettings> mongoDbOptions,
-        AdminIdentitySeeder adminIdentitySeeder,
+        IAdminIdentitySeeder adminIdentitySeeder,
         IAboutPageService aboutPageService,
         NewsArticleSeedService newsArticleSeedService,
         ReleaseSeedService releaseSeedService,
         ITimelineEventService timelineEventService)
+        : this(
+            mongoDbOptions,
+            adminIdentitySeeder,
+            aboutPageService,
+            newsArticleSeedService,
+            releaseSeedService,
+            timelineEventService,
+            connectionString => new MongoClient(connectionString))
+    {
+    }
+
+    public DevelopmentDatabaseResetService(
+        IOptions<MongoDbSettings> mongoDbOptions,
+        IAdminIdentitySeeder adminIdentitySeeder,
+        IAboutPageService aboutPageService,
+        NewsArticleSeedService newsArticleSeedService,
+        ReleaseSeedService releaseSeedService,
+        ITimelineEventService timelineEventService,
+        Func<string, IMongoClient> mongoClientFactory)
     {
         _mongoDbSettings = mongoDbOptions.Value;
         _adminIdentitySeeder = adminIdentitySeeder;
@@ -29,6 +49,7 @@ public sealed class DevelopmentDatabaseResetService
         _newsArticleSeedService = newsArticleSeedService;
         _releaseSeedService = releaseSeedService;
         _timelineEventService = timelineEventService;
+        _mongoClientFactory = mongoClientFactory;
     }
 
     public async Task ResetAsync()
@@ -43,9 +64,15 @@ public sealed class DevelopmentDatabaseResetService
             throw new InvalidOperationException("MongoDb:DatabaseName must be configured.");
         }
 
-        var client = new MongoClient(_mongoDbSettings.ConnectionString);
+        if (MongoDbConnectionStringClassifier.ContainsAzureHost(_mongoDbSettings.ConnectionString))
+        {
+            await _adminIdentitySeeder.ResetBootstrapAdminAsync();
+            return;
+        }
+
+        var client = _mongoClientFactory(_mongoDbSettings.ConnectionString);
         await client.DropDatabaseAsync(_mongoDbSettings.DatabaseName);
-        await _adminIdentitySeeder.SeedAsync();
+        await _adminIdentitySeeder.ResetBootstrapAdminAsync();
         await _aboutPageService.SeedAsync();
         await _newsArticleSeedService.SeedAsync();
         await _releaseSeedService.SeedAsync();

@@ -112,7 +112,7 @@ public static class ServiceCollectionExtensions
             options.SlidingExpiration = true;
         });
 
-        services.AddScoped<AdminIdentitySeeder>();
+        services.AddScoped<IAdminIdentitySeeder, AdminIdentitySeeder>();
         services.AddScoped<NewsArticleSeedService>();
         services.AddScoped<ReleaseSeedService>();
         services.AddScoped<DevelopmentDatabaseResetService>();

@@ -9,6 +9,12 @@
 @implements IAsyncDisposable
 
 <script>
+    window.axlCarousel = window.axlCarousel || {
+        isMobileDevice: function () {
+            return window.matchMedia("(hover: none) and (pointer: coarse), (any-hover: none) and (any-pointer: coarse)").matches;
+        }
+    };
+
     window.axlNewsPage = window.axlNewsPage || (() => {
         let observer;
 
@@ -82,7 +88,13 @@
     {
         var activeFeaturedArticle = featuredArticles[activeFeaturedArticleIndex];
 
-        <section class="news-carousel" aria-label="Featured news articles">
+        <section
+            class="news-carousel"
+            aria-label="Featured news articles"
+            @onmouseenter="PauseFeaturedCarouselRotation"
+            @onmouseleave="ResumeFeaturedCarouselRotation"
+            @ontouchstart="HandleFeaturedCarouselTouchStart"
+            @ontouchend="HandleFeaturedCarouselTouchEnd">
             <article class="featured-story" style="@GetFeaturedStyle(activeFeaturedArticle)">
                 <div class="featured-story-overlay">
                     <p class="eyebrow">Featured Article</p>
@@ -352,25 +364,31 @@
     public string? ArticleSlug { get; set; }
 
     private const int FeedBatchSize = 9;
+    private const double SwipeThreshold = 48;
+    private static readonly TimeSpan CarouselRotationInterval = TimeSpan.FromSeconds(5);
 
     private List<NewsArticle> allArticles = [];
     private List<NewsArticle> visibleArticles = [];
     private List<NewsArticle> featuredArticles = [];
     private List<NewsArticle> feedArticles = [];
     private List<NewsArticle> loadedArticles = [];
+    private CancellationTokenSource? featuredCarouselRotationCancellationTokenSource;
     private NewsArticle? selectedArticle;
     private NewsArticle? editableArticle;
     private NewsArticle? articlePendingDelete;
     private DotNetObjectReference<News>? dotNetReference;
     private ElementReference loadMoreSentinel;
     private int activeFeaturedArticleIndex;
+    private double? featuredCarouselTouchStartX;
     private bool isAdmin;
     private bool hasMoreArticles;
     private bool isLoadingMore;
+    private bool isMobileDevice;
     private bool observerInitialized;
     private bool isEditModalOpen;
     private bool isCreatingArticle;
     private bool isDeleteModalOpen;
+    private bool isFeaturedCarouselHovered;
     private DateTime editablePublicationDate;
     private string? editErrorMessage;
     private string? editStatusMessage;
@@ -404,6 +422,16 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            isMobileDevice = await DetectMobileDeviceAsync();
+
+            if (!isMobileDevice)
+            {
+                StartFeaturedCarouselRotation();
+            }
+        }
+
         if ((!firstRender && observerInitialized) || !hasMoreArticles)
         {
             return;
@@ -542,6 +570,98 @@
     private void ShowFeaturedArticle(int index)
     {
         activeFeaturedArticleIndex = index;
+    }
+
+    private void PauseFeaturedCarouselRotation()
+    {
+        isFeaturedCarouselHovered = true;
+    }
+
+    private void ResumeFeaturedCarouselRotation()
+    {
+        isFeaturedCarouselHovered = false;
+    }
+
+    private void HandleFeaturedCarouselTouchStart(TouchEventArgs args)
+    {
+        featuredCarouselTouchStartX = args.Touches.FirstOrDefault()?.ClientX ?? args.ChangedTouches.FirstOrDefault()?.ClientX;
+    }
+
+    private void HandleFeaturedCarouselTouchEnd(TouchEventArgs args)
+    {
+        if (featuredCarouselTouchStartX is null)
+        {
+            return;
+        }
+
+        var touchEndX = args.ChangedTouches.FirstOrDefault()?.ClientX;
+        if (touchEndX is null)
+        {
+            featuredCarouselTouchStartX = null;
+            return;
+        }
+
+        var deltaX = touchEndX.Value - featuredCarouselTouchStartX.Value;
+        featuredCarouselTouchStartX = null;
+
+        if (Math.Abs(deltaX) < SwipeThreshold)
+        {
+            return;
+        }
+
+        if (deltaX < 0)
+        {
+            ShowNextFeaturedArticle();
+        }
+        else
+        {
+            ShowPreviousFeaturedArticle();
+        }
+    }
+
+    private void StartFeaturedCarouselRotation()
+    {
+        featuredCarouselRotationCancellationTokenSource?.Cancel();
+        featuredCarouselRotationCancellationTokenSource?.Dispose();
+        featuredCarouselRotationCancellationTokenSource = new CancellationTokenSource();
+        _ = RotateFeaturedCarouselAsync(featuredCarouselRotationCancellationTokenSource.Token);
+    }
+
+    private async Task RotateFeaturedCarouselAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(CarouselRotationInterval);
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (isFeaturedCarouselHovered || featuredArticles.Count <= 1)
+                {
+                    continue;
+                }
+
+                await InvokeAsync(() =>
+                {
+                    ShowNextFeaturedArticle();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task<bool> DetectMobileDeviceAsync()
+    {
+        try
+        {
+            return await JSRuntime.InvokeAsync<bool>("axlCarousel.isMobileDevice");
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async Task SaveEditedArticle()
@@ -845,6 +965,9 @@
 
     public async ValueTask DisposeAsync()
     {
+        featuredCarouselRotationCancellationTokenSource?.Cancel();
+        featuredCarouselRotationCancellationTokenSource?.Dispose();
+
         try
         {
             await JSRuntime.InvokeVoidAsync("axlNewsPage.disposeInfiniteScroll");

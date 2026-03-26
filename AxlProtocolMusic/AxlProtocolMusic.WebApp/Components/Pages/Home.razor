@@ -1,12 +1,27 @@
 @page "/"
 @rendermode InteractiveServer
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
+@inject IJSRuntime JSRuntime
 @inject IReleaseService ReleaseService
+@implements IAsyncDisposable
+
+<script>
+    window.axlCarousel = window.axlCarousel || {
+        isMobileDevice: function () {
+            return window.matchMedia("(hover: none) and (pointer: coarse), (any-hover: none) and (any-pointer: coarse)").matches;
+        }
+    };
+</script>
 
 <PageTitle>Home</PageTitle>
 
 <div class="home-page">
-    <section class="hero-carousel">
+    <section
+        class="hero-carousel"
+        @onmouseenter="PauseCarouselRotation"
+        @onmouseleave="ResumeCarouselRotation"
+        @ontouchstart="HandleCarouselTouchStart"
+        @ontouchend="HandleCarouselTouchEnd">
         @if (isLoading)
         {
             <div class="hero-shell">
@@ -124,15 +139,36 @@
 
 @code {
     private const string PlaceholderAlbumArtPath = "/Assets/Misc/Placeholder-AlbumArt.png";
+    private const double SwipeThreshold = 48;
+    private static readonly TimeSpan CarouselRotationInterval = TimeSpan.FromSeconds(5);
     private IReadOnlyList<FeaturedReleaseViewModel> featuredReleases = [];
+    private CancellationTokenSource? carouselRotationCancellationTokenSource;
     private int activeSlideIndex;
+    private double? touchStartX;
     private bool isLoading = true;
+    private bool isCarouselHovered;
+    private bool isMobileDevice;
 
     protected override async Task OnInitializedAsync()
     {
         featuredReleases = await ReleaseService.GetFeaturedReleasesAsync();
         activeSlideIndex = 0;
         isLoading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        isMobileDevice = await DetectMobileDeviceAsync();
+
+        if (!isMobileDevice)
+        {
+            StartCarouselRotation();
+        }
     }
 
     private void ShowPreviousSlide()
@@ -160,6 +196,98 @@
         activeSlideIndex = slideIndex;
     }
 
+    private void PauseCarouselRotation()
+    {
+        isCarouselHovered = true;
+    }
+
+    private void ResumeCarouselRotation()
+    {
+        isCarouselHovered = false;
+    }
+
+    private void HandleCarouselTouchStart(TouchEventArgs args)
+    {
+        touchStartX = args.Touches.FirstOrDefault()?.ClientX ?? args.ChangedTouches.FirstOrDefault()?.ClientX;
+    }
+
+    private void HandleCarouselTouchEnd(TouchEventArgs args)
+    {
+        if (touchStartX is null)
+        {
+            return;
+        }
+
+        var touchEndX = args.ChangedTouches.FirstOrDefault()?.ClientX;
+        if (touchEndX is null)
+        {
+            touchStartX = null;
+            return;
+        }
+
+        var deltaX = touchEndX.Value - touchStartX.Value;
+        touchStartX = null;
+
+        if (Math.Abs(deltaX) < SwipeThreshold)
+        {
+            return;
+        }
+
+        if (deltaX < 0)
+        {
+            ShowNextSlide();
+        }
+        else
+        {
+            ShowPreviousSlide();
+        }
+    }
+
+    private void StartCarouselRotation()
+    {
+        carouselRotationCancellationTokenSource?.Cancel();
+        carouselRotationCancellationTokenSource?.Dispose();
+        carouselRotationCancellationTokenSource = new CancellationTokenSource();
+        _ = RotateCarouselAsync(carouselRotationCancellationTokenSource.Token);
+    }
+
+    private async Task RotateCarouselAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(CarouselRotationInterval);
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (isCarouselHovered || featuredReleases.Count <= 1)
+                {
+                    continue;
+                }
+
+                await InvokeAsync(() =>
+                {
+                    ShowNextSlide();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task<bool> DetectMobileDeviceAsync()
+    {
+        try
+        {
+            return await JSRuntime.InvokeAsync<bool>("axlCarousel.isMobileDevice");
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static string GetReleaseArtworkUrl(string? coverImageUrl)
         => string.IsNullOrWhiteSpace(coverImageUrl)
             ? PlaceholderAlbumArtPath
@@ -167,4 +295,11 @@
 
     private static bool IsUpcomingRelease(DateTimeOffset releaseDateUtc)
         => releaseDateUtc > DateTimeOffset.UtcNow;
+
+    public ValueTask DisposeAsync()
+    {
+        carouselRotationCancellationTokenSource?.Cancel();
+        carouselRotationCancellationTokenSource?.Dispose();
+        return ValueTask.CompletedTask;
+    }
 }
