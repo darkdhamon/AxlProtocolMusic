@@ -74,18 +74,22 @@ public sealed class ReleaseServiceTests
         var repository = new InMemoryReleaseRepository(
         [
             CreateRelease("published", 10, true),
-            CreateRelease("draft", 1, false)
+            CreateRelease("draft", 1, false),
+            CreateRelease("missing-cover", 20, true, title: "Missing Cover")
         ]);
+
+        repository.Documents.Single(release => release.Slug == "missing-cover").CoverImageUrl = string.Empty;
 
         var service = new ReleaseService(repository);
 
         var result = await service.GetPagedReleasesAsync(searchTerm: null, pageNumber: 0, pageSize: 0, includeUnpublished: true);
 
-        Assert.That(result.TotalCount, Is.EqualTo(2));
+        Assert.That(result.TotalCount, Is.EqualTo(3));
         Assert.That(result.PageNumber, Is.EqualTo(1));
         Assert.That(result.PageSize, Is.EqualTo(1));
-        Assert.That(result.Items.Select(item => item.Slug), Is.EqualTo(new[] { "draft" }));
-        Assert.That(result.Items[0].IsPublished, Is.False);
+        Assert.That(result.Items.Select(item => item.Slug), Is.EqualTo(new[] { "missing-cover" }));
+        Assert.That(result.Items[0].IsPublished, Is.True);
+        Assert.That(result.Items[0].CoverImageUrl, Is.Empty);
     }
 
     [Test]

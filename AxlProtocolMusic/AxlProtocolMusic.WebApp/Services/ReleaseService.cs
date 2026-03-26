@@ -57,7 +57,8 @@ public sealed class ReleaseService : IReleaseService
 
         var releases = includeUnpublished
             ? (await _releaseRepository.GetAllAsync(cancellationToken))
-                .OrderByDescending(release => release.ReleaseDateUtc)
+                .OrderBy(release => !string.IsNullOrWhiteSpace(release.CoverImageUrl))
+                .ThenByDescending(release => release.ReleaseDateUtc)
                 .ToList()
             : await GetPublishedReleasesAsync(cancellationToken);
 

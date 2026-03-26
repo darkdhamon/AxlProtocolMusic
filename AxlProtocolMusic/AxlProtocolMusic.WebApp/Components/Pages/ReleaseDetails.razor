@@ -24,6 +24,17 @@ else
     <div class="release-details-page">
         <div class="@(isAdminUser ? "release-details-layout release-details-layout-with-sidebar" : "release-details-layout")">
             <div class="release-details-content">
+        <div class="release-page-header">
+            <a class="back-link" href="/releases">Back To Releases</a>
+            <AuthorizeView Roles="Admin">
+                <Authorized>
+                    <button class="btn btn-outline-light btn-sm" type="button" @onclick="ShowDeleteModal">
+                        Delete Release
+                    </button>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+
         @if (!string.IsNullOrWhiteSpace(Error))
         {
             <div class="alert alert-danger" role="alert">@Error</div>
@@ -36,16 +47,6 @@ else
 
         <section class="release-hero">
             <div class="release-hero-copy">
-                <div class="release-hero-header">
-                    <p class="eyebrow">Release Details</p>
-                    <AuthorizeView Roles="Admin">
-                        <Authorized>
-                            <button class="btn btn-outline-light btn-sm" type="button" @onclick="ShowDeleteModal">
-                                Delete Release
-                            </button>
-                        </Authorized>
-                    </AuthorizeView>
-                </div>
                 <h1>@release.Title</h1>
                 <p class="release-date">@release.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
                 @if (IsUpcomingRelease(release.ReleaseDateUtc))
@@ -292,7 +293,8 @@ else
                                             id="@($"credit-role-input-{index}")"
                                             list="known-credit-roles"
                                             @bind="credit.RoleInput"
-                                            @bind:event="oninput" />
+                                            @bind:event="oninput"
+                                            @onkeydown="args => HandleCreditRoleKeyDownAsync(credit, args)" />
                                         <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => AddRoleToCredit(credit)">Add Role</button>
                                     </div>
                                     <div class="role-chip-list">
@@ -363,10 +365,9 @@ else
                                     <input
                                         class="form-control"
                                         id="@($"track-duration-{index}")"
-                                        @bind="track.Duration"
-                                        placeholder="3:42"
-                                        @bind:event="oninput"
-                                        @bind:after="ScheduleAutosave" />
+                                        value="@track.Duration"
+                                        placeholder="0:00"
+                                        @oninput="args => HandleTrackDurationInputAsync(currentIndex, args.Value?.ToString())" />
                                 </div>
                             </div>
 
@@ -458,7 +459,8 @@ else
                                         id="tag-input"
                                         list="known-tags"
                                         @bind="TagInput"
-                                        @bind:event="oninput" />
+                                        @bind:event="oninput"
+                                        @onkeydown="HandleTagInputKeyDownAsync" />
                                     <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddTagFromInput">Add Tag</button>
                                 </div>
                             </div>
@@ -721,6 +723,17 @@ else
         credit.RoleInput = string.Empty;
     }
 
+    private async Task HandleCreditRoleKeyDownAsync(EditableCredit credit, KeyboardEventArgs args)
+    {
+        if (!string.Equals(args.Key, "Enter", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        AddRoleToCredit(credit);
+        await InvokeAsync(StateHasChanged);
+    }
+
     private void RemoveRoleFromCredit(EditableCredit credit, int roleIndex)
     {
         if (roleIndex >= 0 && roleIndex < credit.Roles.Count)
@@ -743,6 +756,17 @@ else
             Tracks.RemoveAt(index);
             _ = ScheduleAutosave();
         }
+    }
+
+    private async Task HandleTrackDurationInputAsync(int index, string? value)
+    {
+        if (index < 0 || index >= Tracks.Count)
+        {
+            return;
+        }
+
+        Tracks[index].Duration = NormalizeTrackDurationInput(value);
+        await ScheduleAutosave();
     }
 
     private async Task SaveTrackLyricsAsync(int index)
@@ -800,6 +824,16 @@ else
         TagInput = string.Empty;
         await InvokeAsync(StateHasChanged);
         await ScheduleAutosave();
+    }
+
+    private async Task HandleTagInputKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (!string.Equals(args.Key, "Enter", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await AddTagFromInput();
     }
 
     private async Task RemoveTag(int index)
@@ -1061,6 +1095,39 @@ else
         return timeSpan.TotalHours >= 1
             ? $"{(int)timeSpan.TotalHours}:{timeSpan.Minutes:D2}:{timeSpan.Seconds:D2}"
             : $"{timeSpan.Minutes}:{timeSpan.Seconds:D2}";
+    }
+
+    private static string NormalizeTrackDurationInput(string? value)
+    {
+        var normalized = value?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return string.Empty;
+        }
+
+        if (normalized.All(char.IsDigit))
+        {
+            return normalized.Length switch
+            {
+                3 => $"{normalized[..1]}:{normalized[1..]}",
+                4 => $"{normalized[..2]}:{normalized[2..]}",
+                _ => normalized
+            };
+        }
+
+        var colonCount = normalized.Count(character => character == ':');
+        if (colonCount <= 1 && normalized.Where(character => character != ':').All(char.IsDigit))
+        {
+            var digitsOnly = new string(normalized.Where(char.IsDigit).ToArray());
+            return digitsOnly.Length switch
+            {
+                3 => $"{digitsOnly[..1]}:{digitsOnly[1..]}",
+                4 => $"{digitsOnly[..2]}:{digitsOnly[2..]}",
+                _ => normalized
+            };
+        }
+
+        return normalized;
     }
 
     private static int? TryParseDuration(string? duration)
