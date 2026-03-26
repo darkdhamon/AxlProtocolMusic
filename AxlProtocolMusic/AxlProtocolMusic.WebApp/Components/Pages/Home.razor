@@ -29,6 +29,7 @@
         else
         {
             var activeRelease = featuredReleases[activeSlideIndex];
+            var isUpcomingRelease = IsUpcomingRelease(activeRelease.ReleaseDateUtc);
 
             <div class="hero-shell">
                 <div class="hero-copy">
@@ -45,10 +46,20 @@
                 </div>
 
                 <div class="hero-artwork">
-                    <img
-                        src="@GetReleaseArtworkUrl(activeRelease.CoverImageUrl)"
-                        alt="@activeRelease.Title cover art"
-                        onerror="this.onerror=null;this.src='/Assets/Misc/Placeholder-AlbumArt.png';" />
+                    <div class="hero-artwork-frame">
+                        <img
+                            class="@(isUpcomingRelease ? "is-upcoming" : null)"
+                            src="@GetReleaseArtworkUrl(activeRelease.CoverImageUrl)"
+                            alt="@activeRelease.Title cover art"
+                            onerror="this.onerror=null;this.src='/Assets/Misc/Placeholder-AlbumArt.png';" />
+
+                        @if (isUpcomingRelease)
+                        {
+                            <div class="hero-artwork-overlay" aria-hidden="true">
+                                <span>Coming soon</span>
+                            </div>
+                        }
+                    </div>
                 </div>
             </div>
 
@@ -153,4 +164,7 @@
         => string.IsNullOrWhiteSpace(coverImageUrl)
             ? PlaceholderAlbumArtPath
             : coverImageUrl;
+
+    private static bool IsUpcomingRelease(DateTimeOffset releaseDateUtc)
+        => releaseDateUtc > DateTimeOffset.UtcNow;
 }

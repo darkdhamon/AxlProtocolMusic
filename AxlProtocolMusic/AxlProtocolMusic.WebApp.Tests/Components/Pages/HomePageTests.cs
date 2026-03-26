@@ -43,7 +43,7 @@ public sealed class HomePageTests
                     Slug = "signals",
                     ShortDescription = "A cinematic synth release.",
                     CoverImageUrl = "https://cdn.example/signals.jpg",
-                    ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(-5)
+                    ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(5)
                 },
                 new FeaturedReleaseViewModel
                 {
@@ -67,6 +67,8 @@ public sealed class HomePageTests
             Assert.That(cut.Markup, Does.Contain("/releases/signals"));
             Assert.That(cut.Markup, Does.Contain("Show release 1"));
             Assert.That(cut.Markup, Does.Contain("Show release 2"));
+            Assert.That(cut.Markup, Does.Contain("Coming soon"));
+            Assert.That(cut.Markup, Does.Contain("class=\"is-upcoming\""));
         });
 
         var image = cut.Find("img");

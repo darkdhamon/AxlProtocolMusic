@@ -76,6 +76,10 @@
     align-items: center;
 }
 
+.hero-artwork-frame {
+    position: relative;
+}
+
 .hero-artwork img,
 .cover-placeholder {
     width: 100%;
@@ -85,7 +89,34 @@
 
 .hero-artwork img {
     object-fit: cover;
+    display: block;
     box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
+}
+
+.hero-artwork img.is-upcoming {
+    filter: grayscale(1);
+}
+
+.hero-artwork-overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    pointer-events: none;
+}
+
+.hero-artwork-overlay span {
+    padding: 0.9rem 1.4rem;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.66);
+    color: #0f172a;
+    font-size: clamp(2rem, 4vw, 2.5rem);
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: 0.03em;
+    text-align: center;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
 }
 
 .cover-placeholder {
@@ -216,4 +247,9 @@
 :root[data-theme="dark"] .carousel-arrow {
     background: #8ebaff;
     color: #08111f;
+}
+
+:root[data-theme="dark"] .hero-artwork-overlay span {
+    background: rgba(15, 23, 42, 0.63);
+    color: #f8fafc;
 }

@@ -83,6 +83,8 @@ public sealed class ReleasesPageTests
             Assert.That(cut.Markup, Does.Contain("Signals"));
             Assert.That(cut.Markup, Does.Contain("Echo Grid"));
             Assert.That(cut.Markup, Does.Contain("Upcoming Release"));
+            Assert.That(cut.Markup, Does.Contain("Coming soon"));
+            Assert.That(cut.Markup, Does.Contain("release-artwork is-upcoming"));
             Assert.That(cut.Markup, Does.Contain("/releases/signals"));
             Assert.That(cut.Markup, Does.Contain("/releases/echo-grid"));
             Assert.That(cut.Markup, Does.Contain("All visible releases are loaded."));

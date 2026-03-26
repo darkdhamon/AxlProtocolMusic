@@ -61,10 +61,44 @@
     box-shadow: 0 22px 48px rgba(17, 44, 114, 0.14);
 }
 
+.release-artwork-frame {
+    position: relative;
+    overflow: hidden;
+}
+
 .release-artwork {
     width: 100%;
     aspect-ratio: 1 / 1;
     object-fit: cover;
+    display: block;
+}
+
+.release-artwork.is-upcoming {
+    filter: grayscale(1);
+}
+
+.release-artwork-overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: linear-gradient(180deg, rgba(10, 20, 48, 0.08), rgba(10, 20, 48, 0.56));
+    pointer-events: none;
+}
+
+.release-artwork-overlay span {
+    padding: 0.9rem 1.4rem;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.66);
+    color: #0f172a;
+    font-size: clamp(2rem, 4vw, 2.5rem);
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: 0.03em;
+    text-transform: none;
+    text-align: center;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
 }
 
 .release-artwork.placeholder {
@@ -224,4 +258,13 @@
 :root[data-theme="dark"] .upcoming-release-badge {
     background: rgba(142, 186, 255, 0.16);
     color: #bfd6ff;
+}
+
+:root[data-theme="dark"] .release-artwork-overlay {
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.12), rgba(2, 6, 23, 0.62));
+}
+
+:root[data-theme="dark"] .release-artwork-overlay span {
+    background: rgba(15, 23, 42, 0.63);
+    color: #f8fafc;
 }
