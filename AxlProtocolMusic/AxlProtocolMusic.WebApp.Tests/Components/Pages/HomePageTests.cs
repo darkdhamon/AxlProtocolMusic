@@ -3,6 +3,7 @@ using AxlProtocolMusic.WebApp.Models.Content;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Bunit;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AxlProtocolMusic.WebApp.Tests.Components.Pages;
@@ -67,12 +68,53 @@ public sealed class HomePageTests
             Assert.That(cut.Markup, Does.Contain("/releases/signals"));
             Assert.That(cut.Markup, Does.Contain("Show release 1"));
             Assert.That(cut.Markup, Does.Contain("Show release 2"));
-            Assert.That(cut.Markup, Does.Contain("Coming soon"));
+            Assert.That(cut.Markup, Does.Contain("Coming Soon"));
+            Assert.That(cut.Markup, Does.Contain(releaseService.FeaturedReleases[0].ReleaseDateUtc.ToLocalTime().ToString("MMMM dd, yyyy")));
             Assert.That(cut.Markup, Does.Contain("class=\"is-upcoming\""));
         });
 
         var image = cut.Find("img");
         Assert.That(image.GetAttribute("src"), Is.EqualTo("https://cdn.example/signals.jpg"));
+    }
+
+    [Test]
+    public void Home_WhenArrowKeysArePressed_CyclesFeaturedReleases()
+    {
+        using var context = new BunitContext();
+        var releaseService = new FakeHomeReleaseService
+        {
+            FeaturedReleases =
+            [
+                new FeaturedReleaseViewModel
+                {
+                    Title = "Signals",
+                    Slug = "signals",
+                    ShortDescription = "A cinematic synth release.",
+                    ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(5)
+                },
+                new FeaturedReleaseViewModel
+                {
+                    Title = "Echo Grid",
+                    Slug = "echo-grid",
+                    ShortDescription = "Second featured release.",
+                    ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(-30)
+                }
+            ]
+        };
+        context.Services.AddSingleton<IReleaseService>(releaseService);
+
+        var cut = context.Render<Home>();
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("Signals")));
+
+        var carousel = cut.Find("section.hero-carousel");
+        carousel.TriggerEvent("onkeydown", new KeyboardEventArgs { Key = "ArrowRight" });
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("Echo Grid")));
+
+        carousel.TriggerEvent("onkeydown", new KeyboardEventArgs { Key = "ArrowLeft" });
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("Signals")));
     }
 
     private sealed class FakeHomeReleaseService : IReleaseService

@@ -6,6 +6,7 @@ using Bunit;
 using Bunit.TestDoubles;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AxlProtocolMusic.WebApp.Tests.Components.Pages;
@@ -137,6 +138,49 @@ public sealed class NewsPageTests
         });
 
         Assert.That(newsService.LastIncludeUnpublished, Is.True);
+    }
+
+    [Test]
+    public void News_WhenArrowKeysArePressed_CyclesFeaturedArticles()
+    {
+        using var context = CreateContext(out var newsService);
+        context.AddAuthorization().SetNotAuthorized();
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "featured-1",
+                Title = "Launch Story",
+                Slug = "launch-story",
+                Content = "This is the featured article content for the launch story.",
+                PublicationDateUtc = DateTimeOffset.UtcNow.AddDays(-1),
+                IsPublished = true,
+                IsFeatured = true
+            },
+            new NewsArticle
+            {
+                Id = "featured-2",
+                Title = "Studio Journal",
+                Slug = "studio-journal",
+                Content = "This is the featured article content for the studio journal.",
+                PublicationDateUtc = DateTimeOffset.UtcNow.AddDays(-2),
+                IsPublished = true,
+                IsFeatured = true
+            }
+        ];
+
+        var cut = context.Render<News>();
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("Launch Story")));
+
+        var carousel = cut.Find("section.news-carousel");
+        carousel.TriggerEvent("onkeydown", new KeyboardEventArgs { Key = "ArrowRight" });
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("Studio Journal")));
+
+        carousel.TriggerEvent("onkeydown", new KeyboardEventArgs { Key = "ArrowLeft" });
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("Launch Story")));
     }
 
     [Test]

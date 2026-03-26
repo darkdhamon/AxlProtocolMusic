@@ -8,6 +8,11 @@
     gap: 1rem;
 }
 
+.carousel-stage {
+    position: relative;
+    padding-inline: 4.5rem;
+}
+
 .hero-shell {
     display: grid;
     grid-template-columns: minmax(0, 1.3fr) minmax(260px, 0.7fr);
@@ -106,17 +111,31 @@
     pointer-events: none;
 }
 
-.hero-artwork-overlay span {
+.release-coming-soon-group {
+    display: grid;
+    gap: 0.55rem;
+    justify-items: center;
+}
+
+.release-coming-soon-group span {
     padding: 0.9rem 1.4rem;
     border-radius: 1rem;
     background: rgba(255, 255, 255, 0.66);
     color: #0f172a;
-    font-size: clamp(2rem, 4vw, 2.5rem);
-    font-weight: 600;
     line-height: 1.1;
     letter-spacing: 0.03em;
     text-align: center;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+}
+
+.release-coming-soon-label {
+    font-size: clamp(2rem, 4vw, 2.5rem);
+    font-weight: 700;
+}
+
+.release-coming-soon-date {
+    font-size: clamp(1.1rem, 2.4vw, 1.8rem);
+    font-weight: 700;
 }
 
 .cover-placeholder {
@@ -138,7 +157,7 @@
 
 .carousel-controls {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     gap: 1rem;
 }
@@ -146,10 +165,37 @@
 .carousel-arrow {
     border: 0;
     border-radius: 999px;
-    padding: 0.55rem 1rem;
     background: #12285d;
     color: #f7f8fd;
-    font-weight: 600;
+    font-weight: 700;
+}
+
+.carousel-arrow-overlay {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3.25rem;
+    height: 3.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: rgba(9, 22, 54, 0.78);
+    box-shadow: 0 16px 36px rgba(6, 14, 35, 0.28);
+    z-index: 2;
+}
+
+.carousel-arrow-overlay span {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.carousel-arrow-left {
+    left: 1rem;
+}
+
+.carousel-arrow-right {
+    right: 1rem;
 }
 
 .hero-carousel-indicators {
@@ -217,9 +263,18 @@
 }
 
 @media (max-width: 900px) {
+    .carousel-stage {
+        padding-inline: 3.5rem;
+    }
+
     .hero-shell {
         grid-template-columns: 1fr;
         padding: 1.5rem;
+    }
+
+    .carousel-arrow-overlay {
+        width: 2.8rem;
+        height: 2.8rem;
     }
 
     .intro-grid {
@@ -249,7 +304,12 @@
     color: #08111f;
 }
 
-:root[data-theme="dark"] .hero-artwork-overlay span {
+:root[data-theme="dark"] .carousel-arrow-overlay {
+    background: rgba(8, 17, 31, 0.82);
+    color: #f8fafc;
+}
+
+:root[data-theme="dark"] .release-coming-soon-group span {
     background: rgba(15, 23, 42, 0.63);
     color: #f8fafc;
 }

@@ -91,41 +91,52 @@
         <section
             class="news-carousel"
             aria-label="Featured news articles"
+            tabindex="0"
             @onmouseenter="PauseFeaturedCarouselRotation"
             @onmouseleave="ResumeFeaturedCarouselRotation"
+            @onkeydown="HandleFeaturedCarouselKeyDown"
             @ontouchstart="HandleFeaturedCarouselTouchStart"
             @ontouchend="HandleFeaturedCarouselTouchEnd">
-            <article class="featured-story" style="@GetFeaturedStyle(activeFeaturedArticle)">
-                <div class="featured-story-overlay">
-                    <p class="eyebrow">Featured Article</p>
-                    <p class="featured-date">@FormatPublicationLabel(activeFeaturedArticle)</p>
-                    <h2>@activeFeaturedArticle.Title</h2>
-                    <p class="featured-preview">@GetPreviewText(activeFeaturedArticle.Content, 36)</p>
-                    <div class="featured-actions">
-                        <button class="btn btn-light" type="button" @onclick="() => OpenArticle(activeFeaturedArticle)">
-                            Read More
-                        </button>
-                        <a class="btn btn-outline-light" href="#news-feed">Jump To Feed</a>
-                        @if (isAdmin)
-                        {
-                            <button class="btn btn-outline-light" type="button" @onclick="() => OpenEditArticle(activeFeaturedArticle)">
-                                Edit Article
+            <div class="carousel-stage">
+                <article class="featured-story" style="@GetFeaturedStyle(activeFeaturedArticle)">
+                    <div class="featured-story-overlay">
+                        <p class="eyebrow">Featured Article</p>
+                        <p class="featured-date">@FormatPublicationLabel(activeFeaturedArticle)</p>
+                        <h2>@activeFeaturedArticle.Title</h2>
+                        <p class="featured-preview">@GetPreviewText(activeFeaturedArticle.Content, 36)</p>
+                        <div class="featured-actions">
+                            <button class="btn btn-light" type="button" @onclick="() => OpenArticle(activeFeaturedArticle)">
+                                Read More
                             </button>
-                            <button class="btn btn-outline-light" type="button" @onclick="() => OpenDeleteArticle(activeFeaturedArticle)">
-                                Delete Article
-                            </button>
-                        }
+                            <a class="btn btn-outline-light" href="#news-feed">Jump To Feed</a>
+                            @if (isAdmin)
+                            {
+                                <button class="btn btn-outline-light" type="button" @onclick="() => OpenEditArticle(activeFeaturedArticle)">
+                                    Edit Article
+                                </button>
+                                <button class="btn btn-outline-light" type="button" @onclick="() => OpenDeleteArticle(activeFeaturedArticle)">
+                                    Delete Article
+                                </button>
+                            }
+                        </div>
                     </div>
-                </div>
-            </article>
+                </article>
+
+                @if (featuredArticles.Count > 1)
+                {
+                    <button class="carousel-arrow carousel-arrow-overlay carousel-arrow-left" type="button" @onclick="ShowPreviousFeaturedArticle" aria-label="Previous featured article">
+                        <span aria-hidden="true">&#x2039;</span>
+                    </button>
+
+                    <button class="carousel-arrow carousel-arrow-overlay carousel-arrow-right" type="button" @onclick="ShowNextFeaturedArticle" aria-label="Next featured article">
+                        <span aria-hidden="true">&#x203A;</span>
+                    </button>
+                }
+            </div>
 
             @if (featuredArticles.Count > 1)
             {
                 <div class="carousel-controls">
-                    <button class="carousel-arrow" type="button" @onclick="ShowPreviousFeaturedArticle" aria-label="Previous featured article">
-                        Prev
-                    </button>
-
                     <div class="hero-carousel-indicators">
                         @for (var index = 0; index < featuredArticles.Count; index++)
                         {
@@ -138,10 +149,6 @@
                             </button>
                         }
                     </div>
-
-                    <button class="carousel-arrow" type="button" @onclick="ShowNextFeaturedArticle" aria-label="Next featured article">
-                        Next
-                    </button>
                 </div>
             }
         </section>
@@ -580,6 +587,18 @@
     private void ResumeFeaturedCarouselRotation()
     {
         isFeaturedCarouselHovered = false;
+    }
+
+    private void HandleFeaturedCarouselKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "ArrowLeft")
+        {
+            ShowPreviousFeaturedArticle();
+        }
+        else if (args.Key == "ArrowRight")
+        {
+            ShowNextFeaturedArticle();
+        }
     }
 
     private void HandleFeaturedCarouselTouchStart(TouchEventArgs args)

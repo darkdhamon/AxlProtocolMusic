@@ -70,6 +70,11 @@
     gap: 1rem;
 }
 
+.carousel-stage {
+    position: relative;
+    padding-inline: 4.5rem;
+}
+
 .featured-story {
     min-height: 26rem;
     display: grid;
@@ -129,7 +134,7 @@
 
 .carousel-controls {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     gap: 1rem;
 }
@@ -137,10 +142,37 @@
 .carousel-arrow {
     border: 0;
     border-radius: 999px;
-    padding: 0.55rem 1rem;
     background: #123765;
     color: #f7f8fd;
-    font-weight: 600;
+    font-weight: 700;
+}
+
+.carousel-arrow-overlay {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3.25rem;
+    height: 3.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: rgba(9, 22, 54, 0.78);
+    box-shadow: 0 16px 36px rgba(6, 14, 35, 0.28);
+    z-index: 2;
+}
+
+.carousel-arrow-overlay span {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.carousel-arrow-left {
+    left: 1rem;
+}
+
+.carousel-arrow-right {
+    right: 1rem;
 }
 
 .hero-carousel-indicators {
@@ -370,6 +402,15 @@
 }
 
 @media (max-width: 720px) {
+    .carousel-stage {
+        padding-inline: 3.5rem;
+    }
+
+    .carousel-arrow-overlay {
+        width: 2.8rem;
+        height: 2.8rem;
+    }
+
     .featured-story-overlay,
     .article-card-overlay,
     .news-summary-card,
@@ -448,4 +489,9 @@
 :root[data-theme="dark"] .carousel-arrow {
     background: #8ebaff;
     color: #08111f;
+}
+
+:root[data-theme="dark"] .carousel-arrow-overlay {
+    background: rgba(8, 17, 31, 0.82);
+    color: #f8fafc;
 }

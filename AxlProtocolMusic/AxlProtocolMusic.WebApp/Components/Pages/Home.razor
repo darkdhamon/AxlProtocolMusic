@@ -18,8 +18,10 @@
 <div class="home-page">
     <section
         class="hero-carousel"
+        tabindex="0"
         @onmouseenter="PauseCarouselRotation"
         @onmouseleave="ResumeCarouselRotation"
+        @onkeydown="HandleCarouselKeyDown"
         @ontouchstart="HandleCarouselTouchStart"
         @ontouchend="HandleCarouselTouchEnd">
         @if (isLoading)
@@ -46,45 +48,57 @@
             var activeRelease = featuredReleases[activeSlideIndex];
             var isUpcomingRelease = IsUpcomingRelease(activeRelease.ReleaseDateUtc);
 
-            <div class="hero-shell">
-                <div class="hero-copy">
-                    <p class="eyebrow">Latest Releases</p>
-                    <h1>@activeRelease.Title</h1>
-                    <p class="hero-date">@activeRelease.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
-                    <p class="hero-description">@activeRelease.ShortDescription</p>
-                    <div class="hero-actions">
-                        <a class="btn btn-light" href="@($"/releases/{activeRelease.Slug}")">View Release</a>
-                        <button class="btn btn-outline-light" type="button" @onclick="ShowNextSlide">
-                            Next Release
-                        </button>
+            <div class="carousel-stage">
+                <div class="hero-shell">
+                    <div class="hero-copy">
+                        <p class="eyebrow">Latest Releases</p>
+                        <h1>@activeRelease.Title</h1>
+                        <p class="hero-date">@activeRelease.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
+                        <p class="hero-description">@activeRelease.ShortDescription</p>
+                        <div class="hero-actions">
+                            <a class="btn btn-light" href="@($"/releases/{activeRelease.Slug}")">View Release</a>
+                            <button class="btn btn-outline-light" type="button" @onclick="ShowNextSlide">
+                                Next Release
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="hero-artwork">
+                        <div class="hero-artwork-frame">
+                            <img
+                                class="@(isUpcomingRelease ? "is-upcoming" : null)"
+                                src="@GetReleaseArtworkUrl(activeRelease.CoverImageUrl)"
+                                alt="@activeRelease.Title cover art"
+                                onerror="this.onerror=null;this.src='/Assets/Misc/Placeholder-AlbumArt.png';" />
+
+                            @if (isUpcomingRelease)
+                            {
+                                <div class="hero-artwork-overlay" aria-hidden="true">
+                                    <div class="release-coming-soon-group">
+                                        <span class="release-coming-soon-label">Coming Soon</span>
+                                        <span class="release-coming-soon-date">@activeRelease.ReleaseDateUtc.ToLocalTime().ToString("MMMM dd, yyyy")</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
                     </div>
                 </div>
 
-                <div class="hero-artwork">
-                    <div class="hero-artwork-frame">
-                        <img
-                            class="@(isUpcomingRelease ? "is-upcoming" : null)"
-                            src="@GetReleaseArtworkUrl(activeRelease.CoverImageUrl)"
-                            alt="@activeRelease.Title cover art"
-                            onerror="this.onerror=null;this.src='/Assets/Misc/Placeholder-AlbumArt.png';" />
+                @if (featuredReleases.Count > 1)
+                {
+                    <button class="carousel-arrow carousel-arrow-overlay carousel-arrow-left" type="button" @onclick="ShowPreviousSlide" aria-label="Previous release">
+                        <span aria-hidden="true">&#x2039;</span>
+                    </button>
 
-                        @if (isUpcomingRelease)
-                        {
-                            <div class="hero-artwork-overlay" aria-hidden="true">
-                                <span>Coming soon</span>
-                            </div>
-                        }
-                    </div>
-                </div>
+                    <button class="carousel-arrow carousel-arrow-overlay carousel-arrow-right" type="button" @onclick="ShowNextSlide" aria-label="Next release">
+                        <span aria-hidden="true">&#x203A;</span>
+                    </button>
+                }
             </div>
 
             @if (featuredReleases.Count > 1)
             {
                 <div class="carousel-controls">
-                    <button class="carousel-arrow" type="button" @onclick="ShowPreviousSlide" aria-label="Previous release">
-                        Prev
-                    </button>
-
                     <div class="hero-carousel-indicators">
                         @for (var index = 0; index < featuredReleases.Count; index++)
                         {
@@ -97,10 +111,6 @@
                             </button>
                         }
                     </div>
-
-                    <button class="carousel-arrow" type="button" @onclick="ShowNextSlide" aria-label="Next release">
-                        Next
-                    </button>
                 </div>
             }
         }
@@ -204,6 +214,18 @@
     private void ResumeCarouselRotation()
     {
         isCarouselHovered = false;
+    }
+
+    private void HandleCarouselKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "ArrowLeft")
+        {
+            ShowPreviousSlide();
+        }
+        else if (args.Key == "ArrowRight")
+        {
+            ShowNextSlide();
+        }
     }
 
     private void HandleCarouselTouchStart(TouchEventArgs args)
