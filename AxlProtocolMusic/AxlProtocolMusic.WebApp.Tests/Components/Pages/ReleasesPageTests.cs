@@ -125,6 +125,9 @@ public sealed class ReleasesPageTests
         public Task<IReadOnlyList<string>> GetKnownContributorNamesAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>([]);
 
+        public Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetKnownContributorRolesByNameAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyDictionary<string, IReadOnlyList<string>>>(new Dictionary<string, IReadOnlyList<string>>());
+
         public Task<IReadOnlyList<string>> GetKnownTagsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>([]);
 

@@ -282,7 +282,7 @@ else
                                                     list="known-contributor-names"
                                                     @bind="credit.Name"
                                                     @bind:event="oninput"
-                                                    @bind:after="ScheduleAutosave" />
+                                                    @bind:after="() => HandleCreditNameChangedAsync(credit)" />
                                 </div>
 
                                 <div>
@@ -295,7 +295,7 @@ else
                                             @bind="credit.RoleInput"
                                             @bind:event="oninput"
                                             @onkeydown="args => HandleCreditRoleKeyDownAsync(credit, args)" />
-                                        <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => AddRoleToCredit(credit)">Add Role</button>
+                                        <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => AddRoleToCreditAsync(credit)">Add Role</button>
                                     </div>
                                     <div class="role-chip-list">
                                         @for (var roleIndex = 0; roleIndex < credit.Roles.Count; roleIndex++)
@@ -600,6 +600,8 @@ else
     private List<string> Tags { get; set; } = [];
     private IReadOnlyList<string> KnownCreditRoles { get; set; } = [];
     private IReadOnlyList<string> KnownContributorNames { get; set; } = [];
+    private IReadOnlyDictionary<string, IReadOnlyList<string>> KnownContributorRolesByName { get; set; }
+        = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<string> KnownTags { get; set; } = [];
     private static readonly IReadOnlyList<string> KnownPlatforms =
     [
@@ -621,6 +623,7 @@ else
         isLoading = true;
         KnownCreditRoles = await ReleaseService.GetKnownCreditRolesAsync();
         KnownContributorNames = await ReleaseService.GetKnownContributorNamesAsync();
+        KnownContributorRolesByName = await ReleaseService.GetKnownContributorRolesByNameAsync();
         KnownTags = await ReleaseService.GetKnownTagsAsync();
         var authenticationState = AuthenticationStateTask is null
             ? null
@@ -706,7 +709,7 @@ else
         }
     }
 
-    private void AddRoleToCredit(EditableCredit credit)
+    private async Task AddRoleToCreditAsync(EditableCredit credit)
     {
         var role = credit.RoleInput.Trim();
         if (string.IsNullOrWhiteSpace(role))
@@ -717,10 +720,28 @@ else
         if (!credit.Roles.Contains(role, StringComparer.OrdinalIgnoreCase))
         {
             credit.Roles.Add(role);
-            _ = ScheduleAutosave();
+            await ScheduleAutosave();
         }
 
         credit.RoleInput = string.Empty;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleCreditNameChangedAsync(EditableCredit credit)
+    {
+        var normalizedName = credit.Name.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedName))
+        {
+            await ScheduleAutosave();
+            return;
+        }
+
+        if (KnownContributorRolesByName.TryGetValue(normalizedName, out var knownRoles) && knownRoles.Count > 0)
+        {
+            credit.Roles = knownRoles.ToList();
+        }
+
+        await ScheduleAutosave();
     }
 
     private async Task HandleCreditRoleKeyDownAsync(EditableCredit credit, KeyboardEventArgs args)
@@ -730,8 +751,7 @@ else
             return;
         }
 
-        AddRoleToCredit(credit);
-        await InvokeAsync(StateHasChanged);
+        await AddRoleToCreditAsync(credit);
     }
 
     private void RemoveRoleFromCredit(EditableCredit credit, int roleIndex)
@@ -745,6 +765,7 @@ else
 
     private void AddTrack()
     {
+        editableRelease.ReleaseTypeOverride = string.Empty;
         Tracks.Add(new ReleaseTrack());
         _ = ScheduleAutosave();
     }

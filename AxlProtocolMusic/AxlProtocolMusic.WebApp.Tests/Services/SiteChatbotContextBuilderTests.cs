@@ -344,6 +344,9 @@ public sealed class SiteChatbotContextBuilderTests
         public Task<IReadOnlyList<string>> GetKnownContributorNamesAsync(CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
+        public Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetKnownContributorRolesByNameAsync(CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
         public Task<IReadOnlyList<string>> GetKnownTagsAsync(CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 

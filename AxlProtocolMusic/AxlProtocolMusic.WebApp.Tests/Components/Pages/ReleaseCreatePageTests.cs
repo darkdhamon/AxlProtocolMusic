@@ -181,6 +181,12 @@ public sealed class ReleaseCreatePageTests
         public Task<IReadOnlyList<string>> GetKnownContributorNamesAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>(["Axl Protocol"]);
 
+        public Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetKnownContributorRolesByNameAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyDictionary<string, IReadOnlyList<string>>>(new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["Axl Protocol"] = ["Production"]
+            });
+
         public Task<IReadOnlyList<string>> GetKnownTagsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>(["Synthwave"]);
 

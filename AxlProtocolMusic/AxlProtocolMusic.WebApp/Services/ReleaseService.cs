@@ -384,9 +384,30 @@ public sealed class ReleaseService : IReleaseService
             .SelectMany(release => release.Credits)
             .Select(credit => credit.Name.Trim())
             .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name)
+            .GroupBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key)
+            .Select(group => group.First())
             .ToList();
+    }
+
+    public async Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetKnownContributorRolesByNameAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return (await _releaseRepository.GetAllAsync(cancellationToken))
+            .SelectMany(release => release.Credits)
+            .Where(credit => !string.IsNullOrWhiteSpace(credit.Name))
+            .GroupBy(credit => credit.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)group
+                    .SelectMany(credit => credit.Roles)
+                    .Select(role => role.Trim())
+                    .Where(role => !string.IsNullOrWhiteSpace(role))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(role => role)
+                    .ToList(),
+                StringComparer.OrdinalIgnoreCase);
     }
 
     public async Task<IReadOnlyList<string>> GetKnownTagsAsync(
@@ -396,8 +417,10 @@ public sealed class ReleaseService : IReleaseService
             .SelectMany(release => release.Tags)
             .Select(tag => tag.Trim())
             .Where(tag => !string.IsNullOrWhiteSpace(tag))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(tag => tag)
+            .GroupBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key)
+            .Select(group => group.First())
             .ToList();
     }
 

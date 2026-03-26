@@ -440,6 +440,17 @@ public sealed class ReleaseServiceTests
                 IsPublished = true,
                 Credits = [new ReleaseCredit { Name = "alice", Roles = [" Production "] }],
                 Tags = ["Live", " Acoustic "]
+            },
+            new Release
+            {
+                Id = "three",
+                Title = "Three",
+                Slug = "three",
+                ShortDescription = "Third",
+                ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(-1),
+                IsPublished = true,
+                Credits = [new ReleaseCredit { Name = " Bob ", Roles = [" Guitar "] }],
+                Tags = []
             }
         ]);
 
@@ -447,11 +458,14 @@ public sealed class ReleaseServiceTests
 
         var roles = await service.GetKnownCreditRolesAsync();
         var contributors = await service.GetKnownContributorNamesAsync();
+        var contributorRoles = await service.GetKnownContributorRolesByNameAsync();
         var tags = await service.GetKnownTagsAsync();
 
         Assert.That(roles, Is.EqualTo(new[] { "Guitar", "Production", "Vocals" }));
         Assert.That(contributors, Is.EqualTo(new[] { "Alice", "Bob" }));
-        Assert.That(tags, Is.EqualTo(new[] { "Acoustic", "live", "Rock" }));
+        Assert.That(contributorRoles["Alice"], Is.EqualTo(new[] { "Production", "Vocals" }));
+        Assert.That(contributorRoles["Bob"], Is.EqualTo(new[] { "Guitar" }));
+        Assert.That(tags, Is.EqualTo(new[] { "live", "Acoustic", "Rock" }));
     }
 
     [Test]

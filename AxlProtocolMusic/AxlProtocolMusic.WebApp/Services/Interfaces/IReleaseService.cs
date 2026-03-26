@@ -42,6 +42,9 @@ public interface IReleaseService
     Task<IReadOnlyList<string>> GetKnownContributorNamesAsync(
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetKnownContributorRolesByNameAsync(
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<string>> GetKnownTagsAsync(
         CancellationToken cancellationToken = default);
 
