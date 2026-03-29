@@ -8,6 +8,8 @@ public sealed class ReleaseListItemViewModel
 
     public string ShortDescription { get; init; } = string.Empty;
 
+    public string Story { get; init; } = string.Empty;
+
     public string CoverImageUrl { get; init; } = string.Empty;
 
     public DateTimeOffset ReleaseDateUtc { get; init; }

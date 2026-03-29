@@ -165,99 +165,107 @@
         </p>
     </section>
 
-    <section class="article-grid" aria-label="News article feed">
-        @foreach (var article in loadedArticles)
-        {
-            <article class="article-card" style="@GetCardStyle(article)">
-                <div class="article-card-overlay">
-                    <div class="article-card-meta">
-                        <p class="article-card-date">@FormatPublicationLabel(article)</p>
-                        @if (isAdmin && !IsLiveForPublic(article))
-                        {
-                            <span class="article-visibility-badge">Admin Preview</span>
-                        }
-                    </div>
-
-                    <h3>@article.Title</h3>
-                    <p class="article-preview">@GetPreviewText(article.Content, 50)</p>
-                    <div class="article-card-actions">
-                        <button class="btn btn-primary" type="button" @onclick="() => OpenArticle(article)">
-                            Read More
-                        </button>
-                        @if (isAdmin)
-                        {
-                            <button class="btn btn-outline-light article-edit-button" type="button" @onclick="() => OpenEditArticle(article)">
-                                Edit
-                            </button>
-                            <button class="btn btn-outline-danger article-delete-button" type="button" @onclick="() => OpenDeleteArticle(article)">
-                                Delete
-                            </button>
-                        }
-                    </div>
-                </div>
-            </article>
-        }
-    </section>
-
-    @if (hasMoreArticles)
-    {
-        <div class="scroll-loader">
-            <div @ref="loadMoreSentinel" class="news-scroll-sentinel" aria-hidden="true"></div>
-            <p>@(isLoadingMore ? "Loading more articles..." : "Continue scrolling to load more articles.")</p>
-        </div>
-    }
-    else
-    {
-        <div class="scroll-loader is-complete">
-            <p>All visible articles are loaded.</p>
-        </div>
-    }
-</div>
-
-@if (selectedArticle is not null)
-{
-    <div class="news-modal-overlay" tabindex="-1" role="dialog" aria-modal="true" @onclick="CloseArticle">
-        <div class="news-modal-dialog" role="document" @onclick:stopPropagation="true">
-            <div class="news-modal-surface">
-                <div class="news-modal-header">
-                    <div>
-                        <p class="eyebrow">News Article</p>
-                        <h3 class="news-modal-title">@selectedArticle.Title</h3>
-                        <p class="news-modal-date">@FormatPublicationLabel(selectedArticle)</p>
-                    </div>
-                    <div class="news-modal-header-actions">
-                        @if (isAdmin)
-                        {
-                            <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => OpenEditArticle(selectedArticle)">
-                                Edit Article
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => OpenDeleteArticle(selectedArticle)">
-                                Delete Article
-                            </button>
-                        }
-                        <button type="button" class="btn-close" aria-label="Close" @onclick="CloseArticle"></button>
-                    </div>
-                </div>
-
-                @if (!string.IsNullOrWhiteSpace(selectedArticle.ImageUrl))
+    <section class="news-workspace">
+        <div class="news-feed-column">
+            <section class="article-grid" aria-label="News article feed">
+                @foreach (var article in loadedArticles)
                 {
-                    <img class="news-modal-image" src="@selectedArticle.ImageUrl" alt="@selectedArticle.Title hero image" />
-                }
+                    <article class="article-card @(IsSelectedArticle(article) ? "is-selected" : string.Empty)" style="@GetCardStyle(article)">
+                        <div class="article-card-overlay">
+                            <div class="article-card-meta">
+                                <p class="article-card-date">@FormatPublicationLabel(article)</p>
+                                @if (isAdmin && !IsLiveForPublic(article))
+                                {
+                                    <span class="article-visibility-badge">Admin Preview</span>
+                                }
+                            </div>
 
-                <div class="news-modal-body">
-                    @foreach (var paragraph in GetParagraphs(selectedArticle.Content))
-                    {
-                        <p>@paragraph</p>
-                    }
+                            <h3>@article.Title</h3>
+                            <p class="article-preview">@GetPreviewText(article.Content, 50)</p>
+                            <div class="article-card-actions">
+                                <button class="btn btn-primary" type="button" @onclick="() => OpenArticle(article)">
+                                    Read More
+                                </button>
+                                @if (isAdmin)
+                                {
+                                    <button class="btn btn-outline-light article-edit-button" type="button" @onclick="() => OpenEditArticle(article)">
+                                        Edit
+                                    </button>
+                                    <button class="btn btn-outline-danger article-delete-button" type="button" @onclick="() => OpenDeleteArticle(article)">
+                                        Delete
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    </article>
+                }
+            </section>
+
+            @if (hasMoreArticles)
+            {
+                <div class="scroll-loader">
+                    <div @ref="loadMoreSentinel" class="news-scroll-sentinel" aria-hidden="true"></div>
+                    <p>@(isLoadingMore ? "Loading more articles..." : "Continue scrolling to load more articles.")</p>
                 </div>
-            </div>
+            }
+            else
+            {
+                <div class="scroll-loader is-complete">
+                    <p>All visible articles are loaded.</p>
+                </div>
+            }
         </div>
-    </div>
-}
+
+        <aside class="news-detail-pane" aria-label="Selected article details">
+            @if (selectedArticle is not null)
+            {
+                <div class="news-detail-surface">
+                    <div class="news-detail-header">
+                        <div>
+                            <p class="eyebrow">News Article</p>
+                            <h3 class="news-detail-title">@selectedArticle.Title</h3>
+                            <p class="news-detail-date">@FormatPublicationLabel(selectedArticle)</p>
+                        </div>
+                        @if (isAdmin)
+                        {
+                            <div class="news-detail-header-actions">
+                                <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => OpenEditArticle(selectedArticle)">
+                                    Edit Article
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => OpenDeleteArticle(selectedArticle)">
+                                    Delete Article
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="news-detail-body">
+                        @if (!string.IsNullOrWhiteSpace(selectedArticle.ImageUrl))
+                        {
+                            <div class="news-detail-image">
+                                <img src="@selectedArticle.ImageUrl" alt="@selectedArticle.Title hero image" />
+                            </div>
+                        }
+
+                        <MarkdownRenderer Content="@selectedArticle.Content" CssClass="news-detail-markdown" />
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="news-detail-surface news-detail-empty">
+                    <p class="eyebrow">Article Pane</p>
+                    <h3 class="news-detail-title">Choose A Story</h3>
+                    <p>Select a featured story or feed card to open the full article here without leaving the page.</p>
+                </div>
+            }
+        </aside>
+    </section>
+</div>
 
 @if (isEditModalOpen && editableArticle is not null)
 {
-    <div class="news-modal-overlay" tabindex="-1" role="dialog" aria-modal="true" @onclick="CloseEditArticle">
+    <div class="news-modal-overlay" tabindex="-1" role="dialog" aria-modal="true">
         <div class="news-modal-dialog" role="document" @onclick:stopPropagation="true">
             <div class="news-modal-surface admin-edit-surface">
                 <div class="news-modal-header">
@@ -316,7 +324,7 @@
 
                     <div class="mb-3">
                         <label class="form-label" for="news-content">Content</label>
-                        <textarea class="form-control admin-content-editor" id="news-content" @bind="editableArticle.Content"></textarea>
+                        <MarkdownEditor Id="news-content" InputName="" Rows="14" EditorClass="form-control admin-content-editor" @bind-Value="editableArticle.Content" />
                     </div>
 
                     <div class="admin-edit-actions">
@@ -487,13 +495,17 @@
 
     private static bool IsLiveForPublic(NewsArticle article)
     {
+        var publicCutoff = DateTimeOffset.UtcNow.AddMonths(-3);
+
         return article.IsPublished
-            && article.PublicationDateUtc <= DateTimeOffset.UtcNow;
+            && article.PublicationDateUtc <= DateTimeOffset.UtcNow
+            && article.PublicationDateUtc >= publicCutoff;
     }
 
     private void OpenArticle(NewsArticle article)
     {
         selectedArticle = article;
+        SetArticleQueryParameter(article.Slug);
     }
 
     private void CloseArticle()
@@ -812,15 +824,10 @@
         CloseDeleteArticle();
     }
 
-    private static IEnumerable<string> GetParagraphs(string content)
-    {
-        return content
-            .Split(["\r\n\r\n", "\n\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-    }
-
     private static string GetPreviewText(string content, int wordCount)
     {
-        var words = Regex.Split(content.Trim(), @"\s+")
+        var previewSource = Regex.Replace(content ?? string.Empty, @"[#>*_`~\[\]\(\)!-]+", " ");
+        var words = Regex.Split(previewSource.Trim(), @"\s+")
             .Where(word => !string.IsNullOrWhiteSpace(word))
             .ToList();
 
@@ -928,6 +935,10 @@
             string.Equals(article.Slug, ArticleSlug, StringComparison.OrdinalIgnoreCase));
     }
 
+    private bool IsSelectedArticle(NewsArticle article)
+        => selectedArticle is not null
+            && string.Equals(selectedArticle.Id, article.Id, StringComparison.Ordinal);
+
     private NewsArticleUpdateRequest BuildUpdateRequest()
     {
         return new NewsArticleUpdateRequest
@@ -951,6 +962,22 @@
     private void RemoveArticleQueryParameter()
     {
         var targetUri = BuildUriWithoutQueryKeys("article");
+        NavigationManager.NavigateTo(targetUri, replace: true);
+    }
+
+    private void SetArticleQueryParameter(string slug)
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query)
+            .Where(entry => !string.Equals(entry.Key, "article", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(entry => entry.Key, entry => (string?)entry.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+
+        query["article"] = slug;
+
+        var targetUri = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
+            uri.GetLeftPart(UriPartial.Path),
+            query);
+
         NavigationManager.NavigateTo(targetUri, replace: true);
     }
 

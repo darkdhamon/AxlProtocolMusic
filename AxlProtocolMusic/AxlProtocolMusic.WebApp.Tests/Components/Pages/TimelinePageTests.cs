@@ -1,5 +1,6 @@
 using AxlProtocolMusic.WebApp.Components.Pages;
 using AxlProtocolMusic.WebApp.Models.Content;
+using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Bunit;
@@ -26,6 +27,7 @@ public sealed class TimelinePageTests
                     Title = "Signals",
                     Slug = "signals",
                     ShortDescription = "Release copy",
+                    Story = "## Story\r\n\r\nFull release story.",
                     ReleaseDateUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero),
                     CoverImageUrl = string.Empty,
                     IsPublished = true
@@ -64,9 +66,69 @@ public sealed class TimelinePageTests
             Assert.That(cut.Markup, Does.Contain("Signals"));
             Assert.That(cut.Markup, Does.Contain("Studio Update"));
             Assert.That(cut.Markup, Does.Contain("Project Began"));
+            Assert.That(cut.Markup, Does.Contain("Click A Timeline Card"));
             Assert.That(cut.Markup, Does.Contain("View Release"));
-            Assert.That(cut.Markup, Does.Contain("View Article"));
             Assert.That(cut.Markup, Does.Contain("All timeline months are loaded."));
+        });
+    }
+
+    [Test]
+    public void Timeline_WhenEventCardIsClicked_UpdatesDetailPaneContent()
+    {
+        using var context = CreateContext(out var releaseService, out var newsService, out _);
+        context.AddAuthorization().SetNotAuthorized();
+        releaseService.Result = new PagedReleaseResult
+        {
+            Items =
+            [
+                new ReleaseListItemViewModel
+                {
+                    Title = "Signals",
+                    Slug = "signals",
+                    ShortDescription = "Release copy",
+                    Story = "## Story\r\n\r\nFull release story.",
+                    ReleaseDateUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero),
+                    CoverImageUrl = string.Empty,
+                    IsPublished = true
+                }
+            ]
+        };
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "news-1",
+                Title = "Studio Update",
+                Slug = "studio-update",
+                Content = "## Headline\r\n\r\nThis is **formatted** copy for the pane.",
+                PublicationDateUtc = new DateTimeOffset(2026, 2, 15, 0, 0, 0, TimeSpan.Zero),
+                IsPublished = true
+            }
+        ];
+
+        var cut = context.Render<Timeline>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Signals"));
+            Assert.That(cut.Markup, Does.Contain("Click A Timeline Card"));
+        });
+
+        cut.FindAll("article.event-card")[1].Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("<strong>formatted</strong>"));
+            Assert.That(cut.Find("article.event-card.news-event").ClassList.Contains("is-selected"), Is.True);
+        });
+
+        cut.FindAll("article.event-card")[0].Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var cards = cut.FindAll("article.event-card");
+            Assert.That(cards[0].ClassList.Contains("is-selected"), Is.True);
+            Assert.That(cards[1].ClassList.Contains("is-visible"), Is.True);
         });
     }
 
@@ -214,6 +276,7 @@ public sealed class TimelinePageTests
         newsService = new FakeNewsArticleService();
         timelineEventService = new FakeTimelineEventService();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.Services.AddSingleton<MarkdownService>();
         context.Services.AddSingleton<IReleaseService>(releaseService);
         context.Services.AddSingleton<INewsArticleService>(newsService);
         context.Services.AddSingleton<ITimelineEventService>(timelineEventService);

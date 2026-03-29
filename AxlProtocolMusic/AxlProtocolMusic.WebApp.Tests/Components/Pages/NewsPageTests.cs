@@ -1,5 +1,6 @@
 using AxlProtocolMusic.WebApp.Components.Pages;
 using AxlProtocolMusic.WebApp.Models.Content;
+using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Bunit;
@@ -67,6 +68,7 @@ public sealed class NewsPageTests
             Assert.That(cut.Markup, Does.Contain("2 visible articles"));
             Assert.That(cut.Markup, Does.Contain("that are published and live."));
             Assert.That(cut.Markup, Does.Contain("Read More"));
+            Assert.That(cut.Markup, Does.Contain("Choose A Story"));
             Assert.That(cut.Markup, Does.Contain("All visible articles are loaded."));
         });
 
@@ -106,6 +108,45 @@ public sealed class NewsPageTests
     }
 
     [Test]
+    public void News_WhenArticleIsOpened_ShowsItInDetailPaneAndUpdatesQuery()
+    {
+        using var context = CreateContext(out var newsService);
+        context.AddAuthorization().SetNotAuthorized();
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/news");
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "article-1",
+                Title = "Launch Story",
+                Slug = "launch-story",
+                Content = "## Heading\r\n\r\nThis is **formatted** article copy.",
+                ImageUrl = "https://cdn.example/launch.jpg",
+                PublicationDateUtc = DateTimeOffset.UtcNow.AddDays(-1),
+                IsPublished = true,
+                IsFeatured = false
+            }
+        ];
+
+        var cut = context.Render<News>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Choose A Story"));
+        });
+
+        cut.Find("button.btn.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("<strong>formatted</strong>"));
+            Assert.That(cut.Find("article.article-card").ClassList.Contains("is-selected"), Is.True);
+            Assert.That(navigation.Uri, Does.EndWith("/news?article=launch-story"));
+        });
+    }
+
+    [Test]
     public void News_WhenAdminViewsPage_IncludesUnpublishedArticlesAndAdminActions()
     {
         using var context = CreateContext(out var newsService);
@@ -138,6 +179,45 @@ public sealed class NewsPageTests
         });
 
         Assert.That(newsService.LastIncludeUnpublished, Is.True);
+    }
+
+    [Test]
+    public void News_WhenArticleIsOlderThanThreeMonths_HidesItFromPublicUsers()
+    {
+        using var context = CreateContext(out var newsService);
+        context.AddAuthorization().SetNotAuthorized();
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "recent-1",
+                Title = "Recent Story",
+                Slug = "recent-story",
+                Content = "Recent article content.",
+                PublicationDateUtc = DateTimeOffset.UtcNow.AddMonths(-2),
+                IsPublished = true,
+                IsFeatured = false
+            },
+            new NewsArticle
+            {
+                Id = "old-1",
+                Title = "Older Story",
+                Slug = "older-story",
+                Content = "Old article content.",
+                PublicationDateUtc = DateTimeOffset.UtcNow.AddMonths(-4),
+                IsPublished = true,
+                IsFeatured = false
+            }
+        ];
+
+        var cut = context.Render<News>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Recent Story"));
+            Assert.That(cut.Markup, Does.Not.Contain("Older Story"));
+            Assert.That(cut.Markup, Does.Contain("1 visible articles"));
+        });
     }
 
     [Test]
@@ -220,7 +300,7 @@ public sealed class NewsPageTests
             Assert.That(cut.Markup, Does.Contain("Create Article"));
         });
 
-        cut.Find("textarea#news-content").Change("Body copy");
+        cut.Find("textarea#news-content").Input("Body copy");
         cut.Find("button.btn.btn-primary").Click();
 
         cut.WaitForAssertion(() =>
@@ -319,6 +399,7 @@ public sealed class NewsPageTests
         newsService = new FakeNewsArticleService();
         imageStorageService = new FakeImageStorageService();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.Services.AddSingleton<MarkdownService>();
         context.Services.AddSingleton<INewsArticleService>(newsService);
         context.Services.AddSingleton<IImageStorageService>(imageStorageService);
         return context;

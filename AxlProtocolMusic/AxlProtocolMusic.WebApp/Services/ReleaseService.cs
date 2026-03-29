@@ -90,6 +90,7 @@ public sealed class ReleaseService : IReleaseService
                 Title = release.Title,
                 Slug = release.Slug,
                 ShortDescription = release.ShortDescription,
+                Story = release.Story,
                 CoverImageUrl = release.CoverImageUrl,
                 ReleaseDateUtc = release.ReleaseDateUtc,
                 IsPublished = release.IsPublished
