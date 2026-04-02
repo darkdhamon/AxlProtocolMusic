@@ -3,6 +3,7 @@
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
 @inject IReleaseService ReleaseService
 @inject IImageStorageService ImageStorageService
+@inject IOptions<EditorSettings> EditorSettings
 @inject NavigationManager NavigationManager
 @implements IDisposable
 
@@ -566,7 +567,6 @@ else
 }
 
 @code {
-    private const int AutoSaveDelayMilliseconds = 700;
     private const string PlaceholderAlbumArtPath = "/Assets/Misc/Placeholder-AlbumArt.png";
     [Parameter]
     public string Slug { get; set; } = string.Empty;
@@ -593,6 +593,7 @@ else
     private CancellationTokenSource? autosaveCancellationTokenSource;
     private long autosaveVersion;
     private long lastSavedVersion;
+    private int AutoSaveDelayMilliseconds => EditorSettings.Value.NormalizedAutosaveDelayMilliseconds;
     private readonly SemaphoreSlim saveSemaphore = new(1, 1);
     private List<EditableCredit> Credits { get; set; } = [];
     private List<ReleaseTrack> Tracks { get; set; } = [];

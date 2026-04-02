@@ -33,6 +33,8 @@ public static class ServiceCollectionExtensions
             configuration.GetSection(MongoDbSettings.SectionName));
         services.Configure<ImageStorageSettings>(
             configuration.GetSection(ImageStorageSettings.SectionName));
+        services.Configure<EditorSettings>(
+            configuration.GetSection(EditorSettings.SectionName));
         services.Configure<ChatbotSettings>(
             configuration.GetSection(ChatbotSettings.SectionName));
         services.Configure<OpenAiChatSettings>(
