@@ -514,5 +514,8 @@ public sealed class SiteChatbotServiceTests
 
         public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(int count = 25, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetExportAsync(int count = 5000, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
     }
 }

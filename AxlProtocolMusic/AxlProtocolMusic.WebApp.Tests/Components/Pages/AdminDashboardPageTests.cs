@@ -125,6 +125,7 @@ public sealed class AdminDashboardPageTests
             Assert.That(cut.Markup, Does.Contain("Ready"));
             Assert.That(cut.Markup, Does.Contain("Recent Anonymous Messages"));
             Assert.That(cut.Markup, Does.Contain("What are the latest releases?"));
+            Assert.That(cut.Markup, Does.Contain("/admin/chatbot/messages.csv"));
         });
     }
 
@@ -152,6 +153,50 @@ public sealed class AdminDashboardPageTests
         {
             Assert.That(cut.Markup, Does.Contain("Unavailable (missing API key)"));
             Assert.That(cut.Markup, Does.Contain("The chatbot is unavailable because the OpenAI API key has not been configured."));
+        });
+    }
+
+    [Test]
+    public void AdminDashboard_RecentMessagesPanel_UsesScrollableLayoutHooks()
+    {
+        using var context = new BunitContext();
+        context.AddAuthorization().SetAuthorized("admin");
+        context.Services.AddSingleton<IRepository<Release>>(new FakeReleaseRepository());
+        context.Services.AddSingleton<IAboutPageService>(new FakeAboutPageService());
+        context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService());
+        context.Services.AddSingleton<IChatbotBudgetService>(new FakeChatbotBudgetService());
+        context.Services.AddSingleton<IChatbotConversationLogService>(new FakeChatbotConversationLogService
+        {
+            Entries =
+            [
+                new ChatbotConversationLogEntry
+                {
+                    Id = "log-1",
+                    CreatedAtUtc = new DateTimeOffset(2026, 4, 2, 18, 0, 0, TimeSpan.Zero),
+                    Outcome = "completed",
+                    UserMessage = "A very long user message that should live in the recent message panel.",
+                    AssistantReply = "A very long assistant response that should be constrained within the scrolling message history panel instead of stretching the whole dashboard layout.",
+                    PagePath = "/"
+                }
+            ]
+        });
+        context.Services.AddSingleton<IOptions<OpenAiChatSettings>>(Options.Create(new OpenAiChatSettings
+        {
+            ApiKey = "live-key"
+        }));
+
+        var cut = context.Render<AdminDashboard>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Find("article.budget-panel"), Is.Not.Null);
+            Assert.That(cut.Find("article.recent-messages-panel"), Is.Not.Null);
+            Assert.That(cut.Find("article.pages-panel"), Is.Not.Null);
+            Assert.That(cut.Find("article.regions-panel"), Is.Not.Null);
+            Assert.That(cut.Find("article.links-panel"), Is.Not.Null);
+            Assert.That(cut.Find("article.capabilities-panel"), Is.Not.Null);
+            Assert.That(cut.Find("article.expansion-panel"), Is.Not.Null);
+            Assert.That(cut.Find("ul.recent-message-list"), Is.Not.Null);
         });
     }
 
@@ -246,6 +291,9 @@ public sealed class AdminDashboardPageTests
             => Task.CompletedTask;
 
         public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(int count = 25, CancellationToken cancellationToken = default)
+            => Task.FromResult(Entries);
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetExportAsync(int count = 5000, CancellationToken cancellationToken = default)
             => Task.FromResult(Entries);
     }
 }

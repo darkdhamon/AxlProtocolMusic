@@ -3,6 +3,7 @@ using AxlProtocolMusic.WebApp.Models.Chatbot;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.Text;
 
 namespace AxlProtocolMusic.WebApp.Tests.Controllers;
 
@@ -60,9 +61,52 @@ public sealed class AdminControllerTests
         Assert.That(redirectResult!.Url, Is.EqualTo("/admin?chatbotOverrideChanged=true"));
     }
 
-    private static AdminController CreateController(FakeChatbotBudgetService chatbotBudgetService)
+    [Test]
+    public async Task DownloadChatbotMessagesCsv_ReturnsEscapedCsvFile()
     {
-        return new AdminController(chatbotBudgetService)
+        var chatbotBudgetService = new FakeChatbotBudgetService();
+        var chatbotConversationLogService = new FakeChatbotConversationLogService
+        {
+            Entries =
+            [
+                new ChatbotConversationLogEntry
+                {
+                    Id = "log-1",
+                    CreatedAtUtc = new DateTimeOffset(2026, 4, 2, 18, 30, 0, TimeSpan.Zero),
+                    Outcome = "completed",
+                    PagePath = "/releases/signals",
+                    PageTitle = "Signals",
+                    UserMessage = "Hello, \"admin\"",
+                    AssistantReply = "Line one\r\nLine two"
+                }
+            ]
+        };
+        var controller = CreateController(chatbotBudgetService, chatbotConversationLogService);
+        using var cancellationTokenSource = new CancellationTokenSource();
+
+        var result = await controller.DownloadChatbotMessagesCsv(cancellationTokenSource.Token);
+
+        Assert.That(chatbotConversationLogService.LastExportCancellationToken, Is.EqualTo(cancellationTokenSource.Token));
+
+        var fileResult = result as FileContentResult;
+        Assert.That(fileResult, Is.Not.Null);
+        Assert.That(fileResult!.ContentType, Is.EqualTo("text/csv; charset=utf-8"));
+        Assert.That(fileResult.FileDownloadName, Does.StartWith("chatbot-messages-"));
+        Assert.That(fileResult.FileDownloadName, Does.EndWith(".csv"));
+
+        var csv = Encoding.UTF8.GetString(fileResult.FileContents);
+        Assert.That(csv, Does.Contain("CreatedAtUtc,Outcome,PagePath,PageTitle,UserMessage,AssistantReply"));
+        Assert.That(csv, Does.Contain("\"Hello, \"\"admin\"\"\""));
+        Assert.That(csv, Does.Contain("\"Line one\r\nLine two\""));
+    }
+
+    private static AdminController CreateController(
+        FakeChatbotBudgetService chatbotBudgetService,
+        FakeChatbotConversationLogService? chatbotConversationLogService = null)
+    {
+        return new AdminController(
+            chatbotBudgetService,
+            chatbotConversationLogService ?? new FakeChatbotConversationLogService())
         {
             ControllerContext = new ControllerContext
             {
@@ -108,6 +152,25 @@ public sealed class AdminControllerTests
             {
                 IsManuallyDisabled = isDisabled
             });
+        }
+    }
+
+    private sealed class FakeChatbotConversationLogService : IChatbotConversationLogService
+    {
+        public IReadOnlyList<ChatbotConversationLogEntry> Entries { get; set; } = [];
+
+        public CancellationToken LastExportCancellationToken { get; private set; }
+
+        public Task RecordAsync(string userMessage, string assistantReply, string outcome, ChatbotPageContext? currentPage = null, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(int count = 25, CancellationToken cancellationToken = default)
+            => Task.FromResult(Entries);
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetExportAsync(int count = 5000, CancellationToken cancellationToken = default)
+        {
+            LastExportCancellationToken = cancellationToken;
+            return Task.FromResult(Entries);
         }
     }
 }

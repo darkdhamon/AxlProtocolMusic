@@ -14,4 +14,8 @@ public interface IChatbotConversationLogService
     Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(
         int count = 25,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ChatbotConversationLogEntry>> GetExportAsync(
+        int count = 5000,
+        CancellationToken cancellationToken = default);
 }

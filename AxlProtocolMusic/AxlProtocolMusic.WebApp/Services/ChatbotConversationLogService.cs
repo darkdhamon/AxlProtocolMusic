@@ -52,6 +52,19 @@ public sealed class ChatbotConversationLogService : IChatbotConversationLogServi
             .ToList();
     }
 
+    public async Task<IReadOnlyList<ChatbotConversationLogEntry>> GetExportAsync(
+        int count = 5000,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedCount = Math.Clamp(count, 1, 10000);
+        var entries = await _conversationLogRepository.GetAllAsync(cancellationToken);
+
+        return entries
+            .OrderByDescending(entry => entry.CreatedAtUtc)
+            .Take(normalizedCount)
+            .ToList();
+    }
+
     private static string Truncate(string? value, int maxLength)
     {
         if (string.IsNullOrWhiteSpace(value))

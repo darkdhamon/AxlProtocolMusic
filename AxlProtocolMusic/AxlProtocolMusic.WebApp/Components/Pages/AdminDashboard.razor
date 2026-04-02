@@ -119,7 +119,7 @@ else
         </section>
 
         <section class="admin-overview-grid">
-            <article class="overview-panel">
+            <article class="overview-panel budget-panel">
                 <p class="eyebrow">Chatbot</p>
                 <h2>Budget Status</h2>
 
@@ -208,16 +208,19 @@ else
                 }
             </article>
 
-            <article class="overview-panel">
+            <article class="overview-panel recent-messages-panel">
                 <p class="eyebrow">Chatbot</p>
                 <h2>Recent Anonymous Messages</h2>
+                <div class="card-actions">
+                    <a class="btn btn-outline-primary" href="/admin/chatbot/messages.csv">Download CSV</a>
+                </div>
                 @if (recentChatbotMessages.Count == 0)
                 {
                     <p>No chatbot messages have been stored yet.</p>
                 }
                 else
                 {
-                    <ul class="dashboard-list">
+                    <ul class="dashboard-list recent-message-list">
                         @foreach (var entry in recentChatbotMessages)
                         {
                             <li>
@@ -241,7 +244,7 @@ else
                 }
             </article>
 
-            <article class="overview-panel">
+            <article class="overview-panel pages-panel">
                 <p class="eyebrow">Audience Metrics</p>
                 <h2>Most Visited Pages</h2>
                 @if (analyticsSummary.TopPages.Count == 0)
@@ -262,7 +265,7 @@ else
                 }
             </article>
 
-            <article class="overview-panel">
+            <article class="overview-panel regions-panel">
                 <p class="eyebrow">Audience Metrics</p>
                 <h2>Visitor Regions</h2>
                 @if (analyticsSummary.TopRegions.Count == 0)
@@ -283,7 +286,7 @@ else
                 }
             </article>
 
-            <article class="overview-panel">
+            <article class="overview-panel links-panel">
                 <p class="eyebrow">Outbound Traffic</p>
                 <h2>Most Clicked External Links</h2>
                 @if (analyticsSummary.TopExternalLinks.Count == 0)
@@ -304,7 +307,7 @@ else
                 }
             </article>
 
-            <article class="overview-panel">
+            <article class="overview-panel capabilities-panel">
                 <p class="eyebrow">What You Can Do Now</p>
                 <h2>Current Admin Capabilities</h2>
                 <ul class="dashboard-list">
@@ -315,7 +318,7 @@ else
                 </ul>
             </article>
 
-            <article class="overview-panel roadmap-panel">
+            <article class="overview-panel roadmap-panel expansion-panel">
                 <p class="eyebrow">Next Layer</p>
                 <h2>Good Candidates For Admin Expansion</h2>
                 <ul class="dashboard-list">

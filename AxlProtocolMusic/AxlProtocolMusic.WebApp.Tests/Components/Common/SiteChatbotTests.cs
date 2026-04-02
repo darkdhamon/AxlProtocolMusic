@@ -4,6 +4,7 @@ using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Bunit;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AxlProtocolMusic.WebApp.Tests.Components.Common;
@@ -141,6 +142,74 @@ public sealed class SiteChatbotTests
         Assert.That(chatbotService.Calls, Has.Count.EqualTo(1));
     }
 
+    [Test]
+    public void SiteChatbot_EnterKeySendsMessage()
+    {
+        using var context = CreateContext(out _, out _, out var chatbotService, out _);
+        context.JSInterop.Setup<ChatbotPageContext>("axlChatbotPageContext.getCurrentPage").SetResult(new ChatbotPageContext
+        {
+            PagePath = "/timeline",
+            PageTitle = "Timeline"
+        });
+
+        var cut = context.Render<SiteChatbot>();
+
+        cut.Find(".chatbot-launcher").Click();
+        cut.Find("#chatbot-input").Input("What happened in 2025?");
+        cut.Find("#chatbot-input").KeyDown(new KeyboardEventArgs
+        {
+            Key = "Enter",
+            ShiftKey = false
+        });
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Test response"));
+        });
+
+        Assert.That(chatbotService.Calls, Has.Count.EqualTo(1));
+        Assert.That(chatbotService.Calls.Single().Message, Is.EqualTo("What happened in 2025?"));
+    }
+
+    [Test]
+    public async Task SiteChatbot_UpdatePanelLayoutPersistsAndAppliesPanelSize()
+    {
+        using var context = CreateContext(out _, out _, out _, out _);
+
+        var cut = context.Render<SiteChatbot>();
+        cut.Find(".chatbot-launcher").Click();
+
+        await cut.Instance.UpdatePanelLayout(120, 140, 520, 610);
+        cut.Render();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("width:520px"));
+            Assert.That(cut.Markup, Does.Contain("height:610px"));
+        });
+    }
+
+    [Test]
+    public void SiteChatbot_WhenClosedAfterOpen_HidesPanel()
+    {
+        using var context = CreateContext(out _, out _, out _, out _);
+
+        var cut = context.Render<SiteChatbot>();
+
+        cut.Find(".chatbot-launcher").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.FindAll("#site-chatbot-panel"), Has.Count.EqualTo(1));
+        });
+
+        cut.Find(".chatbot-launcher").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.FindAll("#site-chatbot-panel"), Is.Empty);
+        });
+    }
+
     private static BunitContext CreateContext(
         out FakeChatbotBudgetService chatbotBudgetService,
         out FakeChatbotActivationMonitor activationMonitor,
@@ -184,6 +253,9 @@ public sealed class SiteChatbotTests
         }
 
         public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(int count = 25, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetExportAsync(int count = 5000, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
     }
 

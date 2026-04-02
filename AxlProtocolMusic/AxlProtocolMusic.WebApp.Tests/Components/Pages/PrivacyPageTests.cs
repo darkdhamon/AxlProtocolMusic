@@ -276,6 +276,79 @@ public sealed class PrivacyPageTests
         });
     }
 
+    [Test]
+    public void Privacy_WhenEnhancedEngagementIsEnabled_PersistsPreference()
+    {
+        using var context = new BunitContext();
+        var privacyService = new FakePrivacyPreferencesService
+        {
+            Preferences = new PrivacyPreferences()
+        };
+
+        context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService
+        {
+            Summary = new AnalyticsDashboardSummary { UniqueVisitors = 1250 }
+        });
+        context.Services.AddSingleton<IPrivacyPreferencesService>(privacyService);
+        context.Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext()
+        });
+
+        var cut = context.Render<Privacy>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.FindAll("input[type='checkbox']"), Has.Count.EqualTo(4));
+        });
+
+        cut.FindAll("input[type='checkbox']")[2].Change(true);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Privacy preferences updated for this browser."));
+        });
+
+        Assert.That(privacyService.SaveCallCount, Is.EqualTo(1));
+        Assert.That(privacyService.LastSavedPreferences!.AllowEnhancedEngagementMetrics, Is.True);
+    }
+
+    [Test]
+    public void Privacy_WhenPersonalizationIsTurnedOff_OpensConfirmationModal()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService
+        {
+            Summary = new AnalyticsDashboardSummary { UniqueVisitors = 1250 }
+        });
+        context.Services.AddSingleton<IPrivacyPreferencesService>(new FakePrivacyPreferencesService
+        {
+            Preferences = new PrivacyPreferences
+            {
+                AllowPersonalizationMetrics = true
+            }
+        });
+        context.Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext()
+        });
+
+        var cut = context.Render<Privacy>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.FindAll("input[type='checkbox']"), Has.Count.EqualTo(4));
+        });
+
+        cut.FindAll("input[type='checkbox']")[3].Change(false);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Confirm Privacy Preference Change"));
+            Assert.That(cut.Markup, Does.Contain("Personalization Metrics"));
+        });
+    }
+
     private sealed class FakeAnalyticsService : IAnalyticsService
     {
         public AnalyticsDashboardSummary Summary { get; set; } = new();
