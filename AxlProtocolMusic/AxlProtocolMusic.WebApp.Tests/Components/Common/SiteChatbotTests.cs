@@ -1,12 +1,10 @@
 using AxlProtocolMusic.WebApp.Components.Common;
-using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Models.Chatbot;
 using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Bunit;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 
 namespace AxlProtocolMusic.WebApp.Tests.Components.Common;
 
@@ -166,10 +164,6 @@ public sealed class SiteChatbotTests
         context.Services.AddSingleton<IChatbotActivationMonitor>(activationMonitor);
         context.Services.AddSingleton<ISiteChatbotService>(chatbotService);
         context.Services.AddSingleton<MarkdownService>();
-        context.Services.AddSingleton<IOptions<ChatbotSettings>>(Options.Create(new ChatbotSettings
-        {
-            Enabled = true
-        }));
 
         return context;
     }

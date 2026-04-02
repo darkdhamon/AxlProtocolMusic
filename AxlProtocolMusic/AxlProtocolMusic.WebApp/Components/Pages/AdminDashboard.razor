@@ -1,11 +1,14 @@
 @page "/admin"
 @attribute [Authorize(Roles = "Admin")]
 @using AxlProtocolMusic.WebApp.Models.Chatbot
+@using AxlProtocolMusic.WebApp.Configuration
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
+@using Microsoft.Extensions.Options
 @inject IRepository<Release> ReleaseRepository
 @inject IAboutPageService AboutPageService
 @inject IAnalyticsService AnalyticsService
 @inject IChatbotBudgetService ChatbotBudgetService
+@inject IOptions<OpenAiChatSettings> OpenAiChatOptions
 
 <PageTitle>Admin Dashboard</PageTitle>
 
@@ -198,9 +201,9 @@ else
                     }
                 </ul>
 
-                @if (chatbotBudgetSummary.IsDisabled && !string.IsNullOrWhiteSpace(chatbotBudgetSummary.DisabledReason))
+                @if (!string.IsNullOrWhiteSpace(GetChatbotAvailabilityReason()))
                 {
-                    <p>@chatbotBudgetSummary.DisabledReason</p>
+                    <p>@GetChatbotAvailabilityReason()</p>
                 }
             </article>
 
@@ -360,11 +363,33 @@ else
 
     private string GetChatbotStatusLabel()
     {
+        if (string.IsNullOrWhiteSpace(OpenAiChatOptions.Value.ApiKey))
+        {
+            return "Unavailable (missing API key)";
+        }
+
         if (chatbotBudgetSummary.IsManuallyDisabled)
         {
             return "Disabled (manual override)";
         }
 
         return chatbotBudgetSummary.IsDisabled ? "Disabled" : "Enabled";
+    }
+
+    private string GetChatbotAvailabilityReason()
+    {
+        if (string.IsNullOrWhiteSpace(OpenAiChatOptions.Value.ApiKey))
+        {
+            return "The chatbot is unavailable because the OpenAI API key has not been configured.";
+        }
+
+        if (chatbotBudgetSummary.IsDisabled)
+        {
+            return string.IsNullOrWhiteSpace(chatbotBudgetSummary.DisabledReason)
+                ? "The chatbot is currently disabled."
+                : chatbotBudgetSummary.DisabledReason;
+        }
+
+        return string.Empty;
     }
 }

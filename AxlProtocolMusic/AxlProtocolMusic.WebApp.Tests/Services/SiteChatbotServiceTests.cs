@@ -25,28 +25,6 @@ public sealed class SiteChatbotServiceTests
     }
 
     [Test]
-    public async Task GenerateReplyAsync_WhenChatbotIsDisabled_ReturnsDisabledMessageWithoutCallingDependencies()
-    {
-        var contextBuilder = new FakeContextBuilder();
-        var budgetService = new FakeChatbotBudgetService();
-        var handler = new FakeHttpMessageHandler(_ => throw new AssertionException("HTTP should not be called."));
-        var service = CreateService(
-            handler,
-            budgetService,
-            contextBuilder,
-            chatbotSettings: new ChatbotSettings { Enabled = false },
-            openAiSettings: new OpenAiChatSettings { ApiKey = "test-key" });
-
-        var result = await service.GenerateReplyAsync("What is this site?");
-
-        Assert.That(result.IsEnabled, Is.False);
-        Assert.That(result.IsConfigured, Is.False);
-        Assert.That(result.Message, Is.EqualTo("The site assistant is currently turned off."));
-        Assert.That(contextBuilder.BuildCallCount, Is.EqualTo(0));
-        Assert.That(budgetService.GetSummaryCallCount, Is.EqualTo(0));
-    }
-
-    [Test]
     public async Task GenerateReplyAsync_WhenApiKeyIsMissing_ReturnsConfigurationMessageWithoutCallingOpenAi()
     {
         var contextBuilder = new FakeContextBuilder();
@@ -56,7 +34,6 @@ public sealed class SiteChatbotServiceTests
             handler,
             budgetService,
             contextBuilder,
-            chatbotSettings: new ChatbotSettings { Enabled = true },
             openAiSettings: new OpenAiChatSettings { ApiKey = "" });
 
         var result = await service.GenerateReplyAsync("What is this site?");
@@ -138,7 +115,6 @@ public sealed class SiteChatbotServiceTests
             handler,
             budgetService,
             contextBuilder,
-            chatbotSettings: new ChatbotSettings { Enabled = true },
             openAiSettings: new OpenAiChatSettings
             {
                 ApiKey = "test-key",
@@ -262,7 +238,6 @@ public sealed class SiteChatbotServiceTests
             handler,
             new FakeChatbotBudgetService(),
             contextBuilder,
-            chatbotSettings: new ChatbotSettings { Enabled = true },
             openAiSettings: new OpenAiChatSettings
             {
                 ApiKey = "test-key",
@@ -422,14 +397,12 @@ public sealed class SiteChatbotServiceTests
         HttpMessageHandler handler,
         IChatbotBudgetService? budgetService = null,
         ISiteChatbotContextBuilder? contextBuilder = null,
-        ChatbotSettings? chatbotSettings = null,
         OpenAiChatSettings? openAiSettings = null)
     {
         return new SiteChatbotService(
             new HttpClient(handler),
             budgetService ?? new FakeChatbotBudgetService(),
             contextBuilder ?? new FakeContextBuilder(),
-            Options.Create(chatbotSettings ?? new ChatbotSettings { Enabled = true }),
             Options.Create(openAiSettings ?? new OpenAiChatSettings { ApiKey = "test-key" }),
             NullLogger<SiteChatbotService>.Instance);
     }

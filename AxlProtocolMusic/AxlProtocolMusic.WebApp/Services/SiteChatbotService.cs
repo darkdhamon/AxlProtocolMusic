@@ -14,7 +14,6 @@ public sealed class SiteChatbotService : ISiteChatbotService
     private readonly HttpClient _httpClient;
     private readonly IChatbotBudgetService _chatbotBudgetService;
     private readonly ISiteChatbotContextBuilder _contextBuilder;
-    private readonly ChatbotSettings _chatbotSettings;
     private readonly OpenAiChatSettings _openAiSettings;
     private readonly ILogger<SiteChatbotService> _logger;
 
@@ -22,7 +21,6 @@ public sealed class SiteChatbotService : ISiteChatbotService
         HttpClient httpClient,
         IChatbotBudgetService chatbotBudgetService,
         ISiteChatbotContextBuilder contextBuilder,
-        IOptions<ChatbotSettings> chatbotOptions,
         IOptions<OpenAiChatSettings> openAiOptions,
         ILogger<SiteChatbotService> logger)
     {
@@ -30,7 +28,6 @@ public sealed class SiteChatbotService : ISiteChatbotService
         _chatbotBudgetService = chatbotBudgetService;
         _contextBuilder = contextBuilder;
         _logger = logger;
-        _chatbotSettings = chatbotOptions.Value;
         _openAiSettings = openAiOptions.Value;
     }
 
@@ -44,16 +41,6 @@ public sealed class SiteChatbotService : ISiteChatbotService
         if (string.IsNullOrWhiteSpace(normalizedMessage))
         {
             throw new InvalidOperationException("A message is required.");
-        }
-
-        if (!_chatbotSettings.Enabled)
-        {
-            return new ChatbotMessageResponse
-            {
-                IsEnabled = false,
-                IsConfigured = false,
-                Message = "The site assistant is currently turned off."
-            };
         }
 
         if (string.IsNullOrWhiteSpace(_openAiSettings.ApiKey))

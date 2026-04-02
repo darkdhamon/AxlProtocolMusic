@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using AxlProtocolMusic.WebApp.Components.Pages;
+using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Models.Chatbot;
 using AxlProtocolMusic.WebApp.Models.Content;
 using AxlProtocolMusic.WebApp.Repositories.Interfaces;
@@ -8,6 +9,7 @@ using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace AxlProtocolMusic.WebApp.Tests.Components.Pages;
 
@@ -87,6 +89,10 @@ public sealed class AdminDashboardPageTests
                 LastUpdatedUtc = new DateTimeOffset(2026, 3, 25, 12, 0, 0, TimeSpan.Zero)
             }
         });
+        context.Services.AddSingleton<IOptions<OpenAiChatSettings>>(Options.Create(new OpenAiChatSettings
+        {
+            ApiKey = "live-key"
+        }));
         context.Services.GetRequiredService<NavigationManager>()
             .NavigateTo("/admin?chatbotReset=true&chatbotOverrideChanged=true");
 
@@ -102,6 +108,32 @@ public sealed class AdminDashboardPageTests
             Assert.That(cut.Markup, Does.Contain("Austin, TX"));
             Assert.That(cut.Markup, Does.Contain("Bandcamp"));
             Assert.That(cut.Markup, Does.Contain("Ready"));
+        });
+    }
+
+    [Test]
+    public void AdminDashboard_WhenApiKeyIsMissing_ShowsUnavailableReason()
+    {
+        using var context = new BunitContext();
+        context.AddAuthorization().SetAuthorized("admin");
+        context.Services.AddSingleton<IRepository<Release>>(new FakeReleaseRepository());
+        context.Services.AddSingleton<IAboutPageService>(new FakeAboutPageService());
+        context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService());
+        context.Services.AddSingleton<IChatbotBudgetService>(new FakeChatbotBudgetService
+        {
+            Summary = new ChatbotBudgetSummary()
+        });
+        context.Services.AddSingleton<IOptions<OpenAiChatSettings>>(Options.Create(new OpenAiChatSettings
+        {
+            ApiKey = string.Empty
+        }));
+
+        var cut = context.Render<AdminDashboard>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Unavailable (missing API key)"));
+            Assert.That(cut.Markup, Does.Contain("The chatbot is unavailable because the OpenAI API key has not been configured."));
         });
     }
 

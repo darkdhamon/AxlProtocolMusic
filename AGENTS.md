@@ -81,3 +81,32 @@ dotnet build "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebAp
 Notes:
 - Serial execution cleared the lock immediately in this repo without deleting `bin` or `obj`.
 - The contention shows up under `AxlProtocolMusic.WebApp\obj\Debug\net10.0\compressed`.
+
+### Debugging Live Chatbot Visibility
+
+Problem:
+- The admin dashboard's chatbot budget card reflects the shared budget/manual override state, but the site chatbot render path also requires the config flag `Chatbot:Enabled` to be `true`.
+- A production deployment can therefore show `Status Enabled` and `Manual Override Off` in the admin UI while the chatbot remains hidden for every visitor if the deployed configuration still has `Chatbot:Enabled=false`.
+
+Verified workaround:
+1. Check the deployed production setting for `Chatbot:Enabled` or the environment override `Chatbot__Enabled`.
+2. If the admin dashboard says the chatbot is enabled but the launcher is missing site-wide, verify the production host is not inheriting `appsettings.json` with `"Chatbot": { "Enabled": false }`.
+3. Keep the admin UI aligned with the render gate by exposing the config flag in the dashboard when investigating live issues.
+
+Working files:
+
+```text
+C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\appsettings.json
+```
+
+```text
+C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\Components\Common\SiteChatbot.razor
+```
+
+```text
+C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\Components\Pages\AdminDashboard.razor
+```
+
+Notes:
+- `SiteChatbot.razor` only renders when `ChatbotOptions.Value.Enabled` is true and the manual disable flag is false.
+- `appsettings.Development.json` enables the chatbot, but the repo default in `appsettings.json` disables it, so production must override it explicitly.

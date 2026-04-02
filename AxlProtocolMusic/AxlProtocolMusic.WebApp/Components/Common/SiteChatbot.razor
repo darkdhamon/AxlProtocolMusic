@@ -1,15 +1,12 @@
-@using AxlProtocolMusic.WebApp.Configuration
 @using AxlProtocolMusic.WebApp.Models.Chatbot
 @using AxlProtocolMusic.WebApp.Services.Interfaces
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
 @using System.Text.Json
-@using Microsoft.Extensions.Options
 @implements IAsyncDisposable
 @inject IChatbotActivationMonitor ChatbotActivationMonitor
 @inject IChatbotBudgetService ChatbotBudgetService
 @inject IJSRuntime JSRuntime
 @inject ISiteChatbotService SiteChatbotService
-@inject IOptions<ChatbotSettings> ChatbotOptions
 
 @if (showAdminDisabledPopup)
 {
@@ -22,7 +19,7 @@
     </div>
 }
 
-@if (ChatbotOptions.Value.Enabled && IsChatbotVisible() && !chatbotBudgetSummary.IsManuallyDisabled)
+@if (IsChatbotVisible() && !chatbotBudgetSummary.IsManuallyDisabled)
 {
     <div id="site-chatbot-root" class="site-chatbot @(isOpen ? "is-open" : string.Empty)" style="@GetChatbotRootStyle()">
         <button
