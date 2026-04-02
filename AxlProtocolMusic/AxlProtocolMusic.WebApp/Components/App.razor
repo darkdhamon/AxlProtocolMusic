@@ -106,6 +106,7 @@
                     var root = document.querySelector(rootSelector);
                     var panel = document.querySelector(panelSelector);
                     var handle = root ? root.querySelector(handleSelector) : null;
+                    var viewportMargin = 16;
 
                     if (!root || !panel || !handle || root.dataset.chatbotUiInitialized === "true") {
                         return;
@@ -113,7 +114,38 @@
 
                     root.dataset.chatbotUiInitialized = "true";
 
+                    var clamp = function (value, min, max) {
+                        return Math.min(Math.max(value, min), max);
+                    };
+
+                    var constrainPanelToViewport = function () {
+                        var maxPanelWidth = Math.max(240, window.innerWidth - (viewportMargin * 2));
+                        var maxPanelHeight = Math.max(240, window.innerHeight - (viewportMargin * 2));
+
+                        if (panel.offsetWidth > maxPanelWidth) {
+                            panel.style.width = maxPanelWidth + "px";
+                        }
+
+                        if (panel.offsetHeight > maxPanelHeight) {
+                            panel.style.height = maxPanelHeight + "px";
+                        }
+
+                        var rootRect = root.getBoundingClientRect();
+                        var panelRect = panel.getBoundingClientRect();
+                        var maxLeft = Math.max(viewportMargin, window.innerWidth - panelRect.width - viewportMargin);
+                        var maxTop = Math.max(viewportMargin, window.innerHeight - rootRect.height - viewportMargin);
+                        var nextLeft = clamp(rootRect.left, viewportMargin, maxLeft);
+                        var nextTop = clamp(rootRect.top, viewportMargin, maxTop);
+
+                        root.style.right = "auto";
+                        root.style.bottom = "auto";
+                        root.style.left = nextLeft + "px";
+                        root.style.top = nextTop + "px";
+                    };
+
                     var emitLayout = function () {
+                        constrainPanelToViewport();
+
                         var rootRect = root.getBoundingClientRect();
                         var panelRect = panel.getBoundingClientRect();
 
@@ -124,6 +156,8 @@
                             Math.round(panelRect.width),
                             Math.round(panelRect.height));
                     };
+
+                    constrainPanelToViewport();
 
                     var dragging = false;
                     var startPointerX = 0;
@@ -154,8 +188,15 @@
                             return;
                         }
 
-                        root.style.left = (startLeft + (event.clientX - startPointerX)) + "px";
-                        root.style.top = (startTop + (event.clientY - startPointerY)) + "px";
+                        var panelRect = panel.getBoundingClientRect();
+                        var rootRect = root.getBoundingClientRect();
+                        var maxLeft = Math.max(viewportMargin, window.innerWidth - panelRect.width - viewportMargin);
+                        var maxTop = Math.max(viewportMargin, window.innerHeight - rootRect.height - viewportMargin);
+                        var nextLeft = clamp(startLeft + (event.clientX - startPointerX), viewportMargin, maxLeft);
+                        var nextTop = clamp(startTop + (event.clientY - startPointerY), viewportMargin, maxTop);
+
+                        root.style.left = nextLeft + "px";
+                        root.style.top = nextTop + "px";
                     });
 
                     window.addEventListener("pointerup", function () {
@@ -173,6 +214,7 @@
                     });
 
                     resizeObserver.observe(panel);
+                    window.addEventListener("resize", emitLayout);
                 },
                 resetPanel: function (rootSelector) {
                     var root = document.querySelector(rootSelector);
