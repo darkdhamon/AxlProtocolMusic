@@ -340,6 +340,156 @@ public sealed class NewsPageTests
     }
 
     [Test]
+    public void News_WhenCreateSucceeds_SavesArticleAndClearsEditorQuery()
+    {
+        using var context = CreateContext(out var newsService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/news?editor=new");
+
+        var cut = context.Render<News>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Create Article"));
+        });
+
+        cut.Find("#news-title").Change("New Story");
+        cut.Find("textarea#news-content").Input("Freshly published content.");
+        cut.Find("input#news-image-url").Change("https://cdn.example/new-story.jpg");
+        cut.Find("input#news-publication-date").Change("2026-03-15");
+        cut.FindAll("input.form-check-input")[0].Change(true);
+        cut.FindAll("input.form-check-input")[1].Change(true);
+        cut.Find("button.btn.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("New Story"));
+            Assert.That(cut.Markup, Does.Contain("1 stored articles"));
+            Assert.That(cut.Markup, Does.Not.Contain("Database-backed news editor"));
+            Assert.That(navigation.Uri, Does.EndWith("/news"));
+        });
+
+        Assert.That(newsService.CreateRequests, Has.Count.EqualTo(1));
+        Assert.That(newsService.CreateRequests[0].OriginalSlug, Is.Null);
+        Assert.That(newsService.CreateRequests[0].Title, Is.EqualTo("New Story"));
+        Assert.That(newsService.CreateRequests[0].Content, Is.EqualTo("Freshly published content."));
+        Assert.That(newsService.CreateRequests[0].ImageUrl, Is.EqualTo("https://cdn.example/new-story.jpg"));
+        Assert.That(newsService.CreateRequests[0].PublicationDate, Is.EqualTo(new DateTime(2026, 3, 15)));
+        Assert.That(newsService.CreateRequests[0].IsPublished, Is.True);
+        Assert.That(newsService.CreateRequests[0].IsFeatured, Is.True);
+    }
+
+    [Test]
+    public void News_WhenEditSucceedsWithNewImage_DeletesPreviousManagedImageAndClearsEditorQuery()
+    {
+        using var context = CreateContext(out var newsService, out var imageStorageService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "article-1",
+                Title = "Launch Story",
+                Slug = "launch-story",
+                Content = "Original article body.",
+                ImageUrl = "managed://launch-story",
+                PublicationDateUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero),
+                IsPublished = true,
+                IsFeatured = true
+            }
+        ];
+        newsService.ManagedImageUrls.Add("managed://launch-story");
+        newsService.UpdatedImageUrl = "https://cdn.example/updated-story.jpg";
+
+        navigation.NavigateTo("/news?editor=existing");
+        var cut = context.Render<News>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Launch Story"));
+        });
+
+        cut.FindAll("button.btn.btn-outline-light")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Edit Article", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit Article"));
+        });
+
+        cut.Find("#news-title").Change("Launch Story Updated");
+        cut.Find("textarea#news-content").Input("Updated article body.");
+        cut.Find("input#news-image-url").Change("https://cdn.example/updated-story.jpg");
+        cut.Find("button.btn.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Launch Story Updated"));
+            Assert.That(cut.Markup, Does.Not.Contain("Database-backed news editor"));
+            Assert.That(navigation.Uri, Does.EndWith("/news"));
+        });
+
+        Assert.That(newsService.UpdateRequests, Has.Count.EqualTo(1));
+        Assert.That(newsService.UpdateRequests[0].OriginalSlug, Is.EqualTo("launch-story"));
+        Assert.That(newsService.UpdateRequests[0].Title, Is.EqualTo("Launch Story Updated"));
+        Assert.That(newsService.UpdateRequests[0].Content, Is.EqualTo("Updated article body."));
+        Assert.That(imageStorageService.DeletedStoragePaths, Is.EqualTo(["managed://launch-story"]));
+    }
+
+    [Test]
+    public void News_WhenDeleteModalIsCanceled_KeepsArticleVisible()
+    {
+        using var context = CreateContext(out var newsService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "article-1",
+                Title = "Launch Story",
+                Slug = "launch-story",
+                Content = "Full launch story content.",
+                PublicationDateUtc = DateTimeOffset.UtcNow.AddDays(-1),
+                IsPublished = true,
+                IsFeatured = false
+            }
+        ];
+
+        var cut = context.Render<News>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Launch Story"));
+        });
+
+        cut.Find("button.article-delete-button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Delete Article"));
+        });
+
+        cut.Find("button.btn.btn-outline-secondary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Not.Contain("This action removes the article from the database."));
+            Assert.That(cut.Markup, Does.Contain("Launch Story"));
+        });
+
+        Assert.That(newsService.DeletedIds, Is.Empty);
+    }
+
+    [Test]
     public void News_WhenDeleteIsConfirmed_RemovesManagedImageAndDeletesArticle()
     {
         using var context = CreateContext(out var newsService, out var imageStorageService);
@@ -417,6 +567,8 @@ public sealed class NewsPageTests
 
         public HashSet<string> ManagedImageUrls { get; } = [];
 
+        public string? UpdatedImageUrl { get; set; }
+
         public bool LastIncludeUnpublished { get; private set; }
 
         public Task<IReadOnlyList<NewsArticle>> GetArticlesAsync(bool includeUnpublished = false, CancellationToken cancellationToken = default)
@@ -451,7 +603,7 @@ public sealed class NewsPageTests
             var existing = Articles.First(article => string.Equals(article.Slug, request.OriginalSlug, StringComparison.OrdinalIgnoreCase));
             existing.Title = request.Title;
             existing.Content = request.Content;
-            existing.ImageUrl = request.ImageUrl ?? string.Empty;
+            existing.ImageUrl = UpdatedImageUrl ?? request.ImageUrl ?? string.Empty;
             existing.PublicationDateUtc = new DateTimeOffset(request.PublicationDate, TimeSpan.Zero);
             existing.IsPublished = request.IsPublished;
             existing.IsFeatured = request.IsFeatured;
