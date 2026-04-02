@@ -117,6 +117,101 @@ public sealed class HomePageTests
         cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("Signals")));
     }
 
+    [Test]
+    public void Home_WhenIndicatorIsClicked_ShowsSelectedReleaseAndPlaceholderArtwork()
+    {
+        using var context = new BunitContext();
+        var releaseService = new FakeHomeReleaseService
+        {
+            FeaturedReleases =
+            [
+                new FeaturedReleaseViewModel
+                {
+                    Title = "Signals",
+                    Slug = "signals",
+                    ShortDescription = "A cinematic synth release.",
+                    CoverImageUrl = "https://cdn.example/signals.jpg",
+                    ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(5)
+                },
+                new FeaturedReleaseViewModel
+                {
+                    Title = "Echo Grid",
+                    Slug = "echo-grid",
+                    ShortDescription = "Second featured release.",
+                    CoverImageUrl = string.Empty,
+                    ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(-30)
+                }
+            ]
+        };
+        context.Services.AddSingleton<IReleaseService>(releaseService);
+
+        var cut = context.Render<Home>();
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("Signals")));
+
+        cut.FindAll("button.indicator")[1].Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Echo Grid"));
+            Assert.That(cut.Find("img").GetAttribute("src"), Is.EqualTo("/Assets/Misc/Placeholder-AlbumArt.png"));
+        });
+    }
+
+    [Test]
+    public void Home_WhenTouchSwipeOccurs_CyclesFeaturedReleases()
+    {
+        using var context = new BunitContext();
+        var releaseService = new FakeHomeReleaseService
+        {
+            FeaturedReleases =
+            [
+                new FeaturedReleaseViewModel
+                {
+                    Title = "Signals",
+                    Slug = "signals",
+                    ShortDescription = "A cinematic synth release.",
+                    ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(5)
+                },
+                new FeaturedReleaseViewModel
+                {
+                    Title = "Echo Grid",
+                    Slug = "echo-grid",
+                    ShortDescription = "Second featured release.",
+                    ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(-30)
+                }
+            ]
+        };
+        context.Services.AddSingleton<IReleaseService>(releaseService);
+
+        var cut = context.Render<Home>();
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("Signals")));
+
+        var carousel = cut.Find("section.hero-carousel");
+        carousel.TriggerEvent("ontouchstart", new TouchEventArgs
+        {
+            Touches = [new TouchPoint { ClientX = 200 }]
+        });
+        carousel.TriggerEvent("ontouchend", new TouchEventArgs
+        {
+            ChangedTouches = [new TouchPoint { ClientX = 100 }]
+        });
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("Echo Grid")));
+
+        carousel.TriggerEvent("ontouchstart", new TouchEventArgs
+        {
+            Touches = [new TouchPoint { ClientX = 100 }]
+        });
+        carousel.TriggerEvent("ontouchend", new TouchEventArgs
+        {
+            ChangedTouches = [new TouchPoint { ClientX = 180 }]
+        });
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("Signals")));
+    }
+
     private sealed class FakeHomeReleaseService : IReleaseService
     {
         public IReadOnlyList<FeaturedReleaseViewModel> FeaturedReleases { get; set; } = [];

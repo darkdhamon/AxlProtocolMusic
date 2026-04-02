@@ -3,6 +3,7 @@ using AxlProtocolMusic.WebApp.Models.Content;
 using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using Bunit;
+using Bunit.TestDoubles;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AxlProtocolMusic.WebApp.Tests.Components.Pages;
@@ -82,15 +83,127 @@ public sealed class AboutAxlProtocolTests
         });
     }
 
+    [Test]
+    public void AboutAxlProtocol_WhenAdminAddsFocusPoint_AutosavesAndShowsSuccess()
+    {
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+
+        var service = new FakeAboutPageService
+        {
+            Content = new AboutPageContent
+            {
+                HeroLead = "Lead",
+                HeroBody = "Body"
+            }
+        };
+
+        context.Services.AddSingleton<IAboutPageService>(service);
+        context.Services.AddSingleton<MarkdownService>();
+
+        var cut = context.Render<AboutAxlProtocol>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit About Page"));
+        });
+
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Contains("Add Point", StringComparison.Ordinal))
+            .Click();
+
+        Assert.That(SpinWait.SpinUntil(() => service.UpdateCallCount >= 1, TimeSpan.FromSeconds(3)), Is.True);
+        cut.Render();
+
+        Assert.That(service.LastUpdatedContent, Is.Not.Null);
+        Assert.That(service.LastUpdatedContent!.FocusPoints, Has.Count.EqualTo(1));
+        Assert.That(cut.Markup, Does.Contain("All changes saved."));
+    }
+
+    [Test]
+    public void AboutAxlProtocol_WhenAutosaveFails_ShowsErrorMessage()
+    {
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+
+        var service = new FakeAboutPageService
+        {
+            Content = new AboutPageContent
+            {
+                HeroLead = "Lead",
+                HeroBody = "Body",
+                FocusPoints = ["Existing focus point"]
+            },
+            UpdateException = new InvalidOperationException("Save failed.")
+        };
+
+        context.Services.AddSingleton<IAboutPageService>(service);
+        context.Services.AddSingleton<MarkdownService>();
+
+        var cut = context.Render<AboutAxlProtocol>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit About Page"));
+        });
+
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Contains("Remove", StringComparison.Ordinal))
+            .Click();
+
+        Assert.That(SpinWait.SpinUntil(() => service.UpdateCallCount >= 1, TimeSpan.FromSeconds(3)), Is.True);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Save failed."));
+        }, timeout: TimeSpan.FromSeconds(3));
+    }
+
     private sealed class FakeAboutPageService : IAboutPageService
     {
         public AboutPageContent Content { get; set; } = new();
+
+        public int UpdateCallCount { get; private set; }
+
+        public AboutPageContent? LastUpdatedContent { get; private set; }
+
+        public Exception? UpdateException { get; set; }
 
         public Task<AboutPageContent> GetAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(Content);
 
         public Task UpdateAsync(AboutPageContent content, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        {
+            UpdateCallCount++;
+            LastUpdatedContent = new AboutPageContent
+            {
+                Id = content.Id,
+                HeroLead = content.HeroLead,
+                HeroBody = content.HeroBody,
+                FocusPoints = content.FocusPoints.ToList(),
+                WhyThisSiteExistsMarkdown = content.WhyThisSiteExistsMarkdown,
+                NarrativeHighlights = content.NarrativeHighlights.ToList(),
+                OriginMarkdown = content.OriginMarkdown,
+                Pillars = content.Pillars
+                    .Select(pillar => new AboutPillar
+                    {
+                        Title = pillar.Title,
+                        Description = pillar.Description
+                    })
+                    .ToList()
+            };
+
+            if (UpdateException is not null)
+            {
+                throw UpdateException;
+            }
+
+            return Task.CompletedTask;
+        }
 
         public Task SeedAsync(CancellationToken cancellationToken = default)
             => Task.CompletedTask;

@@ -95,6 +95,24 @@ public sealed class PrivacyLocationMapTests
     }
 
     [Test]
+    public void PrivacyLocationMap_WhenNoLocationsAndNoConfiguredStyle_RendersWithoutFocusOrLegendAndUsesEmptyStyleUrl()
+    {
+        using var context = CreateContext(out var module);
+
+        var cut = context.Render<PrivacyLocationMap>(parameters => parameters
+            .Add(component => component.Locations, Array.Empty<PrivacyLocationMap.PrivacyMapLocation>()));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("0 locations plotted"));
+            Assert.That(cut.Markup, Does.Not.Contain("Focus:"));
+            Assert.That(cut.FindAll(".privacy-location-chip"), Is.Empty);
+        });
+
+        Assert.That(module.LastRenderStyleUrl, Is.EqualTo(string.Empty));
+    }
+
+    [Test]
     public async Task PrivacyLocationMap_WhenJsDisconnectsDuringRenderOrDispose_SwallowsException()
     {
         using var context = CreateContext(out var module, explicitStyleUrl: "https://maps.example/style.json");

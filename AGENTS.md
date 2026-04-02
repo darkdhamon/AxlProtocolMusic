@@ -24,25 +24,28 @@ Verified workaround:
 4. Extract the Microsoft Testing Platform `.log` path from the `Tests failed: '...log'` line, copy that log into `AxlProtocolMusic/TestResults/UnitTests/testing-platform.log`, and parse its `failed ...` blocks.
 5. Write the failed test names and the matching exception/stack sections into `GITHUB_STEP_SUMMARY`, then upload both logs as workflow artifacts instead of depending on a `.trx` file.
 
-### Refreshing Persisted Coverage Results
+### Refreshing Persisted Coverage Results To Match GitHub Actions
 
 Problem:
 - A normal `dotnet test` run can pass without refreshing the persisted coverage artifacts under `AxlProtocolMusic/TestResults/Coverage`.
 - The previously saved `coverage.cobertura.xml` may remain stale even after new tests are added.
+- A manual `dotnet-coverage collect "dotnet test ..."` run does not match the GitHub Actions warning/fail calculation in this repo.
+- The mismatch happens because GitHub reads the Coverlet-generated `coverage.cobertura.xml` from `AxlProtocolMusic.WebApp.Tests.csproj`, including its `ExcludeByFile` filters, while `dotnet-coverage` reports a broader scope and can overstate line coverage.
 
 Verified workaround:
-1. Run the unit test project through a disposable `dotnet-coverage` tool invocation instead of relying on the normal test run to rewrite the saved report.
-2. Write the output directly to `AxlProtocolMusic/TestResults/Coverage/coverage.cobertura.xml`.
-3. Read the `AxlProtocolMusic.WebApp` package entry from the Cobertura XML, not the root coverage total, because the root total can include the test assembly and overstate app coverage.
+1. Use the same Release build plus `dotnet test --configuration Release --no-build` flow that the GitHub Actions workflow uses.
+2. Let Coverlet rewrite `AxlProtocolMusic/TestResults/Coverage/coverage.cobertura.xml` through the test project's existing MSBuild settings.
+3. Read the `AxlProtocolMusic.WebApp` package entry from the Cobertura XML, because that is the same package-level line rate GitHub compares against the warning and fail thresholds.
+4. Do not use `dotnet-coverage` for threshold comparisons in this repo unless the workflow is changed to use it too.
 
 Working commands:
 
 ```powershell
-dotnet tool install --tool-path "C:\GitHub\AxlProtocolMusic\_codex_tmp\tools" dotnet-coverage
+dotnet build "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.Tests\AxlProtocolMusic.WebApp.Tests.csproj" --configuration Release --no-restore
 ```
 
 ```powershell
-& "C:\GitHub\AxlProtocolMusic\_codex_tmp\tools\dotnet-coverage.exe" collect "dotnet test C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.Tests\AxlProtocolMusic.WebApp.Tests.csproj" -f cobertura -o "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\TestResults\Coverage\coverage.cobertura.xml"
+dotnet test "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.Tests\AxlProtocolMusic.WebApp.Tests.csproj" --configuration Release --no-build
 ```
 
 ```powershell
@@ -53,9 +56,9 @@ $package = $coverage.coverage.packages.package | Where-Object { $_.name -eq 'Axl
 ```
 
 Notes:
-- This is currently the reliable path for forcing a fresh persisted coverage snapshot in this repo.
-- Keep the fast `dotnet test` flow for ordinary verification, and use this workaround when the task specifically requires refreshed saved coverage numbers.
-- When comparing against ReSharper/dotCover, treat the app package entry as the comparable scope. dotCover usually shows app-only statement coverage, while Cobertura reports line coverage.
+- This is currently the reliable path for forcing a fresh persisted coverage snapshot that matches GitHub's threshold calculation in this repo.
+- Keep the fast `dotnet test` flow for ordinary verification, and use this Release build plus Release test flow when the task specifically requires refreshed saved coverage numbers that match CI.
+- If a local `dotnet-coverage` run reports a much higher percentage than GitHub Actions, trust the Coverlet-generated `coverage.cobertura.xml` from the Release test run.
 
 ### Avoiding Static Web Asset Compression File Locks
 

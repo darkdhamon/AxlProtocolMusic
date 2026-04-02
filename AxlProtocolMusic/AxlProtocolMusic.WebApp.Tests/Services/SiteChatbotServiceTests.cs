@@ -415,6 +415,32 @@ public sealed class SiteChatbotServiceTests
         Assert.That(logService.Records.Single().Outcome, Is.EqualTo("failed"));
     }
 
+    [Test]
+    public async Task GenerateReplyAsync_WhenConversationLoggingFails_ReturnsReplyAnyway()
+    {
+        var budgetService = new FakeChatbotBudgetService();
+        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""
+            {
+              "output_text":"Use /news to follow updates.",
+              "usage":{}
+            }
+            """)
+        });
+
+        var service = CreateService(
+            handler,
+            budgetService: budgetService,
+            logService: new ThrowingChatbotConversationLogService(),
+            contextBuilder: new FakeContextBuilder());
+
+        var result = await service.GenerateReplyAsync("Where are updates?");
+
+        Assert.That(result.Message, Is.EqualTo("Use /news to follow updates."));
+        Assert.That(budgetService.UsageRecords, Has.Count.EqualTo(1));
+    }
+
     private static SiteChatbotService CreateService(
         HttpMessageHandler handler,
         IChatbotBudgetService? budgetService = null,
@@ -511,6 +537,18 @@ public sealed class SiteChatbotServiceTests
             Records.Add((userMessage, assistantReply, outcome, currentPage));
             return Task.CompletedTask;
         }
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(int count = 25, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetExportAsync(int count = 5000, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
+    }
+
+    private sealed class ThrowingChatbotConversationLogService : IChatbotConversationLogService
+    {
+        public Task RecordAsync(string userMessage, string assistantReply, string outcome, ChatbotPageContext? currentPage = null, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Logging unavailable.");
 
         public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(int count = 25, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);

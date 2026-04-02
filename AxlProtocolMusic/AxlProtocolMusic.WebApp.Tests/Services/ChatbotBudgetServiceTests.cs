@@ -90,6 +90,51 @@ public sealed class ChatbotBudgetServiceTests
         Assert.That(activationMonitor.PublishedStates.Single().IsManuallyDisabled, Is.True);
     }
 
+    [Test]
+    public async Task RecordFailureAsync_StoresTrimmedFailureDetailsAndKeepsChatbotEnabled()
+    {
+        var stateRepository = new InMemoryRepository<ChatbotBudgetState>([]);
+        var usageRepository = new InMemoryRepository<ChatbotUsageRecord>([]);
+        var activationMonitor = new FakeChatbotActivationMonitor();
+        var service = new ChatbotBudgetService(stateRepository, usageRepository, activationMonitor);
+
+        await service.RecordFailureAsync(" gpt-5-mini ", " server_error ", " upstream failed ");
+        var summary = await service.GetSummaryAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(summary.IsDisabled, Is.False);
+            Assert.That(summary.TotalRequestCount, Is.EqualTo(1));
+            Assert.That(usageRepository.Documents.Single().Model, Is.EqualTo("gpt-5-mini"));
+            Assert.That(usageRepository.Documents.Single().ErrorCode, Is.EqualTo("server_error"));
+            Assert.That(usageRepository.Documents.Single().ErrorMessage, Is.EqualTo("upstream failed"));
+            Assert.That(activationMonitor.PublishedStates.Last().IsDisabled, Is.False);
+        });
+    }
+
+    [Test]
+    public async Task GetSummaryAsync_WhenManualDisableReasonIsBlank_UsesDefaultMessage()
+    {
+        var stateRepository = new InMemoryRepository<ChatbotBudgetState>(
+        [
+            new ChatbotBudgetState
+            {
+                Id = ChatbotBudgetState.SingletonId,
+                IsManuallyDisabled = true,
+                ManualDisabledReason = " ",
+                LastUpdatedUtc = DateTimeOffset.UtcNow
+            }
+        ]);
+        var usageRepository = new InMemoryRepository<ChatbotUsageRecord>([]);
+        var activationMonitor = new FakeChatbotActivationMonitor();
+        var service = new ChatbotBudgetService(stateRepository, usageRepository, activationMonitor);
+
+        var summary = await service.GetSummaryAsync();
+
+        Assert.That(summary.IsDisabled, Is.True);
+        Assert.That(summary.DisabledReason, Is.EqualTo("Chatbot manually disabled from the admin dashboard."));
+    }
+
     private sealed class InMemoryRepository<TDocument> : IRepository<TDocument>
         where TDocument : class, AxlProtocolMusic.WebApp.Models.IEntity
     {
