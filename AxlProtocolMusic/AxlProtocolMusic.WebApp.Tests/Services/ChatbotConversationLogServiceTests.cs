@@ -89,6 +89,45 @@ public sealed class ChatbotConversationLogServiceTests
         Assert.That(result.Select(item => item.Id), Is.EqualTo(new[] { "entry-3", "entry-2", "entry-1" }));
     }
 
+    [Test]
+    public async Task GetExportAsync_ReturnsNewestEntriesFirstAndClampsRequestedCount()
+    {
+        var entries = Enumerable.Range(1, 3)
+            .Select(index => new ChatbotConversationLogEntry
+            {
+                Id = $"entry-{index}",
+                CreatedAtUtc = new DateTimeOffset(2026, 4, index, 12, 0, 0, TimeSpan.Zero),
+                UserMessage = $"message-{index}"
+            })
+            .ToList();
+
+        var repository = new InMemoryRepository<ChatbotConversationLogEntry>(entries);
+        var service = new ChatbotConversationLogService(repository);
+
+        var result = await service.GetExportAsync(0);
+
+        Assert.That(result.Select(item => item.Id), Is.EqualTo(new[] { "entry-3" }));
+    }
+
+    [Test]
+    public async Task RecordAsync_WhenValuesAreWhitespace_PersistsEmptyStrings()
+    {
+        var repository = new InMemoryRepository<ChatbotConversationLogEntry>([]);
+        var service = new ChatbotConversationLogService(repository);
+
+        await service.RecordAsync(" ", "\t", "\r\n", new ChatbotPageContext { PagePath = " ", PageTitle = null! });
+
+        var entry = repository.CreatedDocuments.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(entry.UserMessage, Is.Empty);
+            Assert.That(entry.AssistantReply, Is.Empty);
+            Assert.That(entry.Outcome, Is.Empty);
+            Assert.That(entry.PagePath, Is.Empty);
+            Assert.That(entry.PageTitle, Is.Empty);
+        });
+    }
+
     private sealed class InMemoryRepository<TDocument> : IRepository<TDocument>
         where TDocument : class, IEntity
     {

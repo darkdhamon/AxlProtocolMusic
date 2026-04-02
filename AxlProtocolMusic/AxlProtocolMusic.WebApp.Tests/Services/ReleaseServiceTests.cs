@@ -113,6 +113,39 @@ public sealed class ReleaseServiceTests
     }
 
     [Test]
+    public async Task GetReleaseBySlugAsync_WhenIncludeUnpublishedIsTrue_ReturnsDraftRelease()
+    {
+        var draft = CreateRelease("draft-release", 2, false, title: "Draft Release");
+        draft.Credits =
+        [
+            new ReleaseCredit { Name = "Contributor", Roles = ["Production"] }
+        ];
+        draft.Links =
+        [
+            new ReleaseLink { PlatformName = "Bandcamp", Url = "https://bandcamp.test/draft" }
+        ];
+
+        var service = new ReleaseService(new InMemoryReleaseRepository([draft]));
+
+        var result = await service.GetReleaseBySlugAsync("draft-release", includeUnpublished: true);
+
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result!.Slug, Is.EqualTo("draft-release"));
+        Assert.That(result.Credits[0].Roles, Is.EqualTo(["Production"]));
+        Assert.That(result.Links[0].Url, Is.EqualTo("https://bandcamp.test/draft"));
+    }
+
+    [Test]
+    public async Task GetReleaseBySlugAsync_WhenReleaseDoesNotExist_ReturnsNull()
+    {
+        var service = new ReleaseService(new InMemoryReleaseRepository([]));
+
+        var result = await service.GetReleaseBySlugAsync("missing-release");
+
+        Assert.That(result, Is.Null);
+    }
+
+    [Test]
     public async Task GetReleaseBySlugAsync_WhenReleaseTypeOverrideIsBlank_UsesTrackCountToChooseReleaseType()
     {
         var release = CreateRelease("ep-release", 4, true);
@@ -129,6 +162,57 @@ public sealed class ReleaseServiceTests
 
         Assert.That(result, Is.Not.Null);
         Assert.That(result!.ReleaseType, Is.EqualTo("EP"));
+    }
+
+    [Test]
+    public async Task GetReleaseBySlugAsync_WhenTrackCountExceedsSix_UsesAlbumReleaseType()
+    {
+        var release = CreateRelease("album-release", 4, true);
+        release.Tracks = Enumerable.Range(1, 7)
+            .Select(index => new ReleaseTrack { Title = $"Track {index}" })
+            .ToList();
+
+        var service = new ReleaseService(new InMemoryReleaseRepository([release]));
+
+        var result = await service.GetReleaseBySlugAsync("album-release");
+
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result!.ReleaseType, Is.EqualTo("Album"));
+    }
+
+    [Test]
+    public async Task GetReleaseBySlugAsync_CopiesCreditsTracksAndLinksIntoNewCollections()
+    {
+        var release = CreateRelease("deep-copy-release", 1, true);
+        release.Credits =
+        [
+            new ReleaseCredit { Name = "Artist", Roles = ["Vocals"] }
+        ];
+        release.Tracks =
+        [
+            new ReleaseTrack { Title = "Track One", Duration = "3:00", Lyrics = "Lyrics" }
+        ];
+        release.Links =
+        [
+            new ReleaseLink { PlatformName = "Spotify", Url = "https://example.test/spotify" }
+        ];
+
+        var service = new ReleaseService(new InMemoryReleaseRepository([release]));
+
+        var result = await service.GetReleaseBySlugAsync("deep-copy-release");
+
+        Assert.That(result, Is.Not.Null);
+
+        release.Credits[0].Roles.Add("Production");
+        release.Tracks[0].Title = "Changed Title";
+        release.Links[0].Url = "https://changed.example";
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result!.Credits[0].Roles, Is.EqualTo(["Vocals"]));
+            Assert.That(result.Tracks[0].Title, Is.EqualTo("Track One"));
+            Assert.That(result.Links[0].Url, Is.EqualTo("https://example.test/spotify"));
+        });
     }
 
     [Test]
@@ -165,6 +249,38 @@ public sealed class ReleaseServiceTests
 
         Assert.That(result.Succeeded, Is.False);
         Assert.That(result.ErrorMessage, Is.EqualTo("Slug is required."));
+    }
+
+    [Test]
+    public async Task CreateReleaseAsync_WhenOptionalCollectionsAreNull_UsesEmptyNormalizedValues()
+    {
+        var repository = new InMemoryReleaseRepository([]);
+        var service = new ReleaseService(repository);
+
+        var result = await service.CreateReleaseAsync(new ReleaseUpdateRequest
+        {
+            Title = "New release",
+            Slug = "New Release",
+            ShortDescription = "Description",
+            ReleaseDate = new DateTime(2026, 3, 21),
+            Credits = null!,
+            Tracks = null!,
+            Links = null!,
+            Tags = null!,
+            ReleaseTypeOverride = null
+        });
+
+        Assert.That(result.Succeeded, Is.True);
+
+        var created = repository.CreatedDocuments.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(created.Credits, Is.Empty);
+            Assert.That(created.Tracks, Is.Empty);
+            Assert.That(created.Links, Is.Empty);
+            Assert.That(created.Tags, Is.Empty);
+            Assert.That(created.ReleaseTypeOverride, Is.Empty);
+        });
     }
 
     [Test]
@@ -411,6 +527,22 @@ public sealed class ReleaseServiceTests
     }
 
     [Test]
+    public async Task GenerateUniqueSlugAsync_WhenBaseExistsButDateSlugDoesNot_ReturnsDateSlug()
+    {
+        var today = DateTimeOffset.UtcNow.ToString("yyMMdd");
+        var repository = new InMemoryReleaseRepository(
+        [
+            CreateRelease("my-release", 10, true)
+        ]);
+
+        var service = new ReleaseService(repository);
+
+        var result = await service.GenerateUniqueSlugAsync("My Release");
+
+        Assert.That(result, Is.EqualTo($"my-release-{today}"));
+    }
+
+    [Test]
     public async Task GetKnownMetadataHelpers_ReturnDistinctSortedValues()
     {
         var repository = new InMemoryReleaseRepository(
@@ -466,6 +598,45 @@ public sealed class ReleaseServiceTests
         Assert.That(contributorRoles["Alice"], Is.EqualTo(new[] { "Production", "Vocals" }));
         Assert.That(contributorRoles["Bob"], Is.EqualTo(new[] { "Guitar" }));
         Assert.That(tags, Is.EqualTo(new[] { "live", "Acoustic", "Rock" }));
+    }
+
+    [Test]
+    public async Task GetKnownMetadataHelpers_IgnoreBlankNamesRolesAndTags()
+    {
+        var repository = new InMemoryReleaseRepository(
+        [
+            new Release
+            {
+                Id = "one",
+                Title = "One",
+                Slug = "one",
+                ShortDescription = "First",
+                ReleaseDateUtc = DateTimeOffset.UtcNow,
+                IsPublished = true,
+                Credits =
+                [
+                    new ReleaseCredit { Name = "  ", Roles = [" ", "Vocals"] },
+                    new ReleaseCredit { Name = "Alice", Roles = [" ", "Mix"] }
+                ],
+                Tags = [" ", "Synth"]
+            }
+        ]);
+
+        var service = new ReleaseService(repository);
+
+        var roles = await service.GetKnownCreditRolesAsync();
+        var contributors = await service.GetKnownContributorNamesAsync();
+        var contributorRoles = await service.GetKnownContributorRolesByNameAsync();
+        var tags = await service.GetKnownTagsAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(roles, Is.EqualTo(["Mix", "Vocals"]));
+            Assert.That(contributors, Is.EqualTo(["Alice"]));
+            Assert.That(contributorRoles.Keys, Is.EqualTo(["Alice"]));
+            Assert.That(contributorRoles["Alice"], Is.EqualTo(["Mix"]));
+            Assert.That(tags, Is.EqualTo(["Synth"]));
+        });
     }
 
     [Test]

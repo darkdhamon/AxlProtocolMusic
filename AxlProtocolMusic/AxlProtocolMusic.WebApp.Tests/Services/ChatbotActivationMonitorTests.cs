@@ -133,6 +133,36 @@ public sealed class ChatbotActivationMonitorTests
     }
 
     [Test]
+    public async Task PublishAsync_WhenSubscriberThrowsOperationCanceledAndTokenIsCanceled_PropagatesCancellation()
+    {
+        var logger = new FakeLogger<ChatbotActivationMonitor>();
+        var monitor = new ChatbotActivationMonitor(logger);
+        using var cancellationTokenSource = new CancellationTokenSource();
+
+        using var subscription = monitor.Subscribe(_ =>
+        {
+            cancellationTokenSource.Cancel();
+            throw new OperationCanceledException(cancellationTokenSource.Token);
+        });
+
+        Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await monitor.PublishAsync(new ChatbotActivationState(), cancellationTokenSource.Token));
+    }
+
+    [Test]
+    public void Dispose_WhenCalledTwice_RemainsSafe()
+    {
+        var logger = new FakeLogger<ChatbotActivationMonitor>();
+        var monitor = new ChatbotActivationMonitor(logger);
+
+        var subscription = monitor.Subscribe(_ => ValueTask.CompletedTask);
+        subscription.Dispose();
+        subscription.Dispose();
+
+        Assert.That(monitor.ActiveSubscriberCount, Is.EqualTo(0));
+    }
+
+    [Test]
     public void PublishAsync_WhenStateIsNull_Throws()
     {
         var logger = new FakeLogger<ChatbotActivationMonitor>();

@@ -256,6 +256,73 @@ public sealed class SiteChatbotContextBuilderTests
         Assert.That(result, Does.Not.Contain("- Event 11 |"));
     }
 
+    [Test]
+    public async Task BuildAsync_WhenOptionalTextValuesAreWhitespace_UsesEmptyFallbackText()
+    {
+        var builder = new SiteChatbotContextBuilder(
+            new FakeAboutPageService
+            {
+                Content = new AboutPageContent
+                {
+                    HeroLead = " ",
+                    HeroBody = null!
+                }
+            },
+            new FakeReleaseService
+            {
+                PageResult = new PagedReleaseResult
+                {
+                    Items =
+                    [
+                        new ReleaseListItemViewModel
+                        {
+                            Title = "Release One",
+                            Slug = "release-one",
+                            ShortDescription = " ",
+                            ReleaseDateUtc = new DateTimeOffset(2026, 3, 20, 0, 0, 0, TimeSpan.Zero)
+                        }
+                    ]
+                }
+            },
+            new FakeNewsArticleService
+            {
+                Articles =
+                [
+                    new NewsArticle
+                    {
+                        Id = "news-1",
+                        Title = "News One",
+                        Content = " ",
+                        PublicationDateUtc = new DateTimeOffset(2026, 3, 19, 0, 0, 0, TimeSpan.Zero)
+                    }
+                ]
+            },
+            new FakeTimelineEventService
+            {
+                Events =
+                [
+                    new TimelineEvent
+                    {
+                        Id = "event-1",
+                        Title = "Event One",
+                        EventDateUtc = new DateTimeOffset(2026, 3, 18, 0, 0, 0, TimeSpan.Zero),
+                        EventType = TimelineEventType.Milestone,
+                        ShortDescription = " "
+                    }
+                ]
+            });
+
+        var result = await builder.BuildAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result, Does.Contain("- Hero lead: "));
+            Assert.That(result, Does.Contain("- Hero body: "));
+            Assert.That(result, Does.Contain("  Summary: "));
+            Assert.That(result, Does.Contain("  Preview: "));
+        });
+    }
+
     private static int CountOccurrences(string value, string fragment)
     {
         var count = 0;
