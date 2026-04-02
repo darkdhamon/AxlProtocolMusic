@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IAboutPageService, AboutPageService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<IChatbotBudgetService, ChatbotBudgetService>();
+        services.AddScoped<IChatbotConversationLogService, ChatbotConversationLogService>();
         services.AddScoped<INewsArticleService, NewsArticleService>();
         services.AddScoped<IPrivacyPreferencesService, PrivacyPreferencesService>();
         services.AddScoped<IReleaseService, ReleaseService>();

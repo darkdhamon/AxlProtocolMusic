@@ -89,6 +89,21 @@ public sealed class AdminDashboardPageTests
                 LastUpdatedUtc = new DateTimeOffset(2026, 3, 25, 12, 0, 0, TimeSpan.Zero)
             }
         });
+        context.Services.AddSingleton<IChatbotConversationLogService>(new FakeChatbotConversationLogService
+        {
+            Entries =
+            [
+                new ChatbotConversationLogEntry
+                {
+                    Id = "log-1",
+                    CreatedAtUtc = new DateTimeOffset(2026, 4, 2, 18, 0, 0, TimeSpan.Zero),
+                    Outcome = "completed",
+                    UserMessage = "What are the latest releases?",
+                    AssistantReply = "Use /releases to browse the newest catalog entries.",
+                    PagePath = "/"
+                }
+            ]
+        });
         context.Services.AddSingleton<IOptions<OpenAiChatSettings>>(Options.Create(new OpenAiChatSettings
         {
             ApiKey = "live-key"
@@ -108,6 +123,8 @@ public sealed class AdminDashboardPageTests
             Assert.That(cut.Markup, Does.Contain("Austin, TX"));
             Assert.That(cut.Markup, Does.Contain("Bandcamp"));
             Assert.That(cut.Markup, Does.Contain("Ready"));
+            Assert.That(cut.Markup, Does.Contain("Recent Anonymous Messages"));
+            Assert.That(cut.Markup, Does.Contain("What are the latest releases?"));
         });
     }
 
@@ -123,6 +140,7 @@ public sealed class AdminDashboardPageTests
         {
             Summary = new ChatbotBudgetSummary()
         });
+        context.Services.AddSingleton<IChatbotConversationLogService>(new FakeChatbotConversationLogService());
         context.Services.AddSingleton<IOptions<OpenAiChatSettings>>(Options.Create(new OpenAiChatSettings
         {
             ApiKey = string.Empty
@@ -218,5 +236,16 @@ public sealed class AdminDashboardPageTests
 
         public Task<ChatbotBudgetSummary> SetManualDisabledAsync(bool isDisabled, CancellationToken cancellationToken = default)
             => Task.FromResult(Summary);
+    }
+
+    private sealed class FakeChatbotConversationLogService : IChatbotConversationLogService
+    {
+        public IReadOnlyList<ChatbotConversationLogEntry> Entries { get; set; } = [];
+
+        public Task RecordAsync(string userMessage, string assistantReply, string outcome, ChatbotPageContext? currentPage = null, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(int count = 25, CancellationToken cancellationToken = default)
+            => Task.FromResult(Entries);
     }
 }

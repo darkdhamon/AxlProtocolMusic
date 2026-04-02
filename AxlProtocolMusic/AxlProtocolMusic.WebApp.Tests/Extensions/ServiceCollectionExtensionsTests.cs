@@ -45,6 +45,7 @@ public sealed class ServiceCollectionExtensionsTests
         AssertScoped<IAboutPageService, AboutPageService>(services);
         AssertScoped<IAnalyticsService, AnalyticsService>(services);
         AssertScoped<IChatbotBudgetService, ChatbotBudgetService>(services);
+        AssertScoped<IChatbotConversationLogService, ChatbotConversationLogService>(services);
         AssertScoped<INewsArticleService, NewsArticleService>(services);
         AssertScoped<IPrivacyPreferencesService, PrivacyPreferencesService>(services);
         AssertScoped<IReleaseService, ReleaseService>(services);

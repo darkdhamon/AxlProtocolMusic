@@ -5,6 +5,7 @@
 @implements IAsyncDisposable
 @inject IChatbotActivationMonitor ChatbotActivationMonitor
 @inject IChatbotBudgetService ChatbotBudgetService
+@inject IChatbotConversationLogService ChatbotConversationLogService
 @inject IJSRuntime JSRuntime
 @inject ISiteChatbotService SiteChatbotService
 
@@ -238,9 +239,12 @@
         messages.Add(new ChatMessage("user", message));
         pendingMessage = string.Empty;
 
+        var currentPage = await GetCurrentPageContextAsync();
+
         if (ShouldRefuseLocally(message))
         {
             RegisterAssistantNo();
+            await RecordLocalRefusalAsync(message, currentPage);
             await PersistStateAsync();
             return;
         }
@@ -249,7 +253,6 @@
 
         try
         {
-            var currentPage = await GetCurrentPageContextAsync();
             var response = await SiteChatbotService.GenerateReplyAsync(message, history, currentPage);
             messages.Add(new ChatMessage("assistant", response.Message));
 
@@ -577,6 +580,17 @@
         catch
         {
             return null;
+        }
+    }
+
+    private async Task RecordLocalRefusalAsync(string userMessage, ChatbotPageContext? currentPage)
+    {
+        try
+        {
+            await ChatbotConversationLogService.RecordAsync(userMessage, "No", "local-refusal", currentPage);
+        }
+        catch
+        {
         }
     }
 

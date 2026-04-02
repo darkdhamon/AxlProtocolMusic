@@ -34,105 +34,12 @@ else
                     <li>a repeat-visitor cookie for aggregate metrics, enabled by default</li>
                     <li>coarse region data only when hosting or proxy data makes it available</li>
                     <li>optional coarse browser location for city/state/country reporting and a 25-mile privacy radius map</li>
+                    <li>anonymous chatbot message logging for admin review of abuse patterns and safeguard improvements</li>
                     <li>no planned automatic deletion of metric data based on time</li>
                     <li>admin traffic excluded from reporting</li>
                     <li>no sale of visitor or user data to third parties</li>
                 </ul>
             </div>
-        </section>
-
-        <section class="privacy-grid">
-            <article class="privacy-card">
-                <p class="eyebrow">What Is Collected</p>
-                <h2>Essential Site Analytics</h2>
-                <ul class="privacy-list">
-                    <li>the path of the page you visited</li>
-                    <li>how long that page stayed open in your browser</li>
-                    <li>which external links you click, such as streaming services, digital stores, or social links</li>
-                    <li>a server-issued repeat-visitor identifier stored in an essential cookie</li>
-                    <li>approximate visitor region when a hosting edge, proxy, or CDN provides it</li>
-                    <li>the previous page path when available</li>
-                </ul>
-                <p class="supporting-copy">
-                    This baseline data is used to understand what content people actually use, which destinations are most useful,
-                    and how the site can improve over time.
-                </p>
-                <p class="supporting-copy">
-                    Basic metrics data is enabled by default, and the related repeat-visitor cookie is currently treated as essential.
-                </p>
-                <p class="supporting-copy">
-                    There is currently no planned automatic deletion schedule for metric data based on time alone.
-                </p>
-            </article>
-
-            <article class="privacy-card accent-card">
-                <p class="eyebrow">What Is Not Collected By Default</p>
-                <h2>No Precise Location Tracking Or Public Accounts</h2>
-                <p>
-                    This site does not request your browser GPS location by default, and it does not use exact latitude or
-                    longitude for routine analytics.
-                </p>
-                <p>
-                    If geographic data is available through hosting or proxy infrastructure, or if you opt in to browser location
-                    sharing, only coarse location information such as city, state, and country would be retained. Exact location,
-                    if available anywhere upstream or in the browser permission flow, is never saved.
-                </p>
-                <p>
-                    For opted-in location maps, a separately stored rounded coordinate pair may also be retained, but only
-                    at a coarse precision intended to avoid accuracy better than roughly a 25-mile area. On the collected-data
-                    page, that appears as a shaded privacy radius rather than a precise GPS point.
-                </p>
-                <p>
-                    User accounts are not currently available for normal visitors. Accounts may be added later only if future site
-                    features require them.
-                </p>
-                <p>
-                    User or visitor data collected through this site will never be sold to third parties.
-                </p>
-            </article>
-        </section>
-
-        <section class="privacy-grid">
-            <article class="privacy-card">
-                <p class="eyebrow">Third-Party Processing</p>
-                <h2>Limited Third-Party Location Processing</h2>
-                <p>
-                    Most analytics data is processed directly by this site. If you opt in to browser location sharing, a client-side
-                    reverse geocoding service is used to translate your current coordinates into a city, state, and country label.
-                </p>
-                <p>
-                    That third-party step is only used for the opted-in location feature. The resulting stored values are limited to
-                    a city/state/country style label for reports and a separately rounded coarse coordinate pair for map plotting.
-                </p>
-                <p>
-                    If you later turn approximate location sharing off, previously collected location-related analytics for this
-                    browser are cleared while non-location visit and click records remain intact.
-                </p>
-            </article>
-
-            <article class="privacy-card">
-                <p class="eyebrow">Admin Traffic</p>
-                <h2>Reporting Is Kept Clearer On Purpose</h2>
-                <p>
-                    Admin traffic is excluded from reporting in order to reduce skewed analytics results while the site is being
-                    updated, tested, and managed.
-                </p>
-                <p>
-                    When an admin signs in, that browser is marked so future analytics from it can continue to be excluded.
-                </p>
-            </article>
-        </section>
-
-        <section class="privacy-card">
-            <p class="eyebrow">Policy Updates</p>
-            <h2>This Page Will Change Over Time</h2>
-            <p>
-                The privacy page will be updated as the site evolves. Separate notices are not planned at this time, so the page
-                itself will remain the source of truth for current privacy practices.
-            </p>
-            <p>
-                The last updated date at the top of this page shows when the privacy policy was most recently revised.
-            </p>
         </section>
 
         <section class="privacy-card preference-card">
@@ -220,6 +127,112 @@ else
             </div>
         </section>
 
+        <section class="privacy-grid">
+            <article class="privacy-card">
+                <p class="eyebrow">What Is Collected</p>
+                <h2>Essential Site Analytics</h2>
+                <ul class="privacy-list">
+                    <li>the path of the page you visited</li>
+                    <li>how long that page stayed open in your browser</li>
+                    <li>which external links you click, such as streaming services, digital stores, or social links</li>
+                    <li>a server-issued repeat-visitor identifier stored in an essential cookie</li>
+                    <li>approximate visitor region when a hosting edge, proxy, or CDN provides it</li>
+                    <li>the previous page path when available</li>
+                </ul>
+                <p class="supporting-copy">
+                    This baseline data is used to understand what content people actually use, which destinations are most useful,
+                    and how the site can improve over time.
+                </p>
+                <p class="supporting-copy">
+                    Basic metrics data is enabled by default, and the related repeat-visitor cookie is currently treated as essential.
+                </p>
+                <p class="supporting-copy">
+                    There is currently no planned automatic deletion schedule for metric data based on time alone.
+                </p>
+                <p class="supporting-copy">
+                    If you use the site chatbot, your messages and the assistant replies may also be stored for admin review,
+                    but they are stored without attaching them to a visitor id or user account.
+                </p>
+            </article>
+
+            <article class="privacy-card accent-card">
+                <p class="eyebrow">What Is Not Collected By Default</p>
+                <h2>No Precise Location Tracking Or Public Accounts</h2>
+                <p>
+                    This site does not request your browser GPS location by default, and it does not use exact latitude or
+                    longitude for routine analytics.
+                </p>
+                <p>
+                    If geographic data is available through hosting or proxy infrastructure, or if you opt in to browser location
+                    sharing, only coarse location information such as city, state, and country would be retained. Exact location,
+                    if available anywhere upstream or in the browser permission flow, is never saved.
+                </p>
+                <p>
+                    For opted-in location maps, a separately stored rounded coordinate pair may also be retained, but only
+                    at a coarse precision intended to avoid accuracy better than roughly a 25-mile area. On the collected-data
+                    page, that appears as a shaded privacy radius rather than a precise GPS point.
+                </p>
+                <p>
+                    User accounts are not currently available for normal visitors. Accounts may be added later only if future site
+                    features require them.
+                </p>
+                <p>
+                    User or visitor data collected through this site will never be sold to third parties.
+                </p>
+                <p>
+                    Chatbot conversations should not be treated as private. Do not send personal, financial, medical, password,
+                    or other sensitive information in chatbot messages.
+                </p>
+            </article>
+        </section>
+
+        <section class="privacy-grid">
+            <article class="privacy-card">
+                <p class="eyebrow">Third-Party Processing</p>
+                <h2>Limited Third-Party Location Processing</h2>
+                <p>
+                    Most analytics data is processed directly by this site. If you opt in to browser location sharing, a client-side
+                    reverse geocoding service is used to translate your current coordinates into a city, state, and country label.
+                </p>
+                <p>
+                    Chatbot requests and responses are also processed through the configured AI provider in order to generate replies.
+                    Anonymous chatbot logs stored by this site may be reviewed by the admin to understand misuse patterns and improve safeguards.
+                </p>
+                <p>
+                    That third-party step is only used for the opted-in location feature. The resulting stored values are limited to
+                    a city/state/country style label for reports and a separately rounded coarse coordinate pair for map plotting.
+                </p>
+                <p>
+                    If you later turn approximate location sharing off, previously collected location-related analytics for this
+                    browser are cleared while non-location visit and click records remain intact.
+                </p>
+            </article>
+
+            <article class="privacy-card">
+                <p class="eyebrow">Admin Traffic</p>
+                <h2>Reporting Is Kept Clearer On Purpose</h2>
+                <p>
+                    Admin traffic is excluded from reporting in order to reduce skewed analytics results while the site is being
+                    updated, tested, and managed.
+                </p>
+                <p>
+                    When an admin signs in, that browser is marked so future analytics from it can continue to be excluded.
+                </p>
+            </article>
+        </section>
+
+        <section class="privacy-card">
+            <p class="eyebrow">Policy Updates</p>
+            <h2>This Page Will Change Over Time</h2>
+            <p>
+                The privacy page will be updated as the site evolves. Separate notices are not planned at this time, so the page
+                itself will remain the source of truth for current privacy practices.
+            </p>
+            <p>
+                The last updated date at the top of this page shows when the privacy policy was most recently revised.
+            </p>
+        </section>
+
         <section class="privacy-card">
             <p class="eyebrow">Your Controls</p>
             <h2>What You Can Review Or Remove</h2>
@@ -277,7 +290,7 @@ else
     private string pendingPreferenceDescription = string.Empty;
     private int uniqueVisitorCount;
     private const int MinimumUniqueVisitors = 1000;
-    private static readonly DateOnly LastUpdated = new(2026, 3, 21);
+    private static readonly DateOnly LastUpdated = new(2026, 4, 2);
     private bool canDisableEssentialMetrics => uniqueVisitorCount >= MinimumUniqueVisitors;
 
     protected override async Task OnInitializedAsync()

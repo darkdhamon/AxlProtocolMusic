@@ -13,6 +13,7 @@ public sealed class SiteChatbotService : ISiteChatbotService
     private const int MaxHistoryMessageCount = 6;
     private readonly HttpClient _httpClient;
     private readonly IChatbotBudgetService _chatbotBudgetService;
+    private readonly IChatbotConversationLogService _chatbotConversationLogService;
     private readonly ISiteChatbotContextBuilder _contextBuilder;
     private readonly OpenAiChatSettings _openAiSettings;
     private readonly ILogger<SiteChatbotService> _logger;
@@ -20,12 +21,14 @@ public sealed class SiteChatbotService : ISiteChatbotService
     public SiteChatbotService(
         HttpClient httpClient,
         IChatbotBudgetService chatbotBudgetService,
+        IChatbotConversationLogService chatbotConversationLogService,
         ISiteChatbotContextBuilder contextBuilder,
         IOptions<OpenAiChatSettings> openAiOptions,
         ILogger<SiteChatbotService> logger)
     {
         _httpClient = httpClient;
         _chatbotBudgetService = chatbotBudgetService;
+        _chatbotConversationLogService = chatbotConversationLogService;
         _contextBuilder = contextBuilder;
         _logger = logger;
         _openAiSettings = openAiOptions.Value;
@@ -45,18 +48,21 @@ public sealed class SiteChatbotService : ISiteChatbotService
 
         if (string.IsNullOrWhiteSpace(_openAiSettings.ApiKey))
         {
-            return new ChatbotMessageResponse
+            var unavailableResponse = new ChatbotMessageResponse
             {
                 IsEnabled = true,
                 IsConfigured = false,
                 Message = "The site assistant is enabled, but the OpenAI API key has not been configured yet."
             };
+
+            await RecordConversationAsync(normalizedMessage, unavailableResponse.Message, "configuration-unavailable", currentPage, cancellationToken);
+            return unavailableResponse;
         }
 
         var budgetSummary = await _chatbotBudgetService.GetSummaryAsync(cancellationToken);
         if (budgetSummary.IsDisabled)
         {
-            return new ChatbotMessageResponse
+            var disabledResponse = new ChatbotMessageResponse
             {
                 IsEnabled = true,
                 IsConfigured = true,
@@ -64,6 +70,9 @@ public sealed class SiteChatbotService : ISiteChatbotService
                     ? "The site assistant is disabled until an admin resets the chatbot budget."
                     : budgetSummary.DisabledReason
             };
+
+            await RecordConversationAsync(normalizedMessage, disabledResponse.Message, "disabled", currentPage, cancellationToken);
+            return disabledResponse;
         }
 
         var siteContext = await _contextBuilder.BuildAsync(cancellationToken);
@@ -104,12 +113,15 @@ public sealed class SiteChatbotService : ISiteChatbotService
                 (int)response.StatusCode,
                 responseContent);
 
-            return new ChatbotMessageResponse
+            var failureResponse = new ChatbotMessageResponse
             {
                 IsEnabled = true,
                 IsConfigured = true,
                 Message = BuildFailureMessage(errorDetails)
             };
+
+            await RecordConversationAsync(normalizedMessage, failureResponse.Message, "failed", currentPage, cancellationToken);
+            return failureResponse;
         }
 
         var usage = ParseUsage(responseContent);
@@ -125,20 +137,26 @@ public sealed class SiteChatbotService : ISiteChatbotService
         {
             _logger.LogWarning("Chatbot response did not contain readable text. Response body: {ResponseBody}", responseContent);
 
-            return new ChatbotMessageResponse
+            var unreadableResponse = new ChatbotMessageResponse
             {
                 IsEnabled = true,
                 IsConfigured = true,
                 Message = "The site assistant could not produce a readable reply right now."
             };
+
+            await RecordConversationAsync(normalizedMessage, unreadableResponse.Message, "unreadable-response", currentPage, cancellationToken);
+            return unreadableResponse;
         }
 
-        return new ChatbotMessageResponse
+        var successResponse = new ChatbotMessageResponse
         {
             IsEnabled = true,
             IsConfigured = true,
             Message = reply.Trim()
         };
+
+        await RecordConversationAsync(normalizedMessage, successResponse.Message, "completed", currentPage, cancellationToken);
+        return successResponse;
     }
 
     private string BuildRequestBody(
@@ -445,6 +463,28 @@ public sealed class SiteChatbotService : ISiteChatbotService
     {
         return string.Equals(errorDetails.Code, "insufficient_quota", StringComparison.OrdinalIgnoreCase)
             || errorDetails.Message.Contains("quota", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task RecordConversationAsync(
+        string userMessage,
+        string assistantReply,
+        string outcome,
+        ChatbotPageContext? currentPage,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _chatbotConversationLogService.RecordAsync(
+                userMessage,
+                assistantReply,
+                outcome,
+                currentPage,
+                cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Failed to persist an anonymous chatbot conversation log entry.");
+        }
     }
 
     private sealed class UsageSnapshot

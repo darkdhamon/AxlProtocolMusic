@@ -14,7 +14,7 @@ public sealed class SiteChatbotTests
     [Test]
     public async Task SiteChatbot_ShowsPopupAndClosesWhenAdminDisablesWhileOpen()
     {
-        using var context = CreateContext(out var chatbotBudgetService, out var activationMonitor, out _);
+        using var context = CreateContext(out var chatbotBudgetService, out var activationMonitor, out _, out _);
 
         var cut = context.Render<SiteChatbot>();
 
@@ -48,7 +48,7 @@ public sealed class SiteChatbotTests
     [Test]
     public void SiteChatbot_LoadsStoredTranscriptOnFirstRender()
     {
-        using var context = CreateContext(out _, out _, out _);
+        using var context = CreateContext(out _, out _, out _, out _);
         context.JSInterop.Setup<string>("axlChatbotStorage.getState").SetResult("""
             {"Messages":[{"Role":"assistant","Content":"Stored hello"}],"ConsecutiveNoCount":0}
             """);
@@ -66,7 +66,7 @@ public sealed class SiteChatbotTests
     [Test]
     public void SiteChatbot_WhenSuggestionIsUsed_SendsMessageAndDisplaysReply()
     {
-        using var context = CreateContext(out _, out _, out var chatbotService);
+        using var context = CreateContext(out _, out _, out var chatbotService, out _);
         context.JSInterop.Setup<ChatbotPageContext>("axlChatbotPageContext.getCurrentPage").SetResult(new ChatbotPageContext
         {
             PagePath = "/releases/signals",
@@ -92,7 +92,7 @@ public sealed class SiteChatbotTests
     [Test]
     public void SiteChatbot_WhenBoundaryProbeIsSubmitted_RefusesLocallyWithoutCallingService()
     {
-        using var context = CreateContext(out _, out _, out var chatbotService);
+        using var context = CreateContext(out _, out _, out var chatbotService, out var chatbotConversationLogService);
 
         var cut = context.Render<SiteChatbot>();
 
@@ -106,12 +106,14 @@ public sealed class SiteChatbotTests
         });
 
         Assert.That(chatbotService.Calls, Is.Empty);
+        Assert.That(chatbotConversationLogService.Records, Has.Count.EqualTo(1));
+        Assert.That(chatbotConversationLogService.Records.Single().Outcome, Is.EqualTo("local-refusal"));
     }
 
     [Test]
     public void SiteChatbot_ResetClearsMessagesAndPersistsState()
     {
-        using var context = CreateContext(out _, out _, out var chatbotService);
+        using var context = CreateContext(out _, out _, out var chatbotService, out _);
         context.JSInterop.Setup<ChatbotPageContext>("axlChatbotPageContext.getCurrentPage").SetResult(new ChatbotPageContext
         {
             PagePath = "/news",
@@ -142,7 +144,8 @@ public sealed class SiteChatbotTests
     private static BunitContext CreateContext(
         out FakeChatbotBudgetService chatbotBudgetService,
         out FakeChatbotActivationMonitor activationMonitor,
-        out FakeSiteChatbotService chatbotService)
+        out FakeSiteChatbotService chatbotService,
+        out FakeChatbotConversationLogService chatbotConversationLogService)
     {
         var context = new BunitContext();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
@@ -159,13 +162,29 @@ public sealed class SiteChatbotTests
         };
         activationMonitor = new FakeChatbotActivationMonitor();
         chatbotService = new FakeSiteChatbotService();
+        chatbotConversationLogService = new FakeChatbotConversationLogService();
 
         context.Services.AddSingleton<IChatbotBudgetService>(chatbotBudgetService);
         context.Services.AddSingleton<IChatbotActivationMonitor>(activationMonitor);
+        context.Services.AddSingleton<IChatbotConversationLogService>(chatbotConversationLogService);
         context.Services.AddSingleton<ISiteChatbotService>(chatbotService);
         context.Services.AddSingleton<MarkdownService>();
 
         return context;
+    }
+
+    private sealed class FakeChatbotConversationLogService : IChatbotConversationLogService
+    {
+        public List<(string UserMessage, string AssistantReply, string Outcome, ChatbotPageContext? CurrentPage)> Records { get; } = [];
+
+        public Task RecordAsync(string userMessage, string assistantReply, string outcome, ChatbotPageContext? currentPage = null, CancellationToken cancellationToken = default)
+        {
+            Records.Add((userMessage, assistantReply, outcome, currentPage));
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(int count = 25, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
     }
 
     private sealed class FakeChatbotBudgetService : IChatbotBudgetService

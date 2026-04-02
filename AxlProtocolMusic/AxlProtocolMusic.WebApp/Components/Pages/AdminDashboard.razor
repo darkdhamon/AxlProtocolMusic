@@ -8,6 +8,7 @@
 @inject IAboutPageService AboutPageService
 @inject IAnalyticsService AnalyticsService
 @inject IChatbotBudgetService ChatbotBudgetService
+@inject IChatbotConversationLogService ChatbotConversationLogService
 @inject IOptions<OpenAiChatSettings> OpenAiChatOptions
 
 <PageTitle>Admin Dashboard</PageTitle>
@@ -208,6 +209,39 @@ else
             </article>
 
             <article class="overview-panel">
+                <p class="eyebrow">Chatbot</p>
+                <h2>Recent Anonymous Messages</h2>
+                @if (recentChatbotMessages.Count == 0)
+                {
+                    <p>No chatbot messages have been stored yet.</p>
+                }
+                else
+                {
+                    <ul class="dashboard-list">
+                        @foreach (var entry in recentChatbotMessages)
+                        {
+                            <li>
+                                <strong>@entry.CreatedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</strong>
+                                <span class="list-meta">@entry.Outcome</span>
+                                @if (!string.IsNullOrWhiteSpace(entry.PagePath))
+                                {
+                                    <div class="list-meta">Page: @entry.PagePath</div>
+                                }
+                                <div class="mt-2">
+                                    <strong>User</strong>
+                                    <div class="list-meta">@entry.UserMessage</div>
+                                </div>
+                                <div class="mt-2">
+                                    <strong>Assistant</strong>
+                                    <div class="list-meta">@entry.AssistantReply</div>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </article>
+
+            <article class="overview-panel">
                 <p class="eyebrow">Audience Metrics</p>
                 <h2>Most Visited Pages</h2>
                 @if (analyticsSummary.TopPages.Count == 0)
@@ -313,6 +347,7 @@ else
     private int draftReleaseCount;
     private AnalyticsDashboardSummary analyticsSummary = new();
     private ChatbotBudgetSummary chatbotBudgetSummary = new();
+    private IReadOnlyList<ChatbotConversationLogEntry> recentChatbotMessages = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -320,6 +355,7 @@ else
         var aboutPage = await AboutPageService.GetAsync();
         analyticsSummary = await AnalyticsService.GetDashboardSummaryAsync();
         chatbotBudgetSummary = await ChatbotBudgetService.GetSummaryAsync();
+        recentChatbotMessages = await ChatbotConversationLogService.GetRecentAsync(12);
 
         totalReleaseCount = releases.Count;
         publishedReleaseCount = releases.Count(release => release.IsPublished);
