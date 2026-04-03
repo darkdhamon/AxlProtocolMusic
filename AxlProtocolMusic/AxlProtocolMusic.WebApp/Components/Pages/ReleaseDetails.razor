@@ -3,6 +3,7 @@
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
 @inject IReleaseService ReleaseService
 @inject IImageStorageService ImageStorageService
+@inject IOptions<EditorSettings> EditorSettings
 @inject NavigationManager NavigationManager
 @implements IDisposable
 
@@ -181,7 +182,7 @@ else
 
                     @if (!string.IsNullOrWhiteSpace(editorStatusMessage))
                     {
-                        <div class="alert alert-success" role="alert">@editorStatusMessage</div>
+                        <div class="alert @(isEditorStatusWarning ? "alert-warning" : "alert-success")" role="alert">@editorStatusMessage</div>
                     }
 
                     <div class="admin-edit-form">
@@ -239,6 +240,15 @@ else
                                 @bind:after="ScheduleAutosave"
                                 rows="4"
                                 required></textarea>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-1">
+                                <div class="form-text @(IsShortDescriptionAutosaveBlocked ? "text-danger" : string.Empty)">
+                                    @ShortDescriptionCharacterCount/@ShortDescriptionSoftLimit characters
+                                </div>
+                                @if (IsShortDescriptionAutosaveBlocked)
+                                {
+                                    <div class="form-text text-danger">Autosave is paused until the short description is 350 characters or fewer.</div>
+                                }
+                            </div>
                         </div>
 
                         <div class="mb-3">
@@ -566,7 +576,7 @@ else
 }
 
 @code {
-    private const int AutoSaveDelayMilliseconds = 700;
+    private const int ShortDescriptionSoftLimit = 350;
     private const string PlaceholderAlbumArtPath = "/Assets/Misc/Placeholder-AlbumArt.png";
     [Parameter]
     public string Slug { get; set; } = string.Empty;
@@ -586,6 +596,7 @@ else
     private bool isAdminUser;
     private string? editorStatusMessage;
     private string? editorErrorMessage;
+    private bool isEditorStatusWarning;
     private bool isLyricsModalOpen;
     private bool isDeleteModalOpen;
     private bool isDeletingRelease;
@@ -593,6 +604,8 @@ else
     private CancellationTokenSource? autosaveCancellationTokenSource;
     private long autosaveVersion;
     private long lastSavedVersion;
+    private string savedShortDescription = string.Empty;
+    private int AutoSaveDelayMilliseconds => EditorSettings.Value.NormalizedAutosaveDelayMilliseconds;
     private readonly SemaphoreSlim saveSemaphore = new(1, 1);
     private List<EditableCredit> Credits { get; set; } = [];
     private List<ReleaseTrack> Tracks { get; set; } = [];
@@ -617,6 +630,13 @@ else
 
     private string ComputedReleaseType => GetDisplayReleaseType(Tracks.Count, editableRelease.ReleaseTypeOverride);
     private string TotalPlayTimeDisplay => FormatTotalPlayTime(release?.Tracks ?? []);
+    private int ShortDescriptionCharacterCount => editableRelease.ShortDescription?.Length ?? 0;
+    private bool HasShortDescriptionChangedFromSaved => !string.Equals(
+        editableRelease.ShortDescription ?? string.Empty,
+        savedShortDescription,
+        StringComparison.Ordinal);
+    private bool IsShortDescriptionAutosaveBlocked => ShortDescriptionCharacterCount > ShortDescriptionSoftLimit
+        && HasShortDescriptionChangedFromSaved;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -688,8 +708,10 @@ else
             })
             .ToList();
         Tags = release.Tags.ToList();
+        savedShortDescription = release.ShortDescription;
         editorStatusMessage = null;
         editorErrorMessage = null;
+        isEditorStatusWarning = false;
         autosaveVersion = 0;
         lastSavedVersion = 0;
     }
@@ -870,6 +892,18 @@ else
     private async Task ScheduleAutosave()
     {
         editorErrorMessage = null;
+
+        if (IsShortDescriptionAutosaveBlocked)
+        {
+            autosaveCancellationTokenSource?.Cancel();
+            autosaveCancellationTokenSource?.Dispose();
+            autosaveCancellationTokenSource = null;
+            editorStatusMessage = $"Autosave paused. Short description is {ShortDescriptionCharacterCount}/{ShortDescriptionSoftLimit} characters.";
+            isEditorStatusWarning = true;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
         var version = Interlocked.Increment(ref autosaveVersion);
 
         autosaveCancellationTokenSource?.Cancel();
@@ -894,6 +928,14 @@ else
             return;
         }
 
+        if (IsShortDescriptionAutosaveBlocked)
+        {
+            editorStatusMessage = $"Autosave paused. Short description is {ShortDescriptionCharacterCount}/{ShortDescriptionSoftLimit} characters.";
+            isEditorStatusWarning = true;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
         await saveSemaphore.WaitAsync(cancellationToken);
         try
         {
@@ -903,6 +945,7 @@ else
             }
 
             editorStatusMessage = "Saving changes...";
+            isEditorStatusWarning = false;
             await InvokeAsync(StateHasChanged);
 
             var request = BuildUpdateRequest();
@@ -936,9 +979,11 @@ else
 
             editableRelease.OriginalSlug = result.Slug;
             release = BuildReleaseViewModel(result.Slug);
+            savedShortDescription = editableRelease.ShortDescription ?? string.Empty;
             lastSavedVersion = version;
             editorStatusMessage = "All changes saved.";
             editorErrorMessage = null;
+            isEditorStatusWarning = false;
 
             if (!string.Equals(previousSlug, result.Slug, StringComparison.OrdinalIgnoreCase))
             {
@@ -959,6 +1004,7 @@ else
         {
             editorErrorMessage = exception.Message;
             editorStatusMessage = null;
+            isEditorStatusWarning = false;
             await InvokeAsync(StateHasChanged);
         }
         finally
@@ -1006,6 +1052,9 @@ else
 
     private ReleaseUpdateRequest BuildUpdateRequest()
     {
+        editableRelease.ShortDescription = HasShortDescriptionChangedFromSaved
+            ? editableRelease.ShortDescription ?? string.Empty
+            : savedShortDescription;
         editableRelease.Credits = Credits
             .Select(credit => new ReleaseCredit
             {

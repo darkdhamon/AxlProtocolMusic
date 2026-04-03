@@ -278,7 +278,7 @@
 
 @media (max-width: 900px) {
     .carousel-stage {
-        padding-inline: 3.5rem;
+        padding-inline: 0;
     }
 
     .hero-shell {
@@ -287,8 +287,7 @@
     }
 
     .carousel-arrow-overlay {
-        width: 2.8rem;
-        height: 2.8rem;
+        display: none;
     }
 
     .intro-grid {

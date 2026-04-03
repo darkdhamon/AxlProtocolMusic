@@ -259,6 +259,90 @@ public sealed class ReleaseDetailsTests
         Assert.That(navigation.Uri, Does.Contain("/releases?success=Release%20deleted."));
     }
 
+    [Test]
+    public void ReleaseDetails_WhenShortDescriptionExceedsLimit_ShowsCounterAndPausesAutosave()
+    {
+        using var context = CreateContext(out var releaseService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        releaseService.UpdateResult = new ReleaseUpdateResult
+        {
+            Succeeded = true,
+            Slug = "signals"
+        };
+        releaseService.Release = new ReleaseDetailsViewModel
+        {
+            Id = "release-6",
+            Title = "Signals",
+            Slug = "signals",
+            ShortDescription = "Short copy.",
+            ReleaseType = "Single",
+            ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(-2)
+        };
+
+        var cut = context.Render<ReleaseDetails>(parameters => parameters
+            .Add(component => component.Slug, "signals"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("11/350 characters"));
+        });
+
+        var updatedDescription = new string('x', 351);
+        cut.Find("#shortDescription").Input(updatedDescription);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("351/350 characters"));
+            Assert.That(cut.Markup, Does.Contain("Autosave is paused until the short description is 350 characters or fewer."));
+            Assert.That(cut.Markup, Does.Contain("Autosave paused. Short description is 351/350 characters."));
+        }, timeout: TimeSpan.FromSeconds(3));
+
+        Thread.Sleep(850);
+        Assert.That(releaseService.UpdateCallCount, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void ReleaseDetails_WhenExistingLongShortDescriptionIsUnchanged_AutosaveKeepsItWhileSavingOtherFields()
+    {
+        using var context = CreateContext(out var releaseService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        var existingLongDescription = new string('l', 360);
+        releaseService.UpdateResult = new ReleaseUpdateResult
+        {
+            Succeeded = true,
+            Slug = "vault"
+        };
+        releaseService.Release = new ReleaseDetailsViewModel
+        {
+            Id = "release-7",
+            Title = "Vault",
+            Slug = "vault",
+            ShortDescription = existingLongDescription,
+            ReleaseType = "Single",
+            ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(-2)
+        };
+
+        var cut = context.Render<ReleaseDetails>(parameters => parameters
+            .Add(component => component.Slug, "vault"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("360/350 characters"));
+        });
+
+        cut.Find("#title").Input("Vault Deluxe");
+        Thread.Sleep(1000);
+
+        Assert.That(releaseService.UpdateCallCount, Is.EqualTo(1));
+        Assert.That(releaseService.LastUpdateRequest, Is.Not.Null);
+        Assert.That(releaseService.LastUpdateRequest!.Title, Is.EqualTo("Vault Deluxe"));
+        Assert.That(releaseService.LastUpdateRequest.ShortDescription, Is.EqualTo(existingLongDescription));
+    }
+
     private static BunitContext CreateContext(out FakeReleaseService releaseService)
     {
         return CreateContext(out releaseService, out _);
@@ -279,6 +363,9 @@ public sealed class ReleaseDetailsTests
     private sealed class FakeReleaseService : IReleaseService
     {
         public ReleaseDetailsViewModel? Release { get; set; }
+        public ReleaseUpdateResult UpdateResult { get; set; } = new();
+        public ReleaseUpdateRequest? LastUpdateRequest { get; private set; }
+        public int UpdateCallCount { get; private set; }
 
         public string? RequestedSlug { get; private set; }
 
@@ -304,7 +391,11 @@ public sealed class ReleaseDetailsTests
         }
 
         public Task<ReleaseUpdateResult> UpdateReleaseAsync(ReleaseUpdateRequest request, CancellationToken cancellationToken = default)
-            => Task.FromResult(new ReleaseUpdateResult());
+        {
+            UpdateCallCount++;
+            LastUpdateRequest = CloneRequest(request);
+            return Task.FromResult(UpdateResult);
+        }
 
         public Task<ReleaseCreateResult> CreateReleaseAsync(ReleaseUpdateRequest request, CancellationToken cancellationToken = default)
             => Task.FromResult(new ReleaseCreateResult());
@@ -334,6 +425,46 @@ public sealed class ReleaseDetailsTests
             => Task.FromResult<IReadOnlyList<string>>(["Synthwave", "Instrumental"]);
 
         public bool IsManagedImageUrl(string? imageUrl) => !string.IsNullOrWhiteSpace(imageUrl) && ManagedImageUrls.Contains(imageUrl);
+
+        private static ReleaseUpdateRequest CloneRequest(ReleaseUpdateRequest request)
+        {
+            return new ReleaseUpdateRequest
+            {
+                OriginalSlug = request.OriginalSlug,
+                Title = request.Title,
+                Slug = request.Slug,
+                ShortDescription = request.ShortDescription,
+                CoverImageUrl = request.CoverImageUrl,
+                Story = request.Story,
+                Lyrics = request.Lyrics,
+                ReleaseDate = request.ReleaseDate,
+                IsPublished = request.IsPublished,
+                ReleaseTypeOverride = request.ReleaseTypeOverride,
+                Credits = request.Credits
+                    .Select(credit => new ReleaseCredit
+                    {
+                        Name = credit.Name,
+                        Roles = credit.Roles.ToList()
+                    })
+                    .ToList(),
+                Tracks = request.Tracks
+                    .Select(track => new ReleaseTrack
+                    {
+                        Title = track.Title,
+                        Duration = track.Duration,
+                        Lyrics = track.Lyrics
+                    })
+                    .ToList(),
+                Links = request.Links
+                    .Select(link => new ReleaseLink
+                    {
+                        PlatformName = link.PlatformName,
+                        Url = link.Url
+                    })
+                    .ToList(),
+                Tags = request.Tags.ToList()
+            };
+        }
     }
 
     private sealed class FakeImageStorageService : IImageStorageService

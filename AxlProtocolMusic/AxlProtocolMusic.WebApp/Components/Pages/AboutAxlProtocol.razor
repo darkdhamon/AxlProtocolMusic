@@ -1,6 +1,7 @@
 @page "/about-axl-protocol"
 @rendermode InteractiveServer
 @inject IAboutPageService AboutPageService
+@inject IOptions<EditorSettings> EditorSettings
 @implements IDisposable
 
 <PageTitle>About Axl Protocol</PageTitle>
@@ -253,7 +254,6 @@ else
 }
 
 @code {
-    private const int AutoSaveDelayMilliseconds = 700;
     [CascadingParameter]
     private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
 
@@ -263,6 +263,7 @@ else
     private bool isAdminUser;
     private string? statusMessage;
     private string? errorMessage;
+    private int AutoSaveDelayMilliseconds => EditorSettings.Value.NormalizedAutosaveDelayMilliseconds;
     private CancellationTokenSource? autosaveCancellationTokenSource;
     private long autosaveVersion;
     private long lastSavedVersion;
