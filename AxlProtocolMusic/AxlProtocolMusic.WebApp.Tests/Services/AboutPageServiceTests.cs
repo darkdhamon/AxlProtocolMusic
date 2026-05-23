@@ -21,7 +21,8 @@ public sealed class AboutPageServiceTests
             WhyThisSiteExistsMarkdown = "Why",
             NarrativeHighlights = ["Highlight"],
             OriginMarkdown = "Origin",
-            Pillars = [new AboutPillar { Title = "Story", Description = "Description" }]
+            Pillars = [new AboutPillar { Title = "Story", Description = "Description" }],
+            SocialLinks = [new AboutSocialLink { Platform = "Instagram", Url = "https://instagram.com/axlprotocolmusic" }]
         };
 
         var repository = new InMemoryRepository<AboutPageContent>([existing]);
@@ -44,6 +45,7 @@ public sealed class AboutPageServiceTests
         Assert.That(result.FocusPoints, Has.Count.EqualTo(3));
         Assert.That(result.NarrativeHighlights, Has.Count.EqualTo(4));
         Assert.That(result.Pillars, Has.Count.EqualTo(4));
+        Assert.That(result.SocialLinks, Is.Empty);
         Assert.That(result.Pillars.Select(item => item.Title), Is.EqualTo(new[] { "Story", "Identity", "Collaboration", "Continuity" }));
     }
 
@@ -66,6 +68,11 @@ public sealed class AboutPageServiceTests
             [
                 new AboutPillar { Title = " Story ", Description = " Description " },
                 new AboutPillar { Title = " ", Description = " " }
+            ],
+            SocialLinks =
+            [
+                new AboutSocialLink { Platform = " Instagram ", Url = " https://instagram.com/axlprotocolmusic " },
+                new AboutSocialLink { Platform = " ", Url = " " }
             ]
         });
 
@@ -82,6 +89,9 @@ public sealed class AboutPageServiceTests
         Assert.That(created.Pillars, Has.Count.EqualTo(1));
         Assert.That(created.Pillars[0].Title, Is.EqualTo("Story"));
         Assert.That(created.Pillars[0].Description, Is.EqualTo("Description"));
+        Assert.That(created.SocialLinks, Has.Count.EqualTo(1));
+        Assert.That(created.SocialLinks[0].Platform, Is.EqualTo("Instagram"));
+        Assert.That(created.SocialLinks[0].Url, Is.EqualTo("https://instagram.com/axlprotocolmusic"));
     }
 
     [Test]
@@ -104,7 +114,8 @@ public sealed class AboutPageServiceTests
             WhyThisSiteExistsMarkdown = "  Why  ",
             NarrativeHighlights = [" Highlight "],
             OriginMarkdown = "  Origin  ",
-            Pillars = [new AboutPillar { Title = " Identity ", Description = " Value " }]
+            Pillars = [new AboutPillar { Title = " Identity ", Description = " Value " }],
+            SocialLinks = [new AboutSocialLink { Platform = " YouTube ", Url = " https://youtube.com/@axlprotocolmusic " }]
         });
 
         Assert.That(repository.CreatedDocuments, Is.Empty);
@@ -120,6 +131,8 @@ public sealed class AboutPageServiceTests
         Assert.That(updated.OriginMarkdown, Is.EqualTo("Origin"));
         Assert.That(updated.Pillars[0].Title, Is.EqualTo("Identity"));
         Assert.That(updated.Pillars[0].Description, Is.EqualTo("Value"));
+        Assert.That(updated.SocialLinks[0].Platform, Is.EqualTo("YouTube"));
+        Assert.That(updated.SocialLinks[0].Url, Is.EqualTo("https://youtube.com/@axlprotocolmusic"));
     }
 
     [Test]

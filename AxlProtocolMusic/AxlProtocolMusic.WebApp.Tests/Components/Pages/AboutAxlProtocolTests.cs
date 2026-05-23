@@ -28,6 +28,11 @@ public sealed class AboutAxlProtocolTests
                 Pillars =
                 [
                     new AboutPillar { Title = "Story", Description = "Every release expands the world." }
+                ],
+                SocialLinks =
+                [
+                    new AboutSocialLink { Platform = "Instagram", Url = "https://instagram.com/axlprotocolmusic" },
+                    new AboutSocialLink { Platform = "Spotify", Url = "https://open.spotify.com/artist/example" }
                 ]
             }
         };
@@ -50,6 +55,9 @@ public sealed class AboutAxlProtocolTests
             Assert.That(cut.Markup, Does.Contain("Started as a midnight recording experiment."));
             Assert.That(cut.Markup, Does.Contain("Story"));
             Assert.That(cut.Markup, Does.Contain("Every release expands the world."));
+            Assert.That(cut.Markup, Does.Contain("Social And Streaming Links"));
+            Assert.That(cut.Markup, Does.Contain("Instagram"));
+            Assert.That(cut.Markup, Does.Contain("open.spotify.com/artist/example"));
             Assert.That(cut.Markup, Does.Contain("Browse Releases"));
             Assert.That(cut.Markup, Does.Contain("See Updates"));
             Assert.That(cut.Markup, Does.Contain("View Timeline"));
@@ -80,6 +88,7 @@ public sealed class AboutAxlProtocolTests
             Assert.That(cut.Markup, Does.Contain("Focus points will appear here."));
             Assert.That(cut.Markup, Does.Contain("Narrative highlights will appear here."));
             Assert.That(cut.Markup, Does.Contain("Pillars Coming Soon"));
+            Assert.That(cut.Markup, Does.Contain("Links Coming Soon"));
         });
     }
 

@@ -21,4 +21,6 @@ public sealed class AboutPageContent : IEntity
     public string OriginMarkdown { get; set; } = string.Empty;
 
     public List<AboutPillar> Pillars { get; set; } = [];
+
+    public List<AboutSocialLink> SocialLinks { get; set; } = [];
 }
