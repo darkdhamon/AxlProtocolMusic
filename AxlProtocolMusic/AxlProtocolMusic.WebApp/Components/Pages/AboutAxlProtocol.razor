@@ -112,6 +112,34 @@ else
                     </div>
                 </section>
 
+                <section class="social-section">
+                    <div class="social-section-copy">
+                        <p class="eyebrow">Follow Axl Protocol</p>
+                        <h2>Social And Streaming Links</h2>
+                        <p>Connect with the project across platforms and keep up with new releases, updates, and the larger world around the catalog.</p>
+                    </div>
+
+                    <div class="social-link-grid">
+                        @if (content.SocialLinks.Count == 0)
+                        {
+                            <article class="social-link-card social-link-card-empty">
+                                <h3>Links Coming Soon</h3>
+                                <p>Social and streaming links will appear here once they are added.</p>
+                            </article>
+                        }
+                        else
+                        {
+                            @foreach (var socialLink in content.SocialLinks)
+                            {
+                                <a class="social-link-card" href="@socialLink.Url" target="_blank" rel="noopener noreferrer">
+                                    <span class="social-link-label">@socialLink.Platform</span>
+                                    <span class="social-link-url">@GetDisplayUrl(socialLink.Url)</span>
+                                </a>
+                            }
+                        }
+                    </div>
+                </section>
+
                 <section class="pathways-section">
                     <article class="pathway-card">
                         <p class="eyebrow">Explore The Music</p>
@@ -241,6 +269,34 @@ else
                                             </div>
                                         </div>
                                         <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => RemovePillar(currentIndex)">Remove</button>
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="dynamic-panel mb-3">
+                                <div class="dynamic-panel-header">
+                                    <div>
+                                        <label class="form-label">Social Links</label>
+                                        <div class="form-text">Platform names and URLs shown in the public social links section.</div>
+                                    </div>
+                                    <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddSocialLink">Add Link</button>
+                                </div>
+
+                                @for (var index = 0; index < editableContent.SocialLinks.Count; index++)
+                                {
+                                    var currentIndex = index;
+                                    <div class="dynamic-row">
+                                        <div class="dynamic-row-grid">
+                                            <div>
+                                                <label class="form-label" for="@($"social-platform-{currentIndex}")">Platform</label>
+                                                <input class="form-control" id="@($"social-platform-{currentIndex}")" @bind="editableContent.SocialLinks[currentIndex].Platform" @bind:event="oninput" @bind:after="ScheduleAutosave" />
+                                            </div>
+                                            <div>
+                                                <label class="form-label" for="@($"social-url-{currentIndex}")">URL</label>
+                                                <input class="form-control" id="@($"social-url-{currentIndex}")" @bind="editableContent.SocialLinks[currentIndex].Url" @bind:event="oninput" @bind:after="ScheduleAutosave" />
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => RemoveSocialLink(currentIndex)">Remove</button>
                                     </div>
                                 }
                             </div>
@@ -382,6 +438,33 @@ else
         }
     }
 
+    private void AddSocialLink()
+    {
+        editableContent.SocialLinks.Add(new AboutSocialLink());
+        _ = ScheduleAutosave();
+    }
+
+    private void RemoveSocialLink(int index)
+    {
+        if (index >= 0 && index < editableContent.SocialLinks.Count)
+        {
+            editableContent.SocialLinks.RemoveAt(index);
+            _ = ScheduleAutosave();
+        }
+    }
+
+    private static string GetDisplayUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return url;
+        }
+
+        return string.IsNullOrWhiteSpace(uri.PathAndQuery) || uri.PathAndQuery == "/"
+            ? uri.Host
+            : $"{uri.Host}{uri.PathAndQuery}";
+    }
+
     private static AboutPageContent Clone(AboutPageContent source)
     {
         return new AboutPageContent
@@ -398,6 +481,13 @@ else
                 {
                     Title = pillar.Title,
                     Description = pillar.Description
+                })
+                .ToList(),
+            SocialLinks = source.SocialLinks
+                .Select(link => new AboutSocialLink
+                {
+                    Platform = link.Platform,
+                    Url = link.Url
                 })
                 .ToList()
         };
