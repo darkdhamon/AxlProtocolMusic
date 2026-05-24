@@ -93,6 +93,41 @@ public sealed class AboutAxlProtocolTests
     }
 
     [Test]
+    public void AboutAxlProtocol_WhenSocialLinksContainInvalidEntries_RendersOnlySafeLinks()
+    {
+        using var context = new BunitContext();
+        var service = new FakeAboutPageService
+        {
+            Content = new AboutPageContent
+            {
+                HeroLead = "Axl Protocol",
+                HeroBody = "About page body.",
+                SocialLinks =
+                [
+                    new AboutSocialLink { Platform = "YouTube", Url = "https://www.youtube.com/@AxlProtocol" },
+                    new AboutSocialLink { Platform = "Unsafe", Url = "javascript:alert(1)" },
+                    new AboutSocialLink { Platform = "Incomplete", Url = "" }
+                ]
+            }
+        };
+
+        context.AddAuthorization().SetNotAuthorized();
+        context.Services.AddSingleton<IAboutPageService>(service);
+        context.Services.AddSingleton<MarkdownService>();
+
+        var cut = context.Render<AboutAxlProtocol>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("YouTube"));
+            Assert.That(cut.Markup, Does.Not.Contain("Unsafe"));
+            Assert.That(cut.Markup, Does.Not.Contain("Incomplete"));
+            Assert.That(cut.Markup, Does.Not.Contain("javascript:alert(1)"));
+            Assert.That(cut.Markup, Does.Not.Contain("Links Coming Soon"));
+        });
+    }
+
+    [Test]
     public void AboutAxlProtocol_WhenAdminAddsFocusPoint_AutosavesAndShowsSuccess()
     {
         using var context = new BunitContext();

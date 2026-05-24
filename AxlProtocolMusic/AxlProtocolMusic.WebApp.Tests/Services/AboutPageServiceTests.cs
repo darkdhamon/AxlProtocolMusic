@@ -72,6 +72,8 @@ public sealed class AboutPageServiceTests
             SocialLinks =
             [
                 new AboutSocialLink { Platform = " Instagram ", Url = " https://instagram.com/axlprotocolmusic " },
+                new AboutSocialLink { Platform = " Spotify ", Url = " " },
+                new AboutSocialLink { Platform = " Bad Link ", Url = " javascript:alert('xss') " },
                 new AboutSocialLink { Platform = " ", Url = " " }
             ]
         });
@@ -133,6 +135,26 @@ public sealed class AboutPageServiceTests
         Assert.That(updated.Pillars[0].Description, Is.EqualTo("Value"));
         Assert.That(updated.SocialLinks[0].Platform, Is.EqualTo("YouTube"));
         Assert.That(updated.SocialLinks[0].Url, Is.EqualTo("https://youtube.com/@axlprotocolmusic"));
+    }
+
+    [Test]
+    public async Task UpdateAsync_WhenSocialLinkUsesHttpScheme_PersistsLink()
+    {
+        var repository = new InMemoryRepository<AboutPageContent>(
+        [
+            new AboutPageContent { Id = AboutPageContent.SingletonId, HeroLead = "Existing" }
+        ]);
+        var service = new AboutPageService(repository);
+
+        await service.UpdateAsync(new AboutPageContent
+        {
+            SocialLinks = [new AboutSocialLink { Platform = "Website", Url = "http://axlprotocolmusic.example.com" }]
+        });
+
+        var updated = repository.UpdatedDocuments.Single();
+        Assert.That(updated.SocialLinks, Has.Count.EqualTo(1));
+        Assert.That(updated.SocialLinks[0].Platform, Is.EqualTo("Website"));
+        Assert.That(updated.SocialLinks[0].Url, Is.EqualTo("http://axlprotocolmusic.example.com"));
     }
 
     [Test]

@@ -70,13 +70,33 @@ public sealed class AboutPageService : IAboutPageService
                 .Where(pillar => !string.IsNullOrWhiteSpace(pillar.Title) || !string.IsNullOrWhiteSpace(pillar.Description))
                 .ToList(),
             SocialLinks = content.SocialLinks
-                .Select(link => new AboutSocialLink
-                {
-                    Platform = link.Platform.Trim(),
-                    Url = link.Url.Trim()
-                })
-                .Where(link => !string.IsNullOrWhiteSpace(link.Platform) || !string.IsNullOrWhiteSpace(link.Url))
+                .Select(NormalizeSocialLink)
+                .Where(link => link is not null)
+                .Select(link => link!)
                 .ToList()
+        };
+    }
+
+    private static AboutSocialLink? NormalizeSocialLink(AboutSocialLink link)
+    {
+        var platform = link.Platform.Trim();
+        var url = link.Url.Trim();
+
+        if (string.IsNullOrWhiteSpace(platform) || string.IsNullOrWhiteSpace(url))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return null;
+        }
+
+        return new AboutSocialLink
+        {
+            Platform = platform,
+            Url = url
         };
     }
 

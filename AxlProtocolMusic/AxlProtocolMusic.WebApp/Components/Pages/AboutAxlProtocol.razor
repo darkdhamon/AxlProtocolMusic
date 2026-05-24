@@ -16,6 +16,8 @@ else if (content is null)
 }
 else
 {
+    var socialLinks = GetRenderableSocialLinks(content.SocialLinks);
+
     <div class="about-page">
         <div class="@(isAdminUser ? "about-page-layout about-page-layout-with-sidebar" : "about-page-layout")">
             <div class="about-page-content">
@@ -121,7 +123,7 @@ else
                     </div>
 
                     <div class="social-link-grid">
-                        @if (content.SocialLinks.Count == 0)
+                        @if (socialLinks.Count == 0)
                         {
                             <article class="social-link-card social-link-card-empty">
                                 <h3>Links Coming Soon</h3>
@@ -130,7 +132,7 @@ else
                         }
                         else
                         {
-                            @foreach (var socialLink in content.SocialLinks)
+                            @foreach (var socialLink in socialLinks)
                             {
                                 <a class="social-link-card" href="@socialLink.Url" target="_blank" rel="noopener noreferrer">
                                     <span class="social-link-label">@socialLink.Platform</span>
@@ -472,6 +474,16 @@ else
         return string.IsNullOrWhiteSpace(uri.PathAndQuery) || uri.PathAndQuery == "/"
             ? uri.Host
             : $"{uri.Host}{uri.PathAndQuery}";
+    }
+
+    private static IReadOnlyList<AboutSocialLink> GetRenderableSocialLinks(IEnumerable<AboutSocialLink> socialLinks)
+    {
+        return socialLinks
+            .Where(link => !string.IsNullOrWhiteSpace(link.Platform))
+            .Where(link => !string.IsNullOrWhiteSpace(link.Url))
+            .Where(link => Uri.TryCreate(link.Url, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            .ToList();
     }
 
     private static AboutPageContent Clone(AboutPageContent source)
