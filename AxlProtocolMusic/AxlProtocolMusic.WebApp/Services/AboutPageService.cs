@@ -68,7 +68,35 @@ public sealed class AboutPageService : IAboutPageService
                     Description = pillar.Description.Trim()
                 })
                 .Where(pillar => !string.IsNullOrWhiteSpace(pillar.Title) || !string.IsNullOrWhiteSpace(pillar.Description))
+                .ToList(),
+            SocialLinks = content.SocialLinks
+                .Select(NormalizeSocialLink)
+                .Where(link => link is not null)
+                .Select(link => link!)
                 .ToList()
+        };
+    }
+
+    private static AboutSocialLink? NormalizeSocialLink(AboutSocialLink link)
+    {
+        var platform = link.Platform.Trim();
+        var url = link.Url.Trim();
+
+        if (string.IsNullOrWhiteSpace(platform) || string.IsNullOrWhiteSpace(url))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return null;
+        }
+
+        return new AboutSocialLink
+        {
+            Platform = platform,
+            Url = url
         };
     }
 
@@ -128,7 +156,8 @@ The long-term shape may grow larger than one artist, but this first chapter is i
                     Title = "Continuity",
                     Description = "The site is designed so the catalog can grow into timelines, eras, archives, and future releases."
                 }
-            ]
+            ],
+            SocialLinks = []
         };
     }
 }
