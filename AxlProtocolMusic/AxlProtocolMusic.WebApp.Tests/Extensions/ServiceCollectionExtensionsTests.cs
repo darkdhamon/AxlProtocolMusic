@@ -45,6 +45,7 @@ public sealed class ServiceCollectionExtensionsTests
         AssertScoped<IAboutPageService, AboutPageService>(services);
         AssertScoped<IAnalyticsService, AnalyticsService>(services);
         AssertScoped<IChatbotBudgetService, ChatbotBudgetService>(services);
+        AssertScoped<IChatbotConversationLogService, ChatbotConversationLogService>(services);
         AssertScoped<INewsArticleService, NewsArticleService>(services);
         AssertScoped<IPrivacyPreferencesService, PrivacyPreferencesService>(services);
         AssertScoped<IReleaseService, ReleaseService>(services);
@@ -109,7 +110,7 @@ public sealed class ServiceCollectionExtensionsTests
         using var provider = services.BuildServiceProvider();
 
         Assert.That(returnedServices, Is.SameAs(services));
-        AssertScoped<AdminIdentitySeeder, AdminIdentitySeeder>(services);
+        AssertScoped<IAdminIdentitySeeder, AdminIdentitySeeder>(services);
         AssertScoped<NewsArticleSeedService, NewsArticleSeedService>(services);
         AssertScoped<ReleaseSeedService, ReleaseSeedService>(services);
         AssertScoped<DevelopmentDatabaseResetService, DevelopmentDatabaseResetService>(services);

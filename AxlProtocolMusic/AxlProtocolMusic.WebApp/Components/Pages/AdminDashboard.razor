@@ -1,11 +1,15 @@
 @page "/admin"
 @attribute [Authorize(Roles = "Admin")]
 @using AxlProtocolMusic.WebApp.Models.Chatbot
+@using AxlProtocolMusic.WebApp.Configuration
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
+@using Microsoft.Extensions.Options
 @inject IRepository<Release> ReleaseRepository
 @inject IAboutPageService AboutPageService
 @inject IAnalyticsService AnalyticsService
 @inject IChatbotBudgetService ChatbotBudgetService
+@inject IChatbotConversationLogService ChatbotConversationLogService
+@inject IOptions<OpenAiChatSettings> OpenAiChatOptions
 
 <PageTitle>Admin Dashboard</PageTitle>
 
@@ -115,7 +119,7 @@ else
         </section>
 
         <section class="admin-overview-grid">
-            <article class="overview-panel">
+            <article class="overview-panel budget-panel">
                 <p class="eyebrow">Chatbot</p>
                 <h2>Budget Status</h2>
 
@@ -198,13 +202,49 @@ else
                     }
                 </ul>
 
-                @if (chatbotBudgetSummary.IsDisabled && !string.IsNullOrWhiteSpace(chatbotBudgetSummary.DisabledReason))
+                @if (!string.IsNullOrWhiteSpace(GetChatbotAvailabilityReason()))
                 {
-                    <p>@chatbotBudgetSummary.DisabledReason</p>
+                    <p>@GetChatbotAvailabilityReason()</p>
                 }
             </article>
 
-            <article class="overview-panel">
+            <article class="overview-panel recent-messages-panel">
+                <p class="eyebrow">Chatbot</p>
+                <h2>Recent Anonymous Messages</h2>
+                <div class="card-actions">
+                    <a class="btn btn-outline-primary" href="/admin/chatbot/messages.csv">Download CSV</a>
+                </div>
+                @if (recentChatbotMessages.Count == 0)
+                {
+                    <p>No chatbot messages have been stored yet.</p>
+                }
+                else
+                {
+                    <ul class="dashboard-list recent-message-list">
+                        @foreach (var entry in recentChatbotMessages)
+                        {
+                            <li>
+                                <strong>@entry.CreatedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</strong>
+                                <span class="list-meta">@entry.Outcome</span>
+                                @if (!string.IsNullOrWhiteSpace(entry.PagePath))
+                                {
+                                    <div class="list-meta">Page: @entry.PagePath</div>
+                                }
+                                <div class="mt-2">
+                                    <strong>User</strong>
+                                    <div class="list-meta">@entry.UserMessage</div>
+                                </div>
+                                <div class="mt-2">
+                                    <strong>Assistant</strong>
+                                    <div class="list-meta">@entry.AssistantReply</div>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </article>
+
+            <article class="overview-panel pages-panel">
                 <p class="eyebrow">Audience Metrics</p>
                 <h2>Most Visited Pages</h2>
                 @if (analyticsSummary.TopPages.Count == 0)
@@ -225,7 +265,7 @@ else
                 }
             </article>
 
-            <article class="overview-panel">
+            <article class="overview-panel regions-panel">
                 <p class="eyebrow">Audience Metrics</p>
                 <h2>Visitor Regions</h2>
                 @if (analyticsSummary.TopRegions.Count == 0)
@@ -246,7 +286,7 @@ else
                 }
             </article>
 
-            <article class="overview-panel">
+            <article class="overview-panel links-panel">
                 <p class="eyebrow">Outbound Traffic</p>
                 <h2>Most Clicked External Links</h2>
                 @if (analyticsSummary.TopExternalLinks.Count == 0)
@@ -267,7 +307,7 @@ else
                 }
             </article>
 
-            <article class="overview-panel">
+            <article class="overview-panel capabilities-panel">
                 <p class="eyebrow">What You Can Do Now</p>
                 <h2>Current Admin Capabilities</h2>
                 <ul class="dashboard-list">
@@ -278,7 +318,7 @@ else
                 </ul>
             </article>
 
-            <article class="overview-panel roadmap-panel">
+            <article class="overview-panel roadmap-panel expansion-panel">
                 <p class="eyebrow">Next Layer</p>
                 <h2>Good Candidates For Admin Expansion</h2>
                 <ul class="dashboard-list">
@@ -310,6 +350,7 @@ else
     private int draftReleaseCount;
     private AnalyticsDashboardSummary analyticsSummary = new();
     private ChatbotBudgetSummary chatbotBudgetSummary = new();
+    private IReadOnlyList<ChatbotConversationLogEntry> recentChatbotMessages = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -317,6 +358,7 @@ else
         var aboutPage = await AboutPageService.GetAsync();
         analyticsSummary = await AnalyticsService.GetDashboardSummaryAsync();
         chatbotBudgetSummary = await ChatbotBudgetService.GetSummaryAsync();
+        recentChatbotMessages = await ChatbotConversationLogService.GetRecentAsync(12);
 
         totalReleaseCount = releases.Count;
         publishedReleaseCount = releases.Count(release => release.IsPublished);
@@ -360,11 +402,33 @@ else
 
     private string GetChatbotStatusLabel()
     {
+        if (string.IsNullOrWhiteSpace(OpenAiChatOptions.Value.ApiKey))
+        {
+            return "Unavailable (missing API key)";
+        }
+
         if (chatbotBudgetSummary.IsManuallyDisabled)
         {
             return "Disabled (manual override)";
         }
 
         return chatbotBudgetSummary.IsDisabled ? "Disabled" : "Enabled";
+    }
+
+    private string GetChatbotAvailabilityReason()
+    {
+        if (string.IsNullOrWhiteSpace(OpenAiChatOptions.Value.ApiKey))
+        {
+            return "The chatbot is unavailable because the OpenAI API key has not been configured.";
+        }
+
+        if (chatbotBudgetSummary.IsDisabled)
+        {
+            return string.IsNullOrWhiteSpace(chatbotBudgetSummary.DisabledReason)
+                ? "The chatbot is currently disabled."
+                : chatbotBudgetSummary.DisabledReason;
+        }
+
+        return string.Empty;
     }
 }

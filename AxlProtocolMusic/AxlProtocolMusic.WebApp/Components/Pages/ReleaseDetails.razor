@@ -3,6 +3,7 @@
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
 @inject IReleaseService ReleaseService
 @inject IImageStorageService ImageStorageService
+@inject IOptions<EditorSettings> EditorSettings
 @inject NavigationManager NavigationManager
 @implements IDisposable
 
@@ -22,8 +23,19 @@ else
 {
     <PageTitle>@($"{release.Title} | Release Details")</PageTitle>
     <div class="release-details-page">
-        <div class="release-details-layout">
+        <div class="@(isAdminUser ? "release-details-layout release-details-layout-with-sidebar" : "release-details-layout")">
             <div class="release-details-content">
+        <div class="release-page-header">
+            <a class="back-link" href="/releases">Back To Releases</a>
+            <AuthorizeView Roles="Admin">
+                <Authorized>
+                    <button class="btn btn-outline-light btn-sm" type="button" @onclick="ShowDeleteModal">
+                        Delete Release
+                    </button>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+
         @if (!string.IsNullOrWhiteSpace(Error))
         {
             <div class="alert alert-danger" role="alert">@Error</div>
@@ -36,16 +48,6 @@ else
 
         <section class="release-hero">
             <div class="release-hero-copy">
-                <div class="release-hero-header">
-                    <p class="eyebrow">Release Details</p>
-                    <AuthorizeView Roles="Admin">
-                        <Authorized>
-                            <button class="btn btn-outline-light btn-sm" type="button" @onclick="ShowDeleteModal">
-                                Delete Release
-                            </button>
-                        </Authorized>
-                    </AuthorizeView>
-                </div>
                 <h1>@release.Title</h1>
                 <p class="release-date">@release.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
                 @if (IsUpcomingRelease(release.ReleaseDateUtc))
@@ -281,7 +283,7 @@ else
                                                     list="known-contributor-names"
                                                     @bind="credit.Name"
                                                     @bind:event="oninput"
-                                                    @bind:after="ScheduleAutosave" />
+                                                    @bind:after="() => HandleCreditNameChangedAsync(credit)" />
                                 </div>
 
                                 <div>
@@ -292,8 +294,9 @@ else
                                             id="@($"credit-role-input-{index}")"
                                             list="known-credit-roles"
                                             @bind="credit.RoleInput"
-                                            @bind:event="oninput" />
-                                        <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => AddRoleToCredit(credit)">Add Role</button>
+                                            @bind:event="oninput"
+                                            @onkeydown="args => HandleCreditRoleKeyDownAsync(credit, args)" />
+                                        <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => AddRoleToCreditAsync(credit)">Add Role</button>
                                     </div>
                                     <div class="role-chip-list">
                                         @for (var roleIndex = 0; roleIndex < credit.Roles.Count; roleIndex++)
@@ -363,10 +366,9 @@ else
                                     <input
                                         class="form-control"
                                         id="@($"track-duration-{index}")"
-                                        @bind="track.Duration"
-                                        placeholder="3:42"
-                                        @bind:event="oninput"
-                                        @bind:after="ScheduleAutosave" />
+                                        value="@track.Duration"
+                                        placeholder="0:00"
+                                        @oninput="args => HandleTrackDurationInputAsync(currentIndex, args.Value?.ToString())" />
                                 </div>
                             </div>
 
@@ -458,7 +460,8 @@ else
                                         id="tag-input"
                                         list="known-tags"
                                         @bind="TagInput"
-                                        @bind:event="oninput" />
+                                        @bind:event="oninput"
+                                        @onkeydown="HandleTagInputKeyDownAsync" />
                                     <button class="btn btn-outline-primary btn-sm" type="button" @onclick="AddTagFromInput">Add Tag</button>
                                 </div>
                             </div>
@@ -564,7 +567,6 @@ else
 }
 
 @code {
-    private const int AutoSaveDelayMilliseconds = 700;
     private const string PlaceholderAlbumArtPath = "/Assets/Misc/Placeholder-AlbumArt.png";
     [Parameter]
     public string Slug { get; set; } = string.Empty;
@@ -581,6 +583,7 @@ else
     private ReleaseDetailsViewModel? release;
     private ReleaseUpdateRequest editableRelease = new();
     private bool isLoading = true;
+    private bool isAdminUser;
     private string? editorStatusMessage;
     private string? editorErrorMessage;
     private bool isLyricsModalOpen;
@@ -590,6 +593,7 @@ else
     private CancellationTokenSource? autosaveCancellationTokenSource;
     private long autosaveVersion;
     private long lastSavedVersion;
+    private int AutoSaveDelayMilliseconds => EditorSettings.Value.NormalizedAutosaveDelayMilliseconds;
     private readonly SemaphoreSlim saveSemaphore = new(1, 1);
     private List<EditableCredit> Credits { get; set; } = [];
     private List<ReleaseTrack> Tracks { get; set; } = [];
@@ -597,6 +601,8 @@ else
     private List<string> Tags { get; set; } = [];
     private IReadOnlyList<string> KnownCreditRoles { get; set; } = [];
     private IReadOnlyList<string> KnownContributorNames { get; set; } = [];
+    private IReadOnlyDictionary<string, IReadOnlyList<string>> KnownContributorRolesByName { get; set; }
+        = new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<string> KnownTags { get; set; } = [];
     private static readonly IReadOnlyList<string> KnownPlatforms =
     [
@@ -618,12 +624,14 @@ else
         isLoading = true;
         KnownCreditRoles = await ReleaseService.GetKnownCreditRolesAsync();
         KnownContributorNames = await ReleaseService.GetKnownContributorNamesAsync();
+        KnownContributorRolesByName = await ReleaseService.GetKnownContributorRolesByNameAsync();
         KnownTags = await ReleaseService.GetKnownTagsAsync();
         var authenticationState = AuthenticationStateTask is null
             ? null
             : await AuthenticationStateTask;
 
-        var includeUnpublished = authenticationState?.User.IsInRole("Admin") == true;
+        isAdminUser = authenticationState?.User.IsInRole("Admin") == true;
+        var includeUnpublished = isAdminUser;
         release = await ReleaseService.GetReleaseBySlugAsync(Slug, includeUnpublished);
         SyncEditableState();
         isLoading = false;
@@ -702,7 +710,7 @@ else
         }
     }
 
-    private void AddRoleToCredit(EditableCredit credit)
+    private async Task AddRoleToCreditAsync(EditableCredit credit)
     {
         var role = credit.RoleInput.Trim();
         if (string.IsNullOrWhiteSpace(role))
@@ -713,10 +721,38 @@ else
         if (!credit.Roles.Contains(role, StringComparer.OrdinalIgnoreCase))
         {
             credit.Roles.Add(role);
-            _ = ScheduleAutosave();
+            await ScheduleAutosave();
         }
 
         credit.RoleInput = string.Empty;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleCreditNameChangedAsync(EditableCredit credit)
+    {
+        var normalizedName = credit.Name.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedName))
+        {
+            await ScheduleAutosave();
+            return;
+        }
+
+        if (KnownContributorRolesByName.TryGetValue(normalizedName, out var knownRoles) && knownRoles.Count > 0)
+        {
+            credit.Roles = knownRoles.ToList();
+        }
+
+        await ScheduleAutosave();
+    }
+
+    private async Task HandleCreditRoleKeyDownAsync(EditableCredit credit, KeyboardEventArgs args)
+    {
+        if (!string.Equals(args.Key, "Enter", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await AddRoleToCreditAsync(credit);
     }
 
     private void RemoveRoleFromCredit(EditableCredit credit, int roleIndex)
@@ -730,6 +766,7 @@ else
 
     private void AddTrack()
     {
+        editableRelease.ReleaseTypeOverride = string.Empty;
         Tracks.Add(new ReleaseTrack());
         _ = ScheduleAutosave();
     }
@@ -741,6 +778,17 @@ else
             Tracks.RemoveAt(index);
             _ = ScheduleAutosave();
         }
+    }
+
+    private async Task HandleTrackDurationInputAsync(int index, string? value)
+    {
+        if (index < 0 || index >= Tracks.Count)
+        {
+            return;
+        }
+
+        Tracks[index].Duration = NormalizeTrackDurationInput(value);
+        await ScheduleAutosave();
     }
 
     private async Task SaveTrackLyricsAsync(int index)
@@ -798,6 +846,16 @@ else
         TagInput = string.Empty;
         await InvokeAsync(StateHasChanged);
         await ScheduleAutosave();
+    }
+
+    private async Task HandleTagInputKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (!string.Equals(args.Key, "Enter", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await AddTagFromInput();
     }
 
     private async Task RemoveTag(int index)
@@ -1059,6 +1117,39 @@ else
         return timeSpan.TotalHours >= 1
             ? $"{(int)timeSpan.TotalHours}:{timeSpan.Minutes:D2}:{timeSpan.Seconds:D2}"
             : $"{timeSpan.Minutes}:{timeSpan.Seconds:D2}";
+    }
+
+    private static string NormalizeTrackDurationInput(string? value)
+    {
+        var normalized = value?.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return string.Empty;
+        }
+
+        if (normalized.All(char.IsDigit))
+        {
+            return normalized.Length switch
+            {
+                3 => $"{normalized[..1]}:{normalized[1..]}",
+                4 => $"{normalized[..2]}:{normalized[2..]}",
+                _ => normalized
+            };
+        }
+
+        var colonCount = normalized.Count(character => character == ':');
+        if (colonCount <= 1 && normalized.Where(character => character != ':').All(char.IsDigit))
+        {
+            var digitsOnly = new string(normalized.Where(char.IsDigit).ToArray());
+            return digitsOnly.Length switch
+            {
+                3 => $"{digitsOnly[..1]}:{digitsOnly[1..]}",
+                4 => $"{digitsOnly[..2]}:{digitsOnly[2..]}",
+                _ => normalized
+            };
+        }
+
+        return normalized;
     }
 
     private static int? TryParseDuration(string? duration)

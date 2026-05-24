@@ -9,6 +9,12 @@
 @implements IAsyncDisposable
 
 <script>
+    window.axlCarousel = window.axlCarousel || {
+        isMobileDevice: function () {
+            return window.matchMedia("(hover: none) and (pointer: coarse), (any-hover: none) and (any-pointer: coarse)").matches;
+        }
+    };
+
     window.axlNewsPage = window.axlNewsPage || (() => {
         let observer;
 
@@ -82,38 +88,55 @@
     {
         var activeFeaturedArticle = featuredArticles[activeFeaturedArticleIndex];
 
-        <section class="news-carousel" aria-label="Featured news articles">
-            <article class="featured-story" style="@GetFeaturedStyle(activeFeaturedArticle)">
-                <div class="featured-story-overlay">
-                    <p class="eyebrow">Featured Article</p>
-                    <p class="featured-date">@FormatPublicationLabel(activeFeaturedArticle)</p>
-                    <h2>@activeFeaturedArticle.Title</h2>
-                    <p class="featured-preview">@GetPreviewText(activeFeaturedArticle.Content, 36)</p>
-                    <div class="featured-actions">
-                        <button class="btn btn-light" type="button" @onclick="() => OpenArticle(activeFeaturedArticle)">
-                            Read More
-                        </button>
-                        <a class="btn btn-outline-light" href="#news-feed">Jump To Feed</a>
-                        @if (isAdmin)
-                        {
-                            <button class="btn btn-outline-light" type="button" @onclick="() => OpenEditArticle(activeFeaturedArticle)">
-                                Edit Article
+        <section
+            class="news-carousel"
+            aria-label="Featured news articles"
+            tabindex="0"
+            @onmouseenter="PauseFeaturedCarouselRotation"
+            @onmouseleave="ResumeFeaturedCarouselRotation"
+            @onkeydown="HandleFeaturedCarouselKeyDown"
+            @ontouchstart="HandleFeaturedCarouselTouchStart"
+            @ontouchend="HandleFeaturedCarouselTouchEnd">
+            <div class="carousel-stage">
+                <article class="featured-story" style="@GetFeaturedStyle(activeFeaturedArticle)">
+                    <div class="featured-story-overlay">
+                        <p class="eyebrow">Featured Article</p>
+                        <p class="featured-date">@FormatPublicationLabel(activeFeaturedArticle)</p>
+                        <h2>@activeFeaturedArticle.Title</h2>
+                        <p class="featured-preview">@GetPreviewText(activeFeaturedArticle.Content, 36)</p>
+                        <div class="featured-actions">
+                            <button class="btn btn-light" type="button" @onclick="() => OpenArticle(activeFeaturedArticle)">
+                                Read More
                             </button>
-                            <button class="btn btn-outline-light" type="button" @onclick="() => OpenDeleteArticle(activeFeaturedArticle)">
-                                Delete Article
-                            </button>
-                        }
+                            <a class="btn btn-outline-light" href="#news-feed">Jump To Feed</a>
+                            @if (isAdmin)
+                            {
+                                <button class="btn btn-outline-light" type="button" @onclick="() => OpenEditArticle(activeFeaturedArticle)">
+                                    Edit Article
+                                </button>
+                                <button class="btn btn-outline-light" type="button" @onclick="() => OpenDeleteArticle(activeFeaturedArticle)">
+                                    Delete Article
+                                </button>
+                            }
+                        </div>
                     </div>
-                </div>
-            </article>
+                </article>
+
+                @if (featuredArticles.Count > 1)
+                {
+                    <button class="carousel-arrow carousel-arrow-overlay carousel-arrow-left" type="button" @onclick="ShowPreviousFeaturedArticle" aria-label="Previous featured article">
+                        <span aria-hidden="true">&#x2039;</span>
+                    </button>
+
+                    <button class="carousel-arrow carousel-arrow-overlay carousel-arrow-right" type="button" @onclick="ShowNextFeaturedArticle" aria-label="Next featured article">
+                        <span aria-hidden="true">&#x203A;</span>
+                    </button>
+                }
+            </div>
 
             @if (featuredArticles.Count > 1)
             {
                 <div class="carousel-controls">
-                    <button class="carousel-arrow" type="button" @onclick="ShowPreviousFeaturedArticle" aria-label="Previous featured article">
-                        Prev
-                    </button>
-
                     <div class="hero-carousel-indicators">
                         @for (var index = 0; index < featuredArticles.Count; index++)
                         {
@@ -126,10 +149,6 @@
                             </button>
                         }
                     </div>
-
-                    <button class="carousel-arrow" type="button" @onclick="ShowNextFeaturedArticle" aria-label="Next featured article">
-                        Next
-                    </button>
                 </div>
             }
         </section>
@@ -146,99 +165,107 @@
         </p>
     </section>
 
-    <section class="article-grid" aria-label="News article feed">
-        @foreach (var article in loadedArticles)
-        {
-            <article class="article-card" style="@GetCardStyle(article)">
-                <div class="article-card-overlay">
-                    <div class="article-card-meta">
-                        <p class="article-card-date">@FormatPublicationLabel(article)</p>
-                        @if (isAdmin && !IsLiveForPublic(article))
-                        {
-                            <span class="article-visibility-badge">Admin Preview</span>
-                        }
-                    </div>
-
-                    <h3>@article.Title</h3>
-                    <p class="article-preview">@GetPreviewText(article.Content, 50)</p>
-                    <div class="article-card-actions">
-                        <button class="btn btn-primary" type="button" @onclick="() => OpenArticle(article)">
-                            Read More
-                        </button>
-                        @if (isAdmin)
-                        {
-                            <button class="btn btn-outline-light article-edit-button" type="button" @onclick="() => OpenEditArticle(article)">
-                                Edit
-                            </button>
-                            <button class="btn btn-outline-danger article-delete-button" type="button" @onclick="() => OpenDeleteArticle(article)">
-                                Delete
-                            </button>
-                        }
-                    </div>
-                </div>
-            </article>
-        }
-    </section>
-
-    @if (hasMoreArticles)
-    {
-        <div class="scroll-loader">
-            <div @ref="loadMoreSentinel" class="news-scroll-sentinel" aria-hidden="true"></div>
-            <p>@(isLoadingMore ? "Loading more articles..." : "Continue scrolling to load more articles.")</p>
-        </div>
-    }
-    else
-    {
-        <div class="scroll-loader is-complete">
-            <p>All visible articles are loaded.</p>
-        </div>
-    }
-</div>
-
-@if (selectedArticle is not null)
-{
-    <div class="news-modal-overlay" tabindex="-1" role="dialog" aria-modal="true" @onclick="CloseArticle">
-        <div class="news-modal-dialog" role="document" @onclick:stopPropagation="true">
-            <div class="news-modal-surface">
-                <div class="news-modal-header">
-                    <div>
-                        <p class="eyebrow">News Article</p>
-                        <h3 class="news-modal-title">@selectedArticle.Title</h3>
-                        <p class="news-modal-date">@FormatPublicationLabel(selectedArticle)</p>
-                    </div>
-                    <div class="news-modal-header-actions">
-                        @if (isAdmin)
-                        {
-                            <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => OpenEditArticle(selectedArticle)">
-                                Edit Article
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => OpenDeleteArticle(selectedArticle)">
-                                Delete Article
-                            </button>
-                        }
-                        <button type="button" class="btn-close" aria-label="Close" @onclick="CloseArticle"></button>
-                    </div>
-                </div>
-
-                @if (!string.IsNullOrWhiteSpace(selectedArticle.ImageUrl))
+    <section class="news-workspace">
+        <div class="news-feed-column">
+            <section class="article-grid" aria-label="News article feed">
+                @foreach (var article in loadedArticles)
                 {
-                    <img class="news-modal-image" src="@selectedArticle.ImageUrl" alt="@selectedArticle.Title hero image" />
-                }
+                    <article class="article-card @(IsSelectedArticle(article) ? "is-selected" : string.Empty)" style="@GetCardStyle(article)">
+                        <div class="article-card-overlay">
+                            <div class="article-card-meta">
+                                <p class="article-card-date">@FormatPublicationLabel(article)</p>
+                                @if (isAdmin && !IsLiveForPublic(article))
+                                {
+                                    <span class="article-visibility-badge">Admin Preview</span>
+                                }
+                            </div>
 
-                <div class="news-modal-body">
-                    @foreach (var paragraph in GetParagraphs(selectedArticle.Content))
-                    {
-                        <p>@paragraph</p>
-                    }
+                            <h3>@article.Title</h3>
+                            <p class="article-preview">@GetPreviewText(article.Content, 50)</p>
+                            <div class="article-card-actions">
+                                <button class="btn btn-primary" type="button" @onclick="() => OpenArticle(article)">
+                                    Read More
+                                </button>
+                                @if (isAdmin)
+                                {
+                                    <button class="btn btn-outline-light article-edit-button" type="button" @onclick="() => OpenEditArticle(article)">
+                                        Edit
+                                    </button>
+                                    <button class="btn btn-outline-danger article-delete-button" type="button" @onclick="() => OpenDeleteArticle(article)">
+                                        Delete
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    </article>
+                }
+            </section>
+
+            @if (hasMoreArticles)
+            {
+                <div class="scroll-loader">
+                    <div @ref="loadMoreSentinel" class="news-scroll-sentinel" aria-hidden="true"></div>
+                    <p>@(isLoadingMore ? "Loading more articles..." : "Continue scrolling to load more articles.")</p>
                 </div>
-            </div>
+            }
+            else
+            {
+                <div class="scroll-loader is-complete">
+                    <p>All visible articles are loaded.</p>
+                </div>
+            }
         </div>
-    </div>
-}
+
+        <aside class="news-detail-pane" aria-label="Selected article details">
+            @if (selectedArticle is not null)
+            {
+                <div class="news-detail-surface">
+                    <div class="news-detail-header">
+                        <div>
+                            <p class="eyebrow">News Article</p>
+                            <h3 class="news-detail-title">@selectedArticle.Title</h3>
+                            <p class="news-detail-date">@FormatPublicationLabel(selectedArticle)</p>
+                        </div>
+                        @if (isAdmin)
+                        {
+                            <div class="news-detail-header-actions">
+                                <button class="btn btn-outline-primary btn-sm" type="button" @onclick="() => OpenEditArticle(selectedArticle)">
+                                    Edit Article
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" type="button" @onclick="() => OpenDeleteArticle(selectedArticle)">
+                                    Delete Article
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="news-detail-body">
+                        @if (!string.IsNullOrWhiteSpace(selectedArticle.ImageUrl))
+                        {
+                            <div class="news-detail-image">
+                                <img src="@selectedArticle.ImageUrl" alt="@selectedArticle.Title hero image" />
+                            </div>
+                        }
+
+                        <MarkdownRenderer Content="@selectedArticle.Content" CssClass="news-detail-markdown" />
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="news-detail-surface news-detail-empty">
+                    <p class="eyebrow">Article Pane</p>
+                    <h3 class="news-detail-title">Choose A Story</h3>
+                    <p>Select a featured story or feed card to open the full article here without leaving the page.</p>
+                </div>
+            }
+        </aside>
+    </section>
+</div>
 
 @if (isEditModalOpen && editableArticle is not null)
 {
-    <div class="news-modal-overlay" tabindex="-1" role="dialog" aria-modal="true" @onclick="CloseEditArticle">
+    <div class="news-modal-overlay" tabindex="-1" role="dialog" aria-modal="true">
         <div class="news-modal-dialog" role="document" @onclick:stopPropagation="true">
             <div class="news-modal-surface admin-edit-surface">
                 <div class="news-modal-header">
@@ -297,7 +324,7 @@
 
                     <div class="mb-3">
                         <label class="form-label" for="news-content">Content</label>
-                        <textarea class="form-control admin-content-editor" id="news-content" @bind="editableArticle.Content"></textarea>
+                        <MarkdownEditor Id="news-content" InputName="" Rows="14" EditorClass="form-control admin-content-editor" @bind-Value="editableArticle.Content" />
                     </div>
 
                     <div class="admin-edit-actions">
@@ -348,26 +375,35 @@
     [SupplyParameterFromQuery(Name = "editor")]
     public string? EditorMode { get; set; }
 
+    [SupplyParameterFromQuery(Name = "article")]
+    public string? ArticleSlug { get; set; }
+
     private const int FeedBatchSize = 9;
+    private const double SwipeThreshold = 48;
+    private static readonly TimeSpan CarouselRotationInterval = TimeSpan.FromSeconds(5);
 
     private List<NewsArticle> allArticles = [];
     private List<NewsArticle> visibleArticles = [];
     private List<NewsArticle> featuredArticles = [];
     private List<NewsArticle> feedArticles = [];
     private List<NewsArticle> loadedArticles = [];
+    private CancellationTokenSource? featuredCarouselRotationCancellationTokenSource;
     private NewsArticle? selectedArticle;
     private NewsArticle? editableArticle;
     private NewsArticle? articlePendingDelete;
     private DotNetObjectReference<News>? dotNetReference;
     private ElementReference loadMoreSentinel;
     private int activeFeaturedArticleIndex;
+    private double? featuredCarouselTouchStartX;
     private bool isAdmin;
     private bool hasMoreArticles;
     private bool isLoadingMore;
+    private bool isMobileDevice;
     private bool observerInitialized;
     private bool isEditModalOpen;
     private bool isCreatingArticle;
     private bool isDeleteModalOpen;
+    private bool isFeaturedCarouselHovered;
     private DateTime editablePublicationDate;
     private string? editErrorMessage;
     private string? editStatusMessage;
@@ -389,6 +425,8 @@
 
     protected override void OnParametersSet()
     {
+        SyncSelectedArticleFromQuery();
+
         if (isAdmin
             && !isEditModalOpen
             && string.Equals(EditorMode, "new", StringComparison.OrdinalIgnoreCase))
@@ -399,6 +437,16 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            isMobileDevice = await DetectMobileDeviceAsync();
+
+            if (!isMobileDevice)
+            {
+                StartFeaturedCarouselRotation();
+            }
+        }
+
         if ((!firstRender && observerInitialized) || !hasMoreArticles)
         {
             return;
@@ -447,18 +495,23 @@
 
     private static bool IsLiveForPublic(NewsArticle article)
     {
+        var publicCutoff = DateTimeOffset.UtcNow.AddMonths(-3);
+
         return article.IsPublished
-            && article.PublicationDateUtc <= DateTimeOffset.UtcNow;
+            && article.PublicationDateUtc <= DateTimeOffset.UtcNow
+            && article.PublicationDateUtc >= publicCutoff;
     }
 
     private void OpenArticle(NewsArticle article)
     {
         selectedArticle = article;
+        SetArticleQueryParameter(article.Slug);
     }
 
     private void CloseArticle()
     {
         selectedArticle = null;
+        RemoveArticleQueryParameter();
     }
 
     private void OpenEditArticle(NewsArticle article)
@@ -536,6 +589,110 @@
     private void ShowFeaturedArticle(int index)
     {
         activeFeaturedArticleIndex = index;
+    }
+
+    private void PauseFeaturedCarouselRotation()
+    {
+        isFeaturedCarouselHovered = true;
+    }
+
+    private void ResumeFeaturedCarouselRotation()
+    {
+        isFeaturedCarouselHovered = false;
+    }
+
+    private void HandleFeaturedCarouselKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key == "ArrowLeft")
+        {
+            ShowPreviousFeaturedArticle();
+        }
+        else if (args.Key == "ArrowRight")
+        {
+            ShowNextFeaturedArticle();
+        }
+    }
+
+    private void HandleFeaturedCarouselTouchStart(TouchEventArgs args)
+    {
+        featuredCarouselTouchStartX = args.Touches.FirstOrDefault()?.ClientX ?? args.ChangedTouches.FirstOrDefault()?.ClientX;
+    }
+
+    private void HandleFeaturedCarouselTouchEnd(TouchEventArgs args)
+    {
+        if (featuredCarouselTouchStartX is null)
+        {
+            return;
+        }
+
+        var touchEndX = args.ChangedTouches.FirstOrDefault()?.ClientX;
+        if (touchEndX is null)
+        {
+            featuredCarouselTouchStartX = null;
+            return;
+        }
+
+        var deltaX = touchEndX.Value - featuredCarouselTouchStartX.Value;
+        featuredCarouselTouchStartX = null;
+
+        if (Math.Abs(deltaX) < SwipeThreshold)
+        {
+            return;
+        }
+
+        if (deltaX < 0)
+        {
+            ShowNextFeaturedArticle();
+        }
+        else
+        {
+            ShowPreviousFeaturedArticle();
+        }
+    }
+
+    private void StartFeaturedCarouselRotation()
+    {
+        featuredCarouselRotationCancellationTokenSource?.Cancel();
+        featuredCarouselRotationCancellationTokenSource?.Dispose();
+        featuredCarouselRotationCancellationTokenSource = new CancellationTokenSource();
+        _ = RotateFeaturedCarouselAsync(featuredCarouselRotationCancellationTokenSource.Token);
+    }
+
+    private async Task RotateFeaturedCarouselAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(CarouselRotationInterval);
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (isFeaturedCarouselHovered || featuredArticles.Count <= 1)
+                {
+                    continue;
+                }
+
+                await InvokeAsync(() =>
+                {
+                    ShowNextFeaturedArticle();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task<bool> DetectMobileDeviceAsync()
+    {
+        try
+        {
+            return await JSRuntime.InvokeAsync<bool>("axlCarousel.isMobileDevice");
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private async Task SaveEditedArticle()
@@ -667,15 +824,10 @@
         CloseDeleteArticle();
     }
 
-    private static IEnumerable<string> GetParagraphs(string content)
-    {
-        return content
-            .Split(["\r\n\r\n", "\n\n"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-    }
-
     private static string GetPreviewText(string content, int wordCount)
     {
-        var words = Regex.Split(content.Trim(), @"\s+")
+        var previewSource = Regex.Replace(content ?? string.Empty, @"[#>*_`~\[\]\(\)!-]+", " ");
+        var words = Regex.Split(previewSource.Trim(), @"\s+")
             .Where(word => !string.IsNullOrWhiteSpace(word))
             .ToList();
 
@@ -768,7 +920,24 @@
         {
             selectedArticle = visibleArticles.FirstOrDefault(article => article.Id == selectedArticle.Id);
         }
+        
+        SyncSelectedArticleFromQuery();
     }
+
+    private void SyncSelectedArticleFromQuery()
+    {
+        if (string.IsNullOrWhiteSpace(ArticleSlug))
+        {
+            return;
+        }
+
+        selectedArticle = visibleArticles.FirstOrDefault(article =>
+            string.Equals(article.Slug, ArticleSlug, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool IsSelectedArticle(NewsArticle article)
+        => selectedArticle is not null
+            && string.Equals(selectedArticle.Id, article.Id, StringComparison.Ordinal);
 
     private NewsArticleUpdateRequest BuildUpdateRequest()
     {
@@ -786,17 +955,43 @@
 
     private void RemoveEditorQueryParameter()
     {
+        var targetUri = BuildUriWithoutQueryKeys("editor");
+        NavigationManager.NavigateTo(targetUri, replace: true);
+    }
+
+    private void RemoveArticleQueryParameter()
+    {
+        var targetUri = BuildUriWithoutQueryKeys("article");
+        NavigationManager.NavigateTo(targetUri, replace: true);
+    }
+
+    private void SetArticleQueryParameter(string slug)
+    {
         var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
-        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
-        var filteredEntries = query
-            .Where(entry => !string.Equals(entry.Key, "editor", StringComparison.OrdinalIgnoreCase))
-            .SelectMany(entry => entry.Value, (entry, value) => new KeyValuePair<string, string?>(entry.Key, value));
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query)
+            .Where(entry => !string.Equals(entry.Key, "article", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(entry => entry.Key, entry => (string?)entry.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+
+        query["article"] = slug;
 
         var targetUri = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
             uri.GetLeftPart(UriPartial.Path),
-            filteredEntries);
+            query);
 
         NavigationManager.NavigateTo(targetUri, replace: true);
+    }
+
+    private string BuildUriWithoutQueryKeys(params string[] keysToRemove)
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        var filteredEntries = query
+            .Where(entry => !keysToRemove.Any(key => string.Equals(entry.Key, key, StringComparison.OrdinalIgnoreCase)))
+            .SelectMany(entry => entry.Value, (entry, value) => new KeyValuePair<string, string?>(entry.Key, value));
+
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
+            uri.GetLeftPart(UriPartial.Path),
+            filteredEntries);
     }
 
     private static NewsArticle CloneArticle(NewsArticle article)
@@ -816,6 +1011,9 @@
 
     public async ValueTask DisposeAsync()
     {
+        featuredCarouselRotationCancellationTokenSource?.Cancel();
+        featuredCarouselRotationCancellationTokenSource?.Dispose();
+
         try
         {
             await JSRuntime.InvokeVoidAsync("axlNewsPage.disposeInfiniteScroll");

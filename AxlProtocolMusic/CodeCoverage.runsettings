@@ -28,6 +28,7 @@
                 <Source>.*\\AxlProtocolMusic\.WebApp\\Services\\Interfaces\\.*</Source>
                 <Source>.*\\AxlProtocolMusic\.WebApp\\Repositories\\Interfaces\\.*</Source>
                 <Source>.*\\AxlProtocolMusic\.WebApp\\Services\\ServiceModels\\.*</Source>
+                <Source>.*\\AxlProtocolMusic\.WebApp\\Services\\Development\\DevelopmentDatabaseResetService\.cs</Source>
                 <Source>.*\\AxlProtocolMusic\.WebApp\\Program\.cs</Source>
                 <Source>.*\\AxlProtocolMusic\.WebApp\\.*Seed.*\.cs</Source>
                 <Source>.*\\AxlProtocolMusic\.WebApp\\.*Seeder.*\.cs</Source>

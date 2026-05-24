@@ -2,6 +2,7 @@ using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using System.Reflection;
 
 namespace AxlProtocolMusic.WebApp.Tests.Services;
 
@@ -110,6 +111,55 @@ public sealed class BlobImageStorageServiceTests
         await service.DeleteAsync("   ");
 
         Assert.Pass();
+    }
+
+    [Test]
+    public void IsManagedImageUrl_WhenUrlIsNotAbsolute_ReturnsFalse()
+    {
+        var service = CreateService();
+
+        Assert.That(service.IsManagedImageUrl("not-a-valid-url"), Is.False);
+    }
+
+    [Test]
+    public void GetBlobName_WhenStoragePathIsManagedAbsoluteUrl_ReturnsRelativeBlobPath()
+    {
+        var service = CreateService();
+
+        var blobName = InvokeGetBlobName(
+            service,
+            "https://testaccount.blob.core.windows.net/media/releases/folder%20name/image.png");
+
+        Assert.That(blobName, Is.EqualTo("releases/folder name/image.png"));
+    }
+
+    [Test]
+    public void GetBlobName_WhenStoragePathTargetsAnotherContainer_FallsBackToTrimmedPath()
+    {
+        var service = CreateService();
+
+        var blobName = InvokeGetBlobName(
+            service,
+            "https://testaccount.blob.core.windows.net/other/releases/image.png");
+
+        Assert.That(blobName, Is.EqualTo("https://testaccount.blob.core.windows.net/other/releases/image.png"));
+    }
+
+    [Test]
+    public void GetBlobName_WhenStoragePathIsRelative_TrimsLeadingSlash()
+    {
+        var service = CreateService();
+
+        var blobName = InvokeGetBlobName(service, "/releases/image.png");
+
+        Assert.That(blobName, Is.EqualTo("releases/image.png"));
+    }
+
+    private static string InvokeGetBlobName(BlobImageStorageService service, string storagePath)
+    {
+        var method = typeof(BlobImageStorageService).GetMethod("GetBlobName", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(method, Is.Not.Null);
+        return (string)method!.Invoke(service, [storagePath])!;
     }
 
     private static BlobImageStorageService CreateService(ImageStorageSettings? settings = null, long maxFileSizeBytes = 1024)

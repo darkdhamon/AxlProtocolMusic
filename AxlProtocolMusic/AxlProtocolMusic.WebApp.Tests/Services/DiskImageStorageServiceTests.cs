@@ -96,6 +96,23 @@ public sealed class DiskImageStorageServiceTests
     }
 
     [Test]
+    public async Task SaveReleaseImageAsync_WhenFileHasExtension_KeepsProvidedExtension()
+    {
+        var service = CreateService(out _);
+        using var stream = new MemoryStream(new byte[] { 1, 2, 3, 4 });
+        IFormFile file = new FormFile(stream, 0, stream.Length, "image", "cover.custom.png")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/jpeg"
+        };
+
+        var result = await service.SaveReleaseImageAsync(file);
+
+        Assert.That(result.Url, Does.EndWith(".png"));
+        Assert.That(result.StoragePath, Does.EndWith(".png"));
+    }
+
+    [Test]
     public async Task DeleteAsync_WhenFileExists_DeletesIt()
     {
         var service = CreateService(out var webRootPath);

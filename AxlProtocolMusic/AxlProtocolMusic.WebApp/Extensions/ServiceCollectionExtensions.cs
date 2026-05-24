@@ -33,17 +33,22 @@ public static class ServiceCollectionExtensions
             configuration.GetSection(MongoDbSettings.SectionName));
         services.Configure<ImageStorageSettings>(
             configuration.GetSection(ImageStorageSettings.SectionName));
+        services.Configure<EditorSettings>(
+            configuration.GetSection(EditorSettings.SectionName));
         services.Configure<ChatbotSettings>(
             configuration.GetSection(ChatbotSettings.SectionName));
         services.Configure<OpenAiChatSettings>(
             configuration.GetSection(OpenAiChatSettings.SectionName));
 
         services.AddHttpContextAccessor();
+        services.AddSingleton<IChatbotActivationMonitor, ChatbotActivationMonitor>();
+        services.AddHostedService<ChatbotActivationPollingService>();
         services.AddSingleton<IMongoDbService, MongoDbService>();
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));
         services.AddScoped<IAboutPageService, AboutPageService>();
         services.AddScoped<IAnalyticsService, AnalyticsService>();
         services.AddScoped<IChatbotBudgetService, ChatbotBudgetService>();
+        services.AddScoped<IChatbotConversationLogService, ChatbotConversationLogService>();
         services.AddScoped<INewsArticleService, NewsArticleService>();
         services.AddScoped<IPrivacyPreferencesService, PrivacyPreferencesService>();
         services.AddScoped<IReleaseService, ReleaseService>();
@@ -110,7 +115,7 @@ public static class ServiceCollectionExtensions
             options.SlidingExpiration = true;
         });
 
-        services.AddScoped<AdminIdentitySeeder>();
+        services.AddScoped<IAdminIdentitySeeder, AdminIdentitySeeder>();
         services.AddScoped<NewsArticleSeedService>();
         services.AddScoped<ReleaseSeedService>();
         services.AddScoped<DevelopmentDatabaseResetService>();

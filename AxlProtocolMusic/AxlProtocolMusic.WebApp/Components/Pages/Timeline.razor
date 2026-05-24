@@ -138,89 +138,154 @@ else
             </div>
         </section>
 
-        <section class="timeline-track">
-            @{
-                var initialVisibleEventCount = 0;
-            }
-            @foreach (var month in timelineYears)
-            {
-                <article class="era-section">
-                    <div class="era-events">
-                        <div class="era-header">
-                            <div class="era-marker">
-                                <span class="era-year">@month.MonthLabelShort</span>
-                            </div>
+        <section class="timeline-workspace">
+            <aside class="timeline-detail-pane" aria-label="Timeline detail pane">
+                @if (selectedTimelineEntry is not null)
+                {
+                    <div class="timeline-detail-surface">
+                        <div class="timeline-detail-meta">
+                            <span class="timeline-detail-date">@selectedTimelineEntry.DateLabel</span>
+                            <span class="event-tag @selectedTimelineEntry.TagClass">@selectedTimelineEntry.Tag</span>
                         </div>
 
-                        <div class="timeline-event-center"></div>
-
-                        <div class="timeline-event-list">
-                            @foreach (var timelineEvent in month.Events)
+                        <h2>@selectedTimelineEntry.Title</h2>
+                        <div class="timeline-detail-body">
+                            @if (!string.IsNullOrWhiteSpace(selectedTimelineEntry.ImageUrl))
                             {
-                                var isInitiallyVisible = initialVisibleEventCount < 3;
-                                initialVisibleEventCount++;
+                                <div class="timeline-detail-artwork">
+                                    <img src="@selectedTimelineEntry.ImageUrl" alt="@($"{selectedTimelineEntry.Title} image")" />
+                                </div>
+                            }
 
-                                <article class="event-card @timelineEvent.TagClass timeline-reveal-target @(isInitiallyVisible ? "is-visible" : string.Empty)">
-                                    <div class="event-meta">
-                                        <span class="event-date">@timelineEvent.DateLabel</span>
-                                        <span class="event-tag @timelineEvent.TagClass">@timelineEvent.Tag</span>
-                                    </div>
+                            @if (selectedTimelineEntry.MarkdownContent is not null)
+                            {
+                                <MarkdownRenderer Content="@selectedTimelineEntry.MarkdownContent" CssClass="timeline-detail-markdown" />
+                            }
+                            else
+                            {
+                                <p class="timeline-detail-description">@selectedTimelineEntry.Description</p>
 
-                                    @if (!string.IsNullOrWhiteSpace(timelineEvent.ImageUrl))
-                                    {
-                                        <div class="event-artwork">
-                                            <img src="@timelineEvent.ImageUrl" alt="@($"{timelineEvent.Title} image")" />
-                                        </div>
-                                    }
-
-                                    <h3>@timelineEvent.Title</h3>
-                                    <p>@timelineEvent.Description</p>
-
-                                    @if (timelineEvent.Highlights.Count > 0)
-                                    {
-                                        <ul class="event-highlights">
-                                            @foreach (var highlight in timelineEvent.Highlights)
-                                            {
-                                                <li>@highlight</li>
-                                            }
-                                        </ul>
-                                    }
-
-                                    <div class="event-card-footer">
-                                        @if (!string.IsNullOrWhiteSpace(timelineEvent.Href))
+                                @if (selectedTimelineEntry.Highlights.Count > 0)
+                                {
+                                    <ul class="timeline-detail-highlights">
+                                        @foreach (var highlight in selectedTimelineEntry.Highlights)
                                         {
-                                            <a class="event-link" href="@timelineEvent.Href">@timelineEvent.LinkLabel</a>
+                                            <li>@highlight</li>
                                         }
-
-                                        <AuthorizeView Roles="Admin">
-                                            <Authorized>
-                                                @if (timelineEvent.IsManualEvent)
-                                                {
-                                                    <div class="event-admin-actions">
-                                                        <button
-                                                            class="btn btn-outline-primary btn-sm event-edit-button"
-                                                            type="button"
-                                                            @onclick="() => OpenEditModal(timelineEvent)">
-                                                            Edit Event
-                                                        </button>
-
-                                                        <button
-                                                            class="btn btn-outline-danger btn-sm"
-                                                            type="button"
-                                                            @onclick="() => OpenDeleteModal(timelineEvent)">
-                                                            Delete
-                                                        </button>
-                                                    </div>
-                                                }
-                                            </Authorized>
-                                        </AuthorizeView>
-                                    </div>
-                                </article>
+                                    </ul>
+                                }
                             }
                         </div>
+
+                        @if (!string.IsNullOrWhiteSpace(selectedTimelineEntry.Href))
+                        {
+                            <a class="btn btn-outline-primary timeline-detail-action" href="@selectedTimelineEntry.Href">@selectedTimelineEntry.LinkLabel</a>
+                        }
                     </div>
-                </article>
-            }
+                }
+                else
+                {
+                    <div class="timeline-detail-surface timeline-detail-empty">
+                        <p class="eyebrow">Detail Pane</p>
+                        <h2>Click A Timeline Card</h2>
+                        <p>Select any release, news article, or milestone in the timeline to open its full details here while keeping your place in the chronology.</p>
+                    </div>
+                }
+            </aside>
+
+            <section class="timeline-track">
+                @{
+                    var initialVisibleEventCount = 0;
+                }
+                @foreach (var month in timelineYears)
+                {
+                    <article class="era-section">
+                        <div class="era-events">
+                            <div class="era-header">
+                                <div class="era-marker">
+                                    <span class="era-year">@month.MonthLabelShort</span>
+                                </div>
+                            </div>
+
+                            <div class="timeline-event-center"></div>
+
+                            <div class="timeline-event-list">
+                                @foreach (var timelineEvent in month.Events)
+                                {
+                                    var isInitiallyVisible = initialVisibleEventCount < 3;
+                                    initialVisibleEventCount++;
+
+                                    <article class="event-card @timelineEvent.TagClass timeline-reveal-target @GetTimelineEntryVisibilityClass(timelineEvent, isInitiallyVisible)"
+                                             role="button"
+                                             tabindex="0"
+                                             @onclick="() => SelectTimelineEntry(timelineEvent)"
+                                             @onkeydown="args => HandleTimelineEntryKeyDown(args, timelineEvent)">
+                                        <div class="event-meta">
+                                            <span class="event-date">@timelineEvent.DateLabel</span>
+                                            <span class="event-tag @timelineEvent.TagClass">@timelineEvent.Tag</span>
+                                        </div>
+
+                                        @if (!string.IsNullOrWhiteSpace(timelineEvent.ImageUrl))
+                                        {
+                                            <div class="event-artwork">
+                                                <img src="@timelineEvent.ImageUrl" alt="@($"{timelineEvent.Title} image")" />
+                                            </div>
+                                        }
+
+                                        <h3>@timelineEvent.Title</h3>
+                                        <p>@timelineEvent.Description</p>
+
+                                        @if (timelineEvent.Highlights.Count > 0)
+                                        {
+                                            <ul class="event-highlights">
+                                                @foreach (var highlight in timelineEvent.Highlights)
+                                                {
+                                                    <li>@highlight</li>
+                                                }
+                                            </ul>
+                                        }
+
+                                        @if (!string.IsNullOrWhiteSpace(timelineEvent.Href) || timelineEvent.IsManualEvent)
+                                        {
+                                            <div class="event-card-footer">
+                                                @if (!string.IsNullOrWhiteSpace(timelineEvent.Href))
+                                                {
+                                                    <a class="event-link" href="@timelineEvent.Href" @onclick:stopPropagation="true">@timelineEvent.LinkLabel</a>
+                                                }
+
+                                                <AuthorizeView Roles="Admin">
+                                                    <Authorized>
+                                                        @if (timelineEvent.IsManualEvent)
+                                                        {
+                                                            <div class="event-admin-actions">
+                                                                <button
+                                                                    class="btn btn-outline-primary btn-sm event-edit-button"
+                                                                    type="button"
+                                                                    @onclick:stopPropagation="true"
+                                                                    @onclick="() => OpenEditModal(timelineEvent)">
+                                                                    Edit Event
+                                                                </button>
+
+                                                                <button
+                                                                    class="btn btn-outline-danger btn-sm"
+                                                                    type="button"
+                                                                    @onclick:stopPropagation="true"
+                                                                    @onclick="() => OpenDeleteModal(timelineEvent)">
+                                                                    Delete
+                                                                </button>
+                                                            </div>
+                                                        }
+                                                    </Authorized>
+                                                </AuthorizeView>
+                                            </div>
+                                        }
+                                    </article>
+                                }
+                            </div>
+                        </div>
+                    </article>
+                }
+            </section>
         </section>
 
         @if (hasMoreMonths)
@@ -374,6 +439,7 @@ else
     private int newsArticleEventCount;
     private int manualEventCount;
     private int totalTimelineEvents;
+    private HashSet<string> revealedTimelineEntryKeys = [];
     private bool isEditModalOpen;
     private bool isSavingEdit;
     private bool isCreatingTimelineEvent;
@@ -385,6 +451,7 @@ else
     private string? editErrorMessage;
     private string? editStatusMessage;
     private string? deleteErrorMessage;
+    private TimelineEntry? selectedTimelineEntry;
     private TimelineEvent? editableTimelineEvent;
     private TimelineEntry? timelineEventPendingDelete;
     private DateTime editableEventDate;
@@ -450,7 +517,9 @@ else
                 false,
                 null,
                 $"/releases/{Uri.EscapeDataString(release.Slug)}",
-                "View Release"))
+                "View Release",
+                null,
+                string.IsNullOrWhiteSpace(release.Story) ? null : release.Story))
             .ToList();
 
         var newsArticleEvents = newsArticles
@@ -465,8 +534,10 @@ else
                 article.ImageUrl,
                 false,
                 null,
-                "/news",
-                "View Article"))
+                null,
+                null,
+                article,
+                article.Content))
             .ToList();
 
         var manualEvents = timelineEvents
@@ -505,6 +576,7 @@ else
                 group.ToList()))
             .ToList();
 
+        selectedTimelineEntry = PreserveSelectedTimelineEntry(combinedEvents);
         timelineYears = [];
         LoadNextMonthBatch(Math.Max(loadedMonthCount, MonthBatchSize));
         isLoading = false;
@@ -527,7 +599,8 @@ else
 
     private static string BuildNewsDescription(NewsArticle article)
     {
-        var words = Regex.Split(article.Content.Trim(), @"\s+")
+        var previewSource = Regex.Replace(article.Content ?? string.Empty, @"[#>*_`~\[\]\(\)!-]+", " ");
+        var words = Regex.Split(previewSource.Trim(), @"\s+")
             .Where(word => !string.IsNullOrWhiteSpace(word))
             .ToList();
 
@@ -543,6 +616,51 @@ else
         => string.IsNullOrWhiteSpace(coverImageUrl)
             ? PlaceholderAlbumArtPath
             : coverImageUrl;
+
+    private TimelineEntry? PreserveSelectedTimelineEntry(IReadOnlyList<TimelineEntry> combinedEvents)
+    {
+        if (selectedTimelineEntry is null)
+        {
+            return null;
+        }
+
+        return combinedEvents.FirstOrDefault(entry => string.Equals(entry.SelectionKey, selectedTimelineEntry.SelectionKey, StringComparison.Ordinal));
+    }
+
+    private void SelectTimelineEntry(TimelineEntry timelineEvent)
+    {
+        revealedTimelineEntryKeys.Add(timelineEvent.SelectionKey);
+        selectedTimelineEntry = timelineEvent;
+    }
+
+    private bool IsSelectedTimelineEntry(TimelineEntry timelineEvent)
+        => selectedTimelineEntry is not null
+            && string.Equals(selectedTimelineEntry.SelectionKey, timelineEvent.SelectionKey, StringComparison.Ordinal);
+
+    private string GetTimelineEntryVisibilityClass(TimelineEntry timelineEvent, bool isInitiallyVisible)
+    {
+        var classes = new List<string>();
+
+        if (isInitiallyVisible || IsSelectedTimelineEntry(timelineEvent) || revealedTimelineEntryKeys.Contains(timelineEvent.SelectionKey))
+        {
+            classes.Add("is-visible");
+        }
+
+        if (IsSelectedTimelineEntry(timelineEvent))
+        {
+            classes.Add("is-selected");
+        }
+
+        return string.Join(' ', classes);
+    }
+
+    private void HandleTimelineEntryKeyDown(KeyboardEventArgs args, TimelineEntry timelineEvent)
+    {
+        if (args.Key is "Enter" or " ")
+        {
+            SelectTimelineEntry(timelineEvent);
+        }
+    }
 
     private void OpenEditModal(TimelineEntry timelineEvent)
     {
@@ -761,9 +879,19 @@ else
         bool IsManualEvent,
         TimelineEventType? EventType,
         string? Href,
-        string? LinkLabel)
+        string? LinkLabel,
+        NewsArticle? NewsArticle = null,
+        string? MarkdownContent = null)
     {
         public string DateLabel => EventDateUtc.ToString("MMMM d, yyyy");
+
+        public string SelectionKey => NewsArticle is not null
+            ? $"news:{NewsArticle.Id}"
+            : !string.IsNullOrWhiteSpace(Id)
+                ? $"manual:{Id}"
+                : !string.IsNullOrWhiteSpace(Href)
+                    ? $"link:{Href}"
+                    : $"{Tag}:{Title}:{EventDateUtc:O}";
     }
 
     public async ValueTask DisposeAsync()

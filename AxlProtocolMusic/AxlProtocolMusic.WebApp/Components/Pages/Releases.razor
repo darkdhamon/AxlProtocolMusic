@@ -109,18 +109,32 @@
         <section class="release-grid">
             @foreach (var release in loadedReleases)
             {
+                var isUpcomingRelease = IsUpcomingRelease(release.ReleaseDateUtc);
+
                 <a class="release-card-link" href="@($"/releases/{release.Slug}")">
                     <article class="release-card">
-                        <img
-                            class="release-artwork"
-                            src="@GetReleaseArtworkUrl(release.CoverImageUrl)"
-                            alt="@release.Title cover art"
-                            onerror="this.onerror=null;this.src='/Assets/Misc/Placeholder-AlbumArt.png';" />
+                        <div class="release-artwork-frame">
+                            <img
+                                class="@(isUpcomingRelease ? "release-artwork is-upcoming" : "release-artwork")"
+                                src="@GetReleaseArtworkUrl(release.CoverImageUrl)"
+                                alt="@release.Title cover art"
+                                onerror="this.onerror=null;this.src='/Assets/Misc/Placeholder-AlbumArt.png';" />
+
+                            @if (isUpcomingRelease)
+                            {
+                                <div class="release-artwork-overlay" aria-hidden="true">
+                                    <div class="release-coming-soon-group">
+                                        <span class="release-coming-soon-label">Coming Soon</span>
+                                        <span class="release-coming-soon-date">@release.ReleaseDateUtc.ToLocalTime().ToString("MMMM dd, yyyy")</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
 
                         <div class="release-copy">
                             <div class="release-meta-row">
                                 <p class="release-date">@release.ReleaseDateUtc.ToLocalTime().ToString("MMMM d, yyyy")</p>
-                                @if (IsUpcomingRelease(release.ReleaseDateUtc))
+                                @if (isUpcomingRelease)
                                 {
                                     <span class="release-status-badge upcoming-release-badge">Upcoming Release</span>
                                 }

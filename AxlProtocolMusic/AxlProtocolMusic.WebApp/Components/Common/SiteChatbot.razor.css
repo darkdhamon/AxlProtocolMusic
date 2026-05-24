@@ -1,3 +1,33 @@
+.chatbot-admin-popup-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(10, 18, 24, 0.52);
+}
+
+.chatbot-admin-popup {
+    width: min(26rem, 100%);
+    padding: 1.25rem;
+    border: 1px solid rgba(132, 32, 41, 0.18);
+    border-radius: 1rem;
+    background: var(--bs-body-bg, #fff);
+    box-shadow: 0 24px 48px rgba(10, 31, 34, 0.2);
+}
+
+.chatbot-admin-popup-title {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.chatbot-admin-popup-message {
+    margin: 0 0 1rem;
+}
+
 .site-chatbot {
     --chatbot-primary: #114a52;
     --chatbot-secondary: #1d7c68;
@@ -25,10 +55,13 @@
 
 .chatbot-panel {
     width: min(24rem, calc(100vw - 2rem));
+    min-width: min(20rem, calc(100vw - 2rem));
+    min-height: 24rem;
     max-height: min(42rem, calc(100vh - 7rem));
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    resize: both;
     border: 1px solid var(--chatbot-border);
     border-radius: 1.25rem;
     background: var(--bs-body-bg, #fff);
@@ -183,6 +216,9 @@
 
     .chatbot-panel {
         width: 100%;
+        min-width: 0;
+        min-height: 0;
+        resize: none;
     }
 
     .chatbot-actions {

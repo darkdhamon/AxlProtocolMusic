@@ -42,7 +42,7 @@ public sealed class ReleasesPageTests
     {
         using var context = new BunitContext();
         context.AddAuthorization().SetNotAuthorized();
-        context.Services.AddSingleton<IReleaseService>(new FakePagedReleaseService
+        var releaseService = new FakePagedReleaseService
         {
             PagedResult = new PagedReleaseResult
             {
@@ -73,7 +73,8 @@ public sealed class ReleasesPageTests
                 TotalPages = 1,
                 SearchTerm = string.Empty
             }
-        });
+        };
+        context.Services.AddSingleton<IReleaseService>(releaseService);
 
         var cut = context.Render<Releases>();
 
@@ -83,6 +84,10 @@ public sealed class ReleasesPageTests
             Assert.That(cut.Markup, Does.Contain("Signals"));
             Assert.That(cut.Markup, Does.Contain("Echo Grid"));
             Assert.That(cut.Markup, Does.Contain("Upcoming Release"));
+            Assert.That(cut.Markup, Does.Contain("Coming Soon"));
+            Assert.That(cut.Markup, Does.Contain("release-coming-soon-group"));
+            Assert.That(cut.Markup, Does.Contain(releaseService.PagedResult.Items[0].ReleaseDateUtc.ToLocalTime().ToString("MMMM dd, yyyy")));
+            Assert.That(cut.Markup, Does.Contain("release-artwork is-upcoming"));
             Assert.That(cut.Markup, Does.Contain("/releases/signals"));
             Assert.That(cut.Markup, Does.Contain("/releases/echo-grid"));
             Assert.That(cut.Markup, Does.Contain("All visible releases are loaded."));
@@ -119,6 +124,9 @@ public sealed class ReleasesPageTests
 
         public Task<IReadOnlyList<string>> GetKnownContributorNamesAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>([]);
+
+        public Task<IReadOnlyDictionary<string, IReadOnlyList<string>>> GetKnownContributorRolesByNameAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyDictionary<string, IReadOnlyList<string>>>(new Dictionary<string, IReadOnlyList<string>>());
 
         public Task<IReadOnlyList<string>> GetKnownTagsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>([]);

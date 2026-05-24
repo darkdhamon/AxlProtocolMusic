@@ -1,5 +1,193 @@
-﻿@page "/not-found"
+@page "/not-found"
+@using System.Text.RegularExpressions
+@using AxlProtocolMusic.WebApp.Models.Content
+@using AxlProtocolMusic.WebApp.Services.Interfaces
+@using AxlProtocolMusic.WebApp.Services.ServiceModels
+@inject INewsArticleService NewsArticleService
+@inject IReleaseService ReleaseService
 @layout MainLayout
 
-<h3>Not Found</h3>
-<p>Sorry, the content you are looking for does not exist.</p>
+<PageTitle>Page Not Found</PageTitle>
+
+<div class="not-found-page">
+    <section class="not-found-shell">
+        <div class="not-found-copy">
+            <p class="eyebrow">404 Error</p>
+            <h1>Page not found</h1>
+            <p class="lead">
+                The page you requested does not exist or may have moved.
+            </p>
+            <p>
+                Use the site navigation to get back to the section you were looking for.
+            </p>
+        </div>
+
+        <div class="not-found-artwork">
+            <img src="/Assets/Misc/404-Graphic.png" alt="Stylized 404 graphic" />
+        </div>
+    </section>
+
+    <section class="recommendations-section" aria-labelledby="you-might-like-heading">
+        <div class="recommendations-header">
+            <p class="eyebrow">You Might Like</p>
+            <h2 id="you-might-like-heading">A couple of places to jump back in</h2>
+        </div>
+
+        <div class="recommendations-grid">
+            <article class="recommendation-card" style="@GetCardStyle(newsRecommendation.BackgroundImageUrl)">
+                <div class="recommendation-card-overlay">
+                    <p class="recommendation-label">@newsRecommendation.Label</p>
+                    <h3>@newsRecommendation.Title</h3>
+                    <p>@newsRecommendation.Description</p>
+                    <a class="recommendation-link" href="@newsRecommendation.Url">View Article</a>
+                </div>
+            </article>
+
+            <article class="recommendation-card" style="@GetCardStyle(releaseRecommendation.BackgroundImageUrl)">
+                <div class="recommendation-card-overlay">
+                    <p class="recommendation-label">@releaseRecommendation.Label</p>
+                    <h3>@releaseRecommendation.Title</h3>
+                    <p>@releaseRecommendation.Description</p>
+                    <a class="recommendation-link" href="@releaseRecommendation.Url">View Release</a>
+                </div>
+            </article>
+        </div>
+    </section>
+</div>
+
+@code {
+    private const string DefaultNewsBackgroundImageUrl = "/Assets/Misc/404-Graphic.png";
+    private const string DefaultReleaseBackgroundImageUrl = "/Assets/Misc/Placeholder-AlbumArt.png";
+
+    private RecommendationCard newsRecommendation = RecommendationCard.CreateFallback(
+        label: "News Article",
+        title: "Behind the latest release",
+        description: "Catch up on a featured article with studio notes, release context, and the story behind the latest update.",
+        url: "/news",
+        backgroundImageUrl: DefaultNewsBackgroundImageUrl);
+
+    private RecommendationCard releaseRecommendation = RecommendationCard.CreateFallback(
+        label: "Release",
+        title: "Explore a featured release",
+        description: "Jump back into the catalog and open a release page with artwork, credits, lyrics, and listening links.",
+        url: "/releases",
+        backgroundImageUrl: DefaultReleaseBackgroundImageUrl);
+
+    private bool hasLoadedRecommendations;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRecommendationsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadRecommendationsAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadRecommendationsAsync()
+    {
+        if (hasLoadedRecommendations)
+        {
+            return;
+        }
+
+        hasLoadedRecommendations = true;
+
+        try
+        {
+            var articleTask = NewsArticleService.GetArticlesAsync();
+            var releaseTask = ReleaseService.GetPagedReleasesAsync(searchTerm: null, pageNumber: 1, pageSize: 100);
+
+            await Task.WhenAll(articleTask, releaseTask);
+
+            var selectedArticle = PickRandomItem(articleTask.Result
+                .Where(IsLiveForPublic)
+                .ToList());
+
+            if (selectedArticle is not null)
+            {
+                newsRecommendation = new RecommendationCard(
+                    Label: "News Article",
+                    Title: selectedArticle.Title,
+                    Description: GetNewsPreview(selectedArticle),
+                    Url: $"/news?article={Uri.EscapeDataString(selectedArticle.Slug)}",
+                    BackgroundImageUrl: string.IsNullOrWhiteSpace(selectedArticle.ImageUrl)
+                        ? DefaultNewsBackgroundImageUrl
+                        : selectedArticle.ImageUrl);
+            }
+
+            var selectedRelease = PickRandomItem(releaseTask.Result.Items
+                .Where(release => release.IsPublished)
+                .ToList());
+
+            if (selectedRelease is not null)
+            {
+                releaseRecommendation = new RecommendationCard(
+                    Label: "Release",
+                    Title: selectedRelease.Title,
+                    Description: string.IsNullOrWhiteSpace(selectedRelease.ShortDescription)
+                        ? "Open the release page for artwork, credits, lyrics, and listening links."
+                        : selectedRelease.ShortDescription,
+                    Url: $"/releases/{selectedRelease.Slug}",
+                    BackgroundImageUrl: string.IsNullOrWhiteSpace(selectedRelease.CoverImageUrl)
+                        ? DefaultReleaseBackgroundImageUrl
+                        : selectedRelease.CoverImageUrl);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static string GetCardStyle(string backgroundImageUrl)
+        => $"--card-image: url('{backgroundImageUrl}');";
+
+    private static bool IsLiveForPublic(NewsArticle article)
+        => article.IsPublished && article.PublicationDateUtc <= DateTimeOffset.UtcNow;
+
+    private static T? PickRandomItem<T>(IReadOnlyList<T> items)
+        where T : class
+    {
+        if (items.Count == 0)
+        {
+            return null;
+        }
+
+        return items[Random.Shared.Next(items.Count)];
+    }
+
+    private static string GetNewsPreview(NewsArticle article)
+    {
+        var words = Regex.Split(article.Content.Trim(), @"\s+")
+            .Where(word => !string.IsNullOrWhiteSpace(word))
+            .Take(28)
+            .ToArray();
+
+        return words.Length == 0
+            ? "Open the article to read the full update."
+            : string.Join(' ', words);
+    }
+
+    private sealed record RecommendationCard(
+        string Label,
+        string Title,
+        string Description,
+        string Url,
+        string BackgroundImageUrl)
+    {
+        public static RecommendationCard CreateFallback(
+            string label,
+            string title,
+            string description,
+            string url,
+            string backgroundImageUrl)
+            => new(label, title, description, url, backgroundImageUrl);
+    }
+}

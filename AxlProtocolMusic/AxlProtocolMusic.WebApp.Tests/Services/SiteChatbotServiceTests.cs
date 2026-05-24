@@ -25,38 +25,17 @@ public sealed class SiteChatbotServiceTests
     }
 
     [Test]
-    public async Task GenerateReplyAsync_WhenChatbotIsDisabled_ReturnsDisabledMessageWithoutCallingDependencies()
-    {
-        var contextBuilder = new FakeContextBuilder();
-        var budgetService = new FakeChatbotBudgetService();
-        var handler = new FakeHttpMessageHandler(_ => throw new AssertionException("HTTP should not be called."));
-        var service = CreateService(
-            handler,
-            budgetService,
-            contextBuilder,
-            chatbotSettings: new ChatbotSettings { Enabled = false },
-            openAiSettings: new OpenAiChatSettings { ApiKey = "test-key" });
-
-        var result = await service.GenerateReplyAsync("What is this site?");
-
-        Assert.That(result.IsEnabled, Is.False);
-        Assert.That(result.IsConfigured, Is.False);
-        Assert.That(result.Message, Is.EqualTo("The site assistant is currently turned off."));
-        Assert.That(contextBuilder.BuildCallCount, Is.EqualTo(0));
-        Assert.That(budgetService.GetSummaryCallCount, Is.EqualTo(0));
-    }
-
-    [Test]
     public async Task GenerateReplyAsync_WhenApiKeyIsMissing_ReturnsConfigurationMessageWithoutCallingOpenAi()
     {
         var contextBuilder = new FakeContextBuilder();
         var budgetService = new FakeChatbotBudgetService();
+        var logService = new FakeChatbotConversationLogService();
         var handler = new FakeHttpMessageHandler(_ => throw new AssertionException("HTTP should not be called."));
         var service = CreateService(
             handler,
             budgetService,
+            logService,
             contextBuilder,
-            chatbotSettings: new ChatbotSettings { Enabled = true },
             openAiSettings: new OpenAiChatSettings { ApiKey = "" });
 
         var result = await service.GenerateReplyAsync("What is this site?");
@@ -66,6 +45,8 @@ public sealed class SiteChatbotServiceTests
         Assert.That(result.Message, Is.EqualTo("The site assistant is enabled, but the OpenAI API key has not been configured yet."));
         Assert.That(contextBuilder.BuildCallCount, Is.EqualTo(0));
         Assert.That(budgetService.GetSummaryCallCount, Is.EqualTo(0));
+        Assert.That(logService.Records, Has.Count.EqualTo(1));
+        Assert.That(logService.Records.Single().Outcome, Is.EqualTo("configuration-unavailable"));
     }
 
     [Test]
@@ -81,8 +62,9 @@ public sealed class SiteChatbotServiceTests
         };
 
         var contextBuilder = new FakeContextBuilder();
+        var logService = new FakeChatbotConversationLogService();
         var handler = new FakeHttpMessageHandler(_ => throw new AssertionException("HTTP should not be called."));
-        var service = CreateService(handler, budgetService, contextBuilder);
+        var service = CreateService(handler, budgetService, logService, contextBuilder);
 
         var result = await service.GenerateReplyAsync("Where can I find releases?");
 
@@ -91,6 +73,7 @@ public sealed class SiteChatbotServiceTests
         Assert.That(result.Message, Is.EqualTo("Chatbot budget reached for today."));
         Assert.That(budgetService.GetSummaryCallCount, Is.EqualTo(1));
         Assert.That(contextBuilder.BuildCallCount, Is.EqualTo(0));
+        Assert.That(logService.Records.Single().Outcome, Is.EqualTo("disabled"));
     }
 
     [Test]
@@ -108,6 +91,7 @@ public sealed class SiteChatbotServiceTests
         var service = CreateService(
             new FakeHttpMessageHandler(_ => throw new AssertionException("HTTP should not be called.")),
             budgetService,
+            new FakeChatbotConversationLogService(),
             new FakeContextBuilder());
 
         var result = await service.GenerateReplyAsync("Where can I find releases?");
@@ -120,6 +104,7 @@ public sealed class SiteChatbotServiceTests
     {
         var contextBuilder = new FakeContextBuilder();
         var budgetService = new FakeChatbotBudgetService();
+        var logService = new FakeChatbotConversationLogService();
         var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent("""
@@ -137,8 +122,8 @@ public sealed class SiteChatbotServiceTests
         var service = CreateService(
             handler,
             budgetService,
+            logService,
             contextBuilder,
-            chatbotSettings: new ChatbotSettings { Enabled = true },
             openAiSettings: new OpenAiChatSettings
             {
                 ApiKey = "test-key",
@@ -159,6 +144,7 @@ public sealed class SiteChatbotServiceTests
         Assert.That(budgetService.UsageRecords.Single().InputTokens, Is.EqualTo(123));
         Assert.That(budgetService.UsageRecords.Single().OutputTokens, Is.EqualTo(45));
         Assert.That(budgetService.UsageRecords.Single().CachedInputTokens, Is.EqualTo(6));
+        Assert.That(logService.Records.Single().Outcome, Is.EqualTo("completed"));
     }
 
     [Test]
@@ -180,11 +166,13 @@ public sealed class SiteChatbotServiceTests
             """)
         });
 
-        var service = CreateService(handler);
+        var logService = new FakeChatbotConversationLogService();
+        var service = CreateService(handler, logService: logService);
 
         var result = await service.GenerateReplyAsync("Summarize the page.");
 
         Assert.That(result.Message, Is.EqualTo("First line" + Environment.NewLine + "Second line"));
+        Assert.That(logService.Records.Single().Outcome, Is.EqualTo("completed"));
     }
 
     [Test]
@@ -205,12 +193,14 @@ public sealed class SiteChatbotServiceTests
             """)
         });
 
-        var service = CreateService(handler, budgetService, new FakeContextBuilder());
+        var logService = new FakeChatbotConversationLogService();
+        var service = CreateService(handler, budgetService: budgetService, logService: logService, contextBuilder: new FakeContextBuilder());
 
         var result = await service.GenerateReplyAsync("Tell me about this page.");
 
         Assert.That(result.Message, Is.EqualTo("The site assistant could not produce a readable reply right now."));
         Assert.That(budgetService.UsageRecords, Has.Count.EqualTo(1));
+        Assert.That(logService.Records.Single().Outcome, Is.EqualTo("unreadable-response"));
     }
 
     [Test]
@@ -261,8 +251,8 @@ public sealed class SiteChatbotServiceTests
         var service = CreateService(
             handler,
             new FakeChatbotBudgetService(),
+            new FakeChatbotConversationLogService(),
             contextBuilder,
-            chatbotSettings: new ChatbotSettings { Enabled = true },
             openAiSettings: new OpenAiChatSettings
             {
                 ApiKey = "test-key",
@@ -328,6 +318,7 @@ public sealed class SiteChatbotServiceTests
         var service = CreateService(
             handler,
             budgetService,
+            new FakeChatbotConversationLogService(),
             new FakeContextBuilder(),
             openAiSettings: new OpenAiChatSettings
             {
@@ -362,7 +353,8 @@ public sealed class SiteChatbotServiceTests
             """)
         });
 
-        var service = CreateService(handler, budgetService, new FakeContextBuilder());
+        var logService = new FakeChatbotConversationLogService();
+        var service = CreateService(handler, budgetService: budgetService, logService: logService, contextBuilder: new FakeContextBuilder());
 
         var result = await service.GenerateReplyAsync("Can you help?");
 
@@ -371,6 +363,7 @@ public sealed class SiteChatbotServiceTests
         Assert.That(budgetService.FailureRecords, Is.Empty);
         Assert.That(budgetService.DisableForQuotaRecords.Single().Model, Is.EqualTo("gpt-5-mini"));
         Assert.That(budgetService.DisableForQuotaRecords.Single().ErrorCode, Is.EqualTo("insufficient_quota"));
+        Assert.That(logService.Records.Single().Outcome, Is.EqualTo("failed"));
     }
 
     [Test]
@@ -390,7 +383,8 @@ public sealed class SiteChatbotServiceTests
             """)
         });
 
-        var service = CreateService(handler, budgetService, new FakeContextBuilder());
+        var logService = new FakeChatbotConversationLogService();
+        var service = CreateService(handler, budgetService: budgetService, logService: logService, contextBuilder: new FakeContextBuilder());
 
         var result = await service.GenerateReplyAsync("Can you help?");
 
@@ -398,6 +392,7 @@ public sealed class SiteChatbotServiceTests
         Assert.That(budgetService.FailureRecords, Has.Count.EqualTo(1));
         Assert.That(budgetService.DisableForQuotaRecords, Is.Empty);
         Assert.That(budgetService.FailureRecords.Single().ErrorCode, Is.EqualTo("server_error"));
+        Assert.That(logService.Records.Single().Outcome, Is.EqualTo("failed"));
     }
 
     [Test]
@@ -409,27 +404,55 @@ public sealed class SiteChatbotServiceTests
             Content = new StringContent("not-json")
         });
 
-        var service = CreateService(handler, budgetService, new FakeContextBuilder());
+        var logService = new FakeChatbotConversationLogService();
+        var service = CreateService(handler, budgetService: budgetService, logService: logService, contextBuilder: new FakeContextBuilder());
 
         var result = await service.GenerateReplyAsync("Can you help?");
 
         Assert.That(result.Message, Is.EqualTo("The site assistant is temporarily unavailable."));
         Assert.That(budgetService.FailureRecords, Has.Count.EqualTo(1));
         Assert.That(budgetService.FailureRecords.Single().ErrorMessage, Is.EqualTo(string.Empty));
+        Assert.That(logService.Records.Single().Outcome, Is.EqualTo("failed"));
+    }
+
+    [Test]
+    public async Task GenerateReplyAsync_WhenConversationLoggingFails_ReturnsReplyAnyway()
+    {
+        var budgetService = new FakeChatbotBudgetService();
+        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""
+            {
+              "output_text":"Use /news to follow updates.",
+              "usage":{}
+            }
+            """)
+        });
+
+        var service = CreateService(
+            handler,
+            budgetService: budgetService,
+            logService: new ThrowingChatbotConversationLogService(),
+            contextBuilder: new FakeContextBuilder());
+
+        var result = await service.GenerateReplyAsync("Where are updates?");
+
+        Assert.That(result.Message, Is.EqualTo("Use /news to follow updates."));
+        Assert.That(budgetService.UsageRecords, Has.Count.EqualTo(1));
     }
 
     private static SiteChatbotService CreateService(
         HttpMessageHandler handler,
         IChatbotBudgetService? budgetService = null,
+        IChatbotConversationLogService? logService = null,
         ISiteChatbotContextBuilder? contextBuilder = null,
-        ChatbotSettings? chatbotSettings = null,
         OpenAiChatSettings? openAiSettings = null)
     {
         return new SiteChatbotService(
             new HttpClient(handler),
             budgetService ?? new FakeChatbotBudgetService(),
+            logService ?? new FakeChatbotConversationLogService(),
             contextBuilder ?? new FakeContextBuilder(),
-            Options.Create(chatbotSettings ?? new ChatbotSettings { Enabled = true }),
             Options.Create(openAiSettings ?? new OpenAiChatSettings { ApiKey = "test-key" }),
             NullLogger<SiteChatbotService>.Instance);
     }
@@ -503,5 +526,34 @@ public sealed class SiteChatbotServiceTests
 
         public Task<ChatbotBudgetSummary> SetManualDisabledAsync(bool isDisabled, CancellationToken cancellationToken = default)
             => Task.FromResult(new ChatbotBudgetSummary());
+    }
+
+    private sealed class FakeChatbotConversationLogService : IChatbotConversationLogService
+    {
+        public List<(string UserMessage, string AssistantReply, string Outcome, ChatbotPageContext? CurrentPage)> Records { get; } = [];
+
+        public Task RecordAsync(string userMessage, string assistantReply, string outcome, ChatbotPageContext? currentPage = null, CancellationToken cancellationToken = default)
+        {
+            Records.Add((userMessage, assistantReply, outcome, currentPage));
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(int count = 25, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetExportAsync(int count = 5000, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
+    }
+
+    private sealed class ThrowingChatbotConversationLogService : IChatbotConversationLogService
+    {
+        public Task RecordAsync(string userMessage, string assistantReply, string outcome, ChatbotPageContext? currentPage = null, CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("Logging unavailable.");
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(int count = 25, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetExportAsync(int count = 5000, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
     }
 }
