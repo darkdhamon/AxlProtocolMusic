@@ -8,6 +8,15 @@ Repository guidance for Codex-style agents working in `C:\GitHub\AxlProtocolMusi
 - Prefer documenting concrete commands and outcomes, not vague reminders.
 - Keep the notes focused on repo-specific friction, tooling behavior, or repeatable recovery steps.
 
+## Project Board Workflow
+
+- New project items start in `Backlog`.
+- Analysis-only work should move an item to `Ready` and keep it there until coding begins.
+- If an item is selected directly from `Backlog` or already sitting in `Ready`, move it to `In Progress` only when implementation or coding has actually started.
+- Creating a pull request moves the item to `In Review`.
+- After the pull request is approved and the work has been moved into the `dev` branch, move the item to `Ready for Release`.
+- After the work has been moved into the `main` branch, move the item to `Done` and then close the item.
+
 ## Workarounds
 
 ### Capturing Unit Test Failure Details In GitHub Actions
