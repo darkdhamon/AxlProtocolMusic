@@ -128,6 +128,35 @@ public sealed class AboutAxlProtocolTests
     }
 
     [Test]
+    public void AboutAxlProtocol_WhenLegacyContentHasNullSocialLinks_RendersEmptyLinkState()
+    {
+        using var context = new BunitContext();
+        var content = new AboutPageContent
+        {
+            HeroLead = "Axl Protocol",
+            HeroBody = "About page body."
+        };
+        content.SocialLinks = null!;
+
+        var service = new FakeAboutPageService
+        {
+            Content = content
+        };
+
+        context.AddAuthorization().SetNotAuthorized();
+        context.Services.AddSingleton<IAboutPageService>(service);
+        context.Services.AddSingleton<MarkdownService>();
+
+        var cut = context.Render<AboutAxlProtocol>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Social And Streaming Links"));
+            Assert.That(cut.Markup, Does.Contain("Links Coming Soon"));
+        });
+    }
+
+    [Test]
     public void AboutAxlProtocol_WhenAdminAddsFocusPoint_AutosavesAndShowsSuccess()
     {
         using var context = new BunitContext();

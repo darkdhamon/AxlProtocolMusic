@@ -476,9 +476,9 @@ else
             : $"{uri.Host}{uri.PathAndQuery}";
     }
 
-    private static IReadOnlyList<AboutSocialLink> GetRenderableSocialLinks(IEnumerable<AboutSocialLink> socialLinks)
+    private static IReadOnlyList<AboutSocialLink> GetRenderableSocialLinks(IEnumerable<AboutSocialLink>? socialLinks)
     {
-        return socialLinks
+        return (socialLinks ?? [])
             .Where(link => !string.IsNullOrWhiteSpace(link.Platform))
             .Where(link => !string.IsNullOrWhiteSpace(link.Url))
             .Where(link => Uri.TryCreate(link.Url, UriKind.Absolute, out var uri) &&
@@ -504,7 +504,7 @@ else
                     Description = pillar.Description
                 })
                 .ToList(),
-            SocialLinks = source.SocialLinks
+            SocialLinks = (source.SocialLinks ?? [])
                 .Select(link => new AboutSocialLink
                 {
                     Platform = link.Platform,
