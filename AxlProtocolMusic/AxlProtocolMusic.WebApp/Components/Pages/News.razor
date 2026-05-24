@@ -950,14 +950,23 @@
             return;
         }
 
-        var currentPath = NavigationManager.ToAbsoluteUri(NavigationManager.Uri).AbsolutePath;
-        if (!string.Equals(currentPath, "/news", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(currentPath, "/news-articles", StringComparison.OrdinalIgnoreCase))
+        if (!IsCurrentNewsRoute())
         {
             return;
         }
 
-        NavigationManager.NavigateTo($"/timeline?article={Uri.EscapeDataString(archivedArticle.Slug)}", replace: true);
+        NavigationManager.NavigateTo($"timeline?article={Uri.EscapeDataString(archivedArticle.Slug)}", replace: true);
+    }
+
+    private bool IsCurrentNewsRoute()
+    {
+        var baseRelativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        var currentPath = baseRelativePath
+            .Split(['?', '#'], 2)[0]
+            .Trim('/');
+
+        return string.Equals(currentPath, "news", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentPath, "news-articles", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool IsSelectedArticle(NewsArticle article)
