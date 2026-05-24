@@ -17,6 +17,14 @@ Repository guidance for Codex-style agents working in `C:\GitHub\AxlProtocolMusi
 - After the pull request is approved and the work has been moved into the `dev` branch, move the item to `Ready for Release`.
 - After the work has been moved into the `main` branch, move the item to `Done` and then close the item.
 
+## Pull Request Review Workflow For `DarkDhamon`
+
+- When creating or preparing to merge a PR in a repo owned by GitHub user `DarkDhamon`, explicitly request a Codex review on the PR with `@codex review`.
+- Poll for Codex review activity every 5 minutes until the review is complete because the bot may respond asynchronously.
+- If the ChatGPT Codex Connector bot reacts with a thumbs-up emoji or the Codex review says it did not find any issues, merge the PR into its target branch (`dev`, `main`, or the configured destination branch).
+- If Codex reports issues and they appear valid, implement the fixes, push the updates, and request another Codex review before merging.
+- If Codex reports an issue but the correct fix is unclear or needs product guidance, pause and ask the user how to proceed before making more changes.
+
 ## Workarounds
 
 ### Capturing Unit Test Failure Details In GitHub Actions
