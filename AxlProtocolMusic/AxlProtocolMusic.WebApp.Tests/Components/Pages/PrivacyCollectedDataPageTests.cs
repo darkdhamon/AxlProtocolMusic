@@ -89,6 +89,7 @@ public sealed class PrivacyCollectedDataPageTests
             Assert.That(cut.Markup, Does.Contain("Delete My Data"));
             Assert.That(cut.Markup, Does.Contain("Essential Metrics Disabled"));
             Assert.That(cut.Markup, Does.Contain("Admin Browser Exclusion Active"));
+            Assert.That(cut.Markup, Does.Contain("That marker can remain after logout on purpose"));
             Assert.That(cut.Markup, Does.Contain("Signals"));
             Assert.That(cut.Markup, Does.Contain("Region: Austin, TX, USA"));
             Assert.That(cut.Markup, Does.Contain("open.spotify.com/track/123"));
