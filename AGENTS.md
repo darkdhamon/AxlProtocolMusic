@@ -113,3 +113,24 @@ C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\Components\P
 Notes:
 - `SiteChatbot.razor` only renders when `ChatbotOptions.Value.Enabled` is true and the manual disable flag is false.
 - `appsettings.Development.json` enables the chatbot, but the repo default in `appsettings.json` disables it, so production must override it explicitly.
+
+### Running Tests While The Web App Is Already Running
+
+Problem:
+- If `AxlProtocolMusic.WebApp` is already running from `AxlProtocolMusic.WebApp\bin\Debug\net10.0`, a normal `dotnet test` can fail with `MSB3021` or `MSB3027` because the build tries to overwrite the locked app host or DLL in the default output folder.
+- Pointing `BaseIntermediateOutputPath` at one shared temp folder for the test project and the referenced web app can also create duplicate generated-file errors because both projects write `AssemblyInfo` and other generated files into the same directory.
+
+Verified workaround:
+1. Run the test command with `--artifacts-path` and point it to a temp directory outside the repo.
+2. Keep that path outside `C:\GitHub\AxlProtocolMusic` so generated build output does not mix with source.
+3. Let `dotnet` isolate each project's build output under the artifacts root instead of manually overriding `BaseIntermediateOutputPath`.
+
+Working command:
+
+```powershell
+dotnet test C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.Tests\AxlProtocolMusic.WebApp.Tests.csproj --artifacts-path C:\Users\Bronze\AppData\Local\Temp\AxlProtocolMusicIssue11Artifacts -p:CollectCoverage=false
+```
+
+Notes:
+- This is the reliable way to run focused tests while the site is still open locally.
+- `--artifacts-path` avoids both the locked `bin\Debug` outputs and the shared-generated-file collision that happened when `BaseIntermediateOutputPath` was forced to a single folder.
