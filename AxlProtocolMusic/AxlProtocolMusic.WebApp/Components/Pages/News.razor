@@ -63,7 +63,7 @@
             <p class="eyebrow">Editorial</p>
             <h1>News Articles</h1>
             <p class="news-lead">
-                Featured stories lead the page, published articles flow underneath by recency, and admin users can create, edit, schedule, publish, and delete seeded news content directly from this view.
+                Featured stories lead the page, recent published articles flow underneath by recency, older articles remain available on the timeline, and admin users can create, edit, schedule, publish, and delete seeded news content directly from this view.
             </p>
         </div>
 
@@ -174,7 +174,7 @@
                         <div class="article-card-overlay">
                             <div class="article-card-meta">
                                 <p class="article-card-date">@FormatPublicationLabel(article)</p>
-                                @if (isAdmin && !IsLiveForPublic(article))
+                                @if (isAdmin && !IsVisibleInRecentFeed(article))
                                 {
                                     <span class="article-visibility-badge">Admin Preview</span>
                                 }
@@ -493,7 +493,7 @@
         hasMoreArticles = loadedArticles.Count < feedArticles.Count;
     }
 
-    private static bool IsLiveForPublic(NewsArticle article)
+    private static bool IsVisibleInRecentFeed(NewsArticle article)
     {
         var publicCutoff = DateTimeOffset.UtcNow.AddMonths(-3);
 
@@ -882,7 +882,7 @@
         allArticles = (await NewsArticleService.GetArticlesAsync(includeUnpublished: true)).ToList();
         visibleArticles = isAdmin
             ? allArticles.ToList()
-            : allArticles.Where(IsLiveForPublic).ToList();
+            : allArticles.Where(IsVisibleInRecentFeed).ToList();
 
         featuredArticles = visibleArticles
             .Where(article => article.IsFeatured)
@@ -933,6 +933,40 @@
 
         selectedArticle = visibleArticles.FirstOrDefault(article =>
             string.Equals(article.Slug, ArticleSlug, StringComparison.OrdinalIgnoreCase));
+
+        if (selectedArticle is not null || isAdmin)
+        {
+            return;
+        }
+
+        var archivedArticle = allArticles.FirstOrDefault(article =>
+            string.Equals(article.Slug, ArticleSlug, StringComparison.OrdinalIgnoreCase)
+            && article.IsPublished
+            && article.PublicationDateUtc <= DateTimeOffset.UtcNow
+            && !IsVisibleInRecentFeed(article));
+
+        if (archivedArticle is null)
+        {
+            return;
+        }
+
+        if (!IsCurrentNewsRoute())
+        {
+            return;
+        }
+
+        NavigationManager.NavigateTo($"timeline?article={Uri.EscapeDataString(archivedArticle.Slug)}", replace: true);
+    }
+
+    private bool IsCurrentNewsRoute()
+    {
+        var baseRelativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        var currentPath = baseRelativePath
+            .Split(['?', '#'], 2)[0]
+            .Trim('/');
+
+        return string.Equals(currentPath, "news", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentPath, "news-articles", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool IsSelectedArticle(NewsArticle article)
