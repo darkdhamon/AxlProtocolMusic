@@ -67,6 +67,33 @@ public sealed class NotFoundPageTests
         Assert.That(image.GetAttribute("alt"), Is.EqualTo("Stylized 404 graphic"));
     }
 
+    [Test]
+    public void NotFound_WhenRecommendedArticleIsArchived_LinksToTimelineViewer()
+    {
+        using var context = new BunitContext();
+        context.Services.AddSingleton<INewsArticleService>(new FakeNewsArticleService
+        {
+            Articles =
+            [
+                new NewsArticle
+                {
+                    Id = "news-1",
+                    Title = "Signal Boost",
+                    Slug = "signal-boost",
+                    Content = "A new studio update with fresh details from the latest session.",
+                    ImageUrl = "https://cdn.example/news.jpg",
+                    PublicationDateUtc = DateTimeOffset.UtcNow.AddMonths(-4),
+                    IsPublished = true
+                }
+            ]
+        });
+        context.Services.AddSingleton<IReleaseService>(new FakeReleaseService());
+
+        var cut = context.Render<NotFound>();
+
+        Assert.That(cut.Markup, Does.Contain("/timeline?article=signal-boost"));
+    }
+
     private sealed class FakeNewsArticleService : INewsArticleService
     {
         public IReadOnlyList<NewsArticle> Articles { get; set; } = [];

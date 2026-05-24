@@ -77,6 +77,8 @@ public sealed class TimelinePageTests
     {
         using var context = CreateContext(out var releaseService, out var newsService, out _);
         context.AddAuthorization().SetNotAuthorized();
+        var navigationManager = context.Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/timeline");
         releaseService.Result = new PagedReleaseResult
         {
             Items =
@@ -120,6 +122,7 @@ public sealed class TimelinePageTests
         {
             Assert.That(cut.Markup, Does.Contain("<strong>formatted</strong>"));
             Assert.That(cut.Find("article.event-card.news-event").ClassList.Contains("is-selected"), Is.True);
+            Assert.That(navigationManager.Uri, Does.EndWith("/timeline?article=studio-update"));
         });
 
         cut.FindAll("article.event-card")[0].Click();
@@ -129,6 +132,99 @@ public sealed class TimelinePageTests
             var cards = cut.FindAll("article.event-card");
             Assert.That(cards[0].ClassList.Contains("is-selected"), Is.True);
             Assert.That(cards[1].ClassList.Contains("is-visible"), Is.True);
+            Assert.That(navigationManager.Uri, Does.EndWith("/timeline"));
+        });
+    }
+
+    [Test]
+    public void Timeline_WhenArchivedArticleQueryIsProvided_LoadsTheMatchingArticleViewer()
+    {
+        using var context = CreateContext(out var releaseService, out var newsService, out var timelineEventService);
+        context.AddAuthorization().SetNotAuthorized();
+        var navigationManager = context.Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/timeline?article=archived-story");
+
+        releaseService.Result = new PagedReleaseResult
+        {
+            Items =
+            [
+                new ReleaseListItemViewModel
+                {
+                    Title = "Signals",
+                    Slug = "signals",
+                    ShortDescription = "Release copy",
+                    Story = "## Story\r\n\r\nFull release story.",
+                    ReleaseDateUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero),
+                    CoverImageUrl = string.Empty,
+                    IsPublished = true
+                }
+            ]
+        };
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "news-archived",
+                Title = "Archived Story",
+                Slug = "archived-story",
+                Content = "## Archived Heading\r\n\r\nArchived article body.",
+                PublicationDateUtc = new DateTimeOffset(2025, 7, 15, 0, 0, 0, TimeSpan.Zero),
+                IsPublished = true
+            }
+        ];
+        timelineEventService.Events =
+        [
+            new TimelineEvent
+            {
+                Id = "event-1",
+                Title = "March Milestone",
+                ShortDescription = "March.",
+                EventDateUtc = new DateTimeOffset(2026, 3, 10, 0, 0, 0, TimeSpan.Zero),
+                EventType = TimelineEventType.Milestone
+            },
+            new TimelineEvent
+            {
+                Id = "event-2",
+                Title = "February Milestone",
+                ShortDescription = "February.",
+                EventDateUtc = new DateTimeOffset(2026, 2, 10, 0, 0, 0, TimeSpan.Zero),
+                EventType = TimelineEventType.Milestone
+            },
+            new TimelineEvent
+            {
+                Id = "event-3",
+                Title = "January Milestone",
+                ShortDescription = "January.",
+                EventDateUtc = new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero),
+                EventType = TimelineEventType.Milestone
+            },
+            new TimelineEvent
+            {
+                Id = "event-4",
+                Title = "December Milestone",
+                ShortDescription = "December.",
+                EventDateUtc = new DateTimeOffset(2025, 12, 10, 0, 0, 0, TimeSpan.Zero),
+                EventType = TimelineEventType.Milestone
+            },
+            new TimelineEvent
+            {
+                Id = "event-5",
+                Title = "November Milestone",
+                ShortDescription = "November.",
+                EventDateUtc = new DateTimeOffset(2025, 11, 10, 0, 0, 0, TimeSpan.Zero),
+                EventType = TimelineEventType.Milestone
+            }
+        ];
+
+        var cut = context.Render<Timeline>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Archived Story"));
+            Assert.That(cut.Markup, Does.Contain("Archived Heading"));
+            Assert.That(cut.Markup, Does.Contain("Archived article body."));
+            Assert.That(cut.Find("article.event-card.news-event").ClassList.Contains("is-selected"), Is.True);
+            Assert.That(navigationManager.Uri, Does.EndWith("/timeline?article=archived-story"));
         });
     }
 

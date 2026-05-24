@@ -221,6 +221,33 @@ public sealed class NewsPageTests
     }
 
     [Test]
+    public void News_WhenArchivedArticleQueryIsProvided_RedirectsToTimelineViewer()
+    {
+        using var context = CreateContext(out var newsService);
+        context.AddAuthorization().SetNotAuthorized();
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "old-1",
+                Title = "Older Story",
+                Slug = "older-story",
+                Content = "Old article content.",
+                PublicationDateUtc = DateTimeOffset.UtcNow.AddMonths(-4),
+                IsPublished = true,
+                IsFeatured = false
+            }
+        ];
+
+        navigation.NavigateTo("/news?article=older-story");
+
+        _ = context.Render<News>();
+
+        Assert.That(navigation.Uri, Does.EndWith("/timeline?article=older-story"));
+    }
+
+    [Test]
     public void News_WhenArrowKeysArePressed_CyclesFeaturedArticles()
     {
         using var context = CreateContext(out var newsService);

@@ -117,7 +117,7 @@
                     Label: "News Article",
                     Title: selectedArticle.Title,
                     Description: GetNewsPreview(selectedArticle),
-                    Url: $"/news?article={Uri.EscapeDataString(selectedArticle.Slug)}",
+                    Url: GetNewsArticleUrl(selectedArticle),
                     BackgroundImageUrl: string.IsNullOrWhiteSpace(selectedArticle.ImageUrl)
                         ? DefaultNewsBackgroundImageUrl
                         : selectedArticle.ImageUrl);
@@ -151,6 +151,18 @@
 
     private static bool IsLiveForPublic(NewsArticle article)
         => article.IsPublished && article.PublicationDateUtc <= DateTimeOffset.UtcNow;
+
+    private static bool IsVisibleInRecentFeed(NewsArticle article)
+        => IsLiveForPublic(article)
+            && article.PublicationDateUtc >= DateTimeOffset.UtcNow.AddMonths(-3);
+
+    private static string GetNewsArticleUrl(NewsArticle article)
+    {
+        var encodedSlug = Uri.EscapeDataString(article.Slug);
+        return IsVisibleInRecentFeed(article)
+            ? $"/news?article={encodedSlug}"
+            : $"/timeline?article={encodedSlug}";
+    }
 
     private static T? PickRandomItem<T>(IReadOnlyList<T> items)
         where T : class
