@@ -41,17 +41,17 @@
                 </Authorized>
             </AuthorizeView>
 
+            <AuthorizeView Roles="Admin">
+                <Authorized>
+                    @if (IsTimelinePage)
+                    {
+                        <a class="btn btn-outline-primary btn-sm" href="/timeline?editor=new">Add Timeline Event</a>
+                    }
+                </Authorized>
+            </AuthorizeView>
+
             @if (HostEnvironment.IsDevelopment())
             {
-                <AuthorizeView Roles="Admin">
-                    <Authorized>
-                        @if (IsTimelinePage)
-                        {
-                            <a class="btn btn-outline-primary btn-sm" href="/timeline?editor=new">Add Timeline Event</a>
-                        }
-                    </Authorized>
-                </AuthorizeView>
-
                 <form method="post" action="/account/reset-development-database" class="m-0">
                     <AntiforgeryToken />
                     <button
