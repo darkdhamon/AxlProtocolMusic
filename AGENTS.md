@@ -180,6 +180,55 @@ Notes:
 - Environment variables override both `appsettings.Development.json` and `appsecrets.json`, so this is the safest way to keep PR testing local without editing secrets files.
 - A fresh local database name forces clean content seeding and restores the expected dev bootstrap login for that run.
 - Use this pattern by default whenever local testing needs admin login, destructive content changes, or the browser-based `Reset Dev DB` flow.
+- If no local MongoDB service is installed, a disposable fallback that worked here was `mongodb-memory-server` in a temp folder. The first startup downloaded MongoDB `8.2.6` (about `781 MB`), then exposed `mongodb://127.0.0.1:27017/` for the app process.
+
+### Logging Into The Local PR-Test Site In The Codex Browser
+
+Problem:
+- On this repo's local login page in the Codex in-app browser, Playwright `fill`, Playwright `type`, and `dom_cua.type` can fail with `Browser Use virtual clipboard is not installed`.
+- A successful seeded-admin login does not land on the requested page immediately. It redirects first to `/account/edit?forcePasswordChange=true` because the bootstrap account still uses the default password.
+
+Verified workaround:
+1. Start the app against a fresh local PR-test database using the previous section.
+2. In the in-app browser, call `tab.dom_cua.get_visible_dom()` after each reload or navigation and capture fresh `node_id` values for the username, password, and submit controls.
+3. Use `tab.dom_cua.click(...)` plus `tab.dom_cua.keypress(...)` for each character instead of `fill` or `type`.
+4. Log in with the seeded local admin credentials from `appsettings.Development.json`: username `admin`, password `ChangeThisDevPassword123!`.
+5. After the forced-password-change redirect, navigate to `/timeline` and use the top-row `Add Timeline Event` action to open `/timeline?editor=new`.
+
+Working browser snippet:
+
+```js
+const loginDom = await tab.dom_cua.get_visible_dom();
+const usernameNodeId = loginDom.match(/<input node_id=(\d+) name=\"UserNameOrEmail\"/)?.[1];
+const passwordNodeId = loginDom.match(/<input node_id=(\d+) name=\"Password\"/)?.[1];
+const loginButtonNodeId = loginDom.match(/<button node_id=(\d+) type=\"submit\">Log In<\/button>/)?.[1];
+
+const keypressesFor = (text) => Array.from(text).map((char) => {
+  if (char >= "a" && char <= "z") return [char];
+  if (char >= "A" && char <= "Z") return ["Shift", char.toLowerCase()];
+  if (char >= "0" && char <= "9") return [char];
+  if (char === "!") return ["Shift", "1"];
+  throw new Error(`Unsupported character: ${char}`);
+});
+
+await tab.dom_cua.click({ node_id: usernameNodeId });
+for (const combo of keypressesFor("admin")) {
+  await tab.dom_cua.keypress({ keys: combo });
+}
+
+await tab.dom_cua.click({ node_id: passwordNodeId });
+for (const combo of keypressesFor("ChangeThisDevPassword123!")) {
+  await tab.dom_cua.keypress({ keys: combo });
+}
+
+await tab.playwright.expectNavigation(
+  () => tab.dom_cua.click({ node_id: loginButtonNodeId }),
+  { timeoutMs: 15000, waitUntil: "load" });
+```
+
+Notes:
+- This reliably produced `/account/edit?forcePasswordChange=true`, which confirmed the seeded local admin login succeeded.
+- On the timeline page, the successful end state is the visible top-right `Add Timeline Event` control and the create modal at `/timeline?editor=new`.
 
 ### Managing GitHub Project Status For Repo Issues
 
