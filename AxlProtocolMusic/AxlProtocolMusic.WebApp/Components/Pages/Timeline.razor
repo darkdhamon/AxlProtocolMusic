@@ -1,6 +1,7 @@
 @page "/timeline"
 @rendermode InteractiveServer
 @using System.Text.RegularExpressions
+@using Microsoft.AspNetCore.Components.Authorization
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
 @inject IJSRuntime JSRuntime
 @inject IReleaseService ReleaseService
@@ -435,6 +436,9 @@ else
     [SupplyParameterFromQuery(Name = "article")]
     public string? ArticleSlug { get; set; }
 
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
     private List<TimelineMonthSection> allTimelineMonths = [];
     private List<TimelineEntry> allTimelineEntries = [];
     private List<TimelineMonthSection> timelineYears = [];
@@ -461,10 +465,12 @@ else
     private DateTime editableEventDate;
     private DotNetObjectReference<Timeline>? dotNetReference;
     private ElementReference loadMoreSentinel;
+    private bool isAdminUser;
 
     protected override async Task OnInitializedAsync()
     {
         NavigationManager.LocationChanged += HandleLocationChanged;
+        isAdminUser = await IsCurrentUserAdminAsync();
         await LoadTimelineAsync();
         OpenCreateModalIfRequested();
     }
@@ -731,7 +737,7 @@ else
 
     private void OpenEditModal(TimelineEntry timelineEvent)
     {
-        if (!timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
+        if (!isAdminUser || !timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
         {
             return;
         }
@@ -755,6 +761,11 @@ else
 
     private void OpenCreateModal()
     {
+        if (!isAdminUser)
+        {
+            return;
+        }
+
         isCreatingTimelineEvent = true;
         editableTimelineEvent = new TimelineEvent
         {
@@ -769,7 +780,7 @@ else
 
     private void OpenDeleteModal(TimelineEntry timelineEvent)
     {
-        if (!timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
+        if (!isAdminUser || !timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
         {
             return;
         }
@@ -808,7 +819,7 @@ else
 
     private async Task SaveTimelineEventAsync()
     {
-        if (editableTimelineEvent is null)
+        if (!isAdminUser || editableTimelineEvent is null)
         {
             return;
         }
@@ -859,7 +870,7 @@ else
 
     private async Task DeleteTimelineEventAsync()
     {
-        if (timelineEventPendingDelete is null || string.IsNullOrWhiteSpace(timelineEventPendingDelete.Id))
+        if (!isAdminUser || timelineEventPendingDelete is null || string.IsNullOrWhiteSpace(timelineEventPendingDelete.Id))
         {
             return;
         }
@@ -904,6 +915,11 @@ else
 
     private void OpenCreateModalIfRequested()
     {
+        if (!isAdminUser)
+        {
+            return;
+        }
+
         var uri = new Uri(NavigationManager.Uri);
         var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
 
@@ -913,6 +929,15 @@ else
         {
             OpenCreateModal();
         }
+    }
+
+    private async Task<bool> IsCurrentUserAdminAsync()
+    {
+        var authenticationState = AuthenticationStateTask is null
+            ? null
+            : await AuthenticationStateTask;
+
+        return authenticationState?.User.IsInRole("Admin") == true;
     }
 
     private void RemoveArticleQueryParameter()
