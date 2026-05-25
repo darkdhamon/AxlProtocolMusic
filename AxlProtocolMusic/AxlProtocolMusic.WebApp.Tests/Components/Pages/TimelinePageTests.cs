@@ -341,6 +341,49 @@ public sealed class TimelinePageTests
     }
 
     [Test]
+    public void Timeline_WhenUserBecomesAdminAfterRender_EditActionUsesCurrentAuthenticationState()
+    {
+        using var context = CreateContext(out _, out _, out var timelineEventService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("viewer");
+        timelineEventService.Events =
+        [
+            new TimelineEvent
+            {
+                Id = "event-1",
+                Title = "Project Began",
+                ShortDescription = "A manual milestone.",
+                EventDateUtc = new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero),
+                EventType = TimelineEventType.Milestone
+            }
+        ];
+
+        var cut = context.Render<Timeline>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Project Began"));
+            Assert.That(cut.Markup, Does.Not.Contain("Edit Event"));
+        });
+
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit Event"));
+        });
+
+        cut.Find("button.event-edit-button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit Timeline Event"));
+            Assert.That(cut.Find("#timeline-title").GetAttribute("value"), Is.EqualTo("Project Began"));
+        });
+    }
+
+    [Test]
     public void Timeline_WhenAdminDeletesManualEvent_RemovesEventFromTimeline()
     {
         using var context = CreateContext(out _, out _, out var timelineEventService);
