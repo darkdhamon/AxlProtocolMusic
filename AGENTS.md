@@ -153,6 +153,34 @@ Notes:
 - This is the reliable way to run focused tests while the site is still open locally.
 - `--artifacts-path` avoids both the locked `bin\Debug` outputs and the shared-generated-file collision that happened when `BaseIntermediateOutputPath` was forced to a single folder.
 
+### Keeping PR Testing Off The Azure Mongo Database
+
+Problem:
+- `appsecrets.json` can override `appsettings.Development.json` and point a local app run at the shared Azure-backed Mongo database instead of `mongodb://localhost:27017`.
+- In that state, login testing or the `Reset Dev DB` button can modify the shared bootstrap admin account and make live admin access harder to recover.
+
+Verified workaround:
+1. For PR validation, browser demos, or any local testing that could change auth or content state, override MongoDB settings only for that local process.
+2. Point the app at `mongodb://localhost:27017` and give each test run a fresh database name so the app seeds a disposable local admin/content snapshot.
+3. Keep `appsecrets.json` unchanged and let the override die with the PowerShell session.
+4. If local MongoDB is unavailable, stop and ask the user before testing against Azure. Do not use `Reset Dev DB` while the app is connected to Azure.
+
+Working commands:
+
+```powershell
+$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$env:MongoDb__ConnectionString = "mongodb://localhost:27017"
+$env:MongoDb__DatabaseName = "AxlProtocolMusicPrTest-$stamp"
+dotnet run --project "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\AxlProtocolMusic.WebApp.csproj" --launch-profile http
+Remove-Item Env:MongoDb__ConnectionString
+Remove-Item Env:MongoDb__DatabaseName
+```
+
+Notes:
+- Environment variables override both `appsettings.Development.json` and `appsecrets.json`, so this is the safest way to keep PR testing local without editing secrets files.
+- A fresh local database name forces clean content seeding and restores the expected dev bootstrap login for that run.
+- Use this pattern by default whenever local testing needs admin login, destructive content changes, or the browser-based `Reset Dev DB` flow.
+
 ### Managing GitHub Project Status For Repo Issues
 
 Problem:
