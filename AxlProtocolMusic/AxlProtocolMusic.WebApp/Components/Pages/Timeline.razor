@@ -263,7 +263,7 @@ else
                                                                     class="btn btn-outline-primary btn-sm event-edit-button"
                                                                     type="button"
                                                                     @onclick:stopPropagation="true"
-                                                                    @onclick="() => OpenEditModal(timelineEvent)">
+                                                                    @onclick="() => OpenEditModalAsync(timelineEvent)">
                                                                     Edit Event
                                                                 </button>
 
@@ -271,7 +271,7 @@ else
                                                                     class="btn btn-outline-danger btn-sm"
                                                                     type="button"
                                                                     @onclick:stopPropagation="true"
-                                                                    @onclick="() => OpenDeleteModal(timelineEvent)">
+                                                                    @onclick="() => OpenDeleteModalAsync(timelineEvent)">
                                                                     Delete
                                                                 </button>
                                                             </div>
@@ -465,14 +465,12 @@ else
     private DateTime editableEventDate;
     private DotNetObjectReference<Timeline>? dotNetReference;
     private ElementReference loadMoreSentinel;
-    private bool isAdminUser;
 
     protected override async Task OnInitializedAsync()
     {
         NavigationManager.LocationChanged += HandleLocationChanged;
-        isAdminUser = await IsCurrentUserAdminAsync();
         await LoadTimelineAsync();
-        OpenCreateModalIfRequested();
+        await OpenCreateModalIfRequestedAsync();
     }
 
     protected override void OnParametersSet()
@@ -735,9 +733,9 @@ else
         }
     }
 
-    private void OpenEditModal(TimelineEntry timelineEvent)
+    private async Task OpenEditModalAsync(TimelineEntry timelineEvent)
     {
-        if (!isAdminUser || !timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
+        if (!await IsCurrentUserAdminAsync() || !timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
         {
             return;
         }
@@ -761,11 +759,6 @@ else
 
     private void OpenCreateModal()
     {
-        if (!isAdminUser)
-        {
-            return;
-        }
-
         isCreatingTimelineEvent = true;
         editableTimelineEvent = new TimelineEvent
         {
@@ -778,9 +771,9 @@ else
         isEditModalOpen = true;
     }
 
-    private void OpenDeleteModal(TimelineEntry timelineEvent)
+    private async Task OpenDeleteModalAsync(TimelineEntry timelineEvent)
     {
-        if (!isAdminUser || !timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
+        if (!await IsCurrentUserAdminAsync() || !timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
         {
             return;
         }
@@ -819,7 +812,7 @@ else
 
     private async Task SaveTimelineEventAsync()
     {
-        if (!isAdminUser || editableTimelineEvent is null)
+        if (!await IsCurrentUserAdminAsync() || editableTimelineEvent is null)
         {
             return;
         }
@@ -870,7 +863,7 @@ else
 
     private async Task DeleteTimelineEventAsync()
     {
-        if (!isAdminUser || timelineEventPendingDelete is null || string.IsNullOrWhiteSpace(timelineEventPendingDelete.Id))
+        if (!await IsCurrentUserAdminAsync() || timelineEventPendingDelete is null || string.IsNullOrWhiteSpace(timelineEventPendingDelete.Id))
         {
             return;
         }
@@ -909,13 +902,16 @@ else
 
     private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        OpenCreateModalIfRequested();
-        _ = InvokeAsync(StateHasChanged);
+        _ = InvokeAsync(async () =>
+        {
+            await OpenCreateModalIfRequestedAsync();
+            StateHasChanged();
+        });
     }
 
-    private void OpenCreateModalIfRequested()
+    private async Task OpenCreateModalIfRequestedAsync()
     {
-        if (!isAdminUser)
+        if (!await IsCurrentUserAdminAsync())
         {
             return;
         }
