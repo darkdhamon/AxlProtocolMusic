@@ -58,6 +58,21 @@ public sealed class MainLayoutTests
     }
 
     [Test]
+    public void MainLayout_WhenAdminViewsTimeline_ShowsTimelineCreateLink()
+    {
+        using var context = CreateContext(isDevelopment: false);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        context.Services.GetRequiredService<NavigationManager>().NavigateTo("/timeline");
+
+        var cut = RenderMainLayout(context);
+
+        Assert.That(cut.Markup, Does.Contain("Add Timeline Event"));
+        Assert.That(cut.Markup, Does.Contain("href=\"/timeline?editor=new\""));
+    }
+
+    [Test]
     public void MainLayout_WhenAdminViewsTimelineInDevelopment_ShowsDevelopmentActions()
     {
         using var context = CreateContext(isDevelopment: true);

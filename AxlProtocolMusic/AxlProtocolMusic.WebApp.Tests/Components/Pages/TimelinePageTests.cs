@@ -232,7 +232,9 @@ public sealed class TimelinePageTests
     public void Timeline_WhenEditorQueryParameterIsPresent_OpensCreateModal()
     {
         using var context = CreateContext(out _, out _, out _);
-        context.AddAuthorization().SetAuthorized("admin");
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
         var navigationManager = context.Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/timeline?editor=new");
 
@@ -250,7 +252,9 @@ public sealed class TimelinePageTests
     public void Timeline_WhenCreateSucceeds_PersistsEventReloadsTimelineAndRemovesEditorQueryParameter()
     {
         using var context = CreateContext(out _, out _, out var timelineEventService);
-        context.AddAuthorization().SetAuthorized("admin");
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
         var navigationManager = context.Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/timeline?editor=new");
 
@@ -291,7 +295,9 @@ public sealed class TimelinePageTests
     public void Timeline_WhenCreateFails_ShowsServiceErrorAndKeepsModalOpen()
     {
         using var context = CreateContext(out _, out _, out var timelineEventService);
-        context.AddAuthorization().SetAuthorized("admin");
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
         timelineEventService.CreateException = new InvalidOperationException("Timeline save failed.");
         var navigationManager = context.Services.GetRequiredService<NavigationManager>();
         navigationManager.NavigateTo("/timeline?editor=new");
@@ -315,6 +321,66 @@ public sealed class TimelinePageTests
 
         Assert.That(timelineEventService.CreatedEvents, Has.Count.EqualTo(1));
         Assert.That(navigationManager.Uri, Does.EndWith("/timeline?editor=new"));
+    }
+
+    [Test]
+    public void Timeline_WhenNonAdminUsesEditorQueryParameter_DoesNotOpenCreateModal()
+    {
+        using var context = CreateContext(out _, out _, out _);
+        context.AddAuthorization().SetAuthorized("viewer");
+        var navigationManager = context.Services.GetRequiredService<NavigationManager>();
+        navigationManager.NavigateTo("/timeline?editor=new");
+
+        var cut = context.Render<Timeline>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Not.Contain("Edit Timeline Event"));
+            Assert.That(cut.Markup, Does.Not.Contain("Create Event"));
+        });
+    }
+
+    [Test]
+    public void Timeline_WhenUserBecomesAdminAfterRender_EditActionUsesCurrentAuthenticationState()
+    {
+        using var context = CreateContext(out _, out _, out var timelineEventService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("viewer");
+        timelineEventService.Events =
+        [
+            new TimelineEvent
+            {
+                Id = "event-1",
+                Title = "Project Began",
+                ShortDescription = "A manual milestone.",
+                EventDateUtc = new DateTimeOffset(2026, 1, 10, 0, 0, 0, TimeSpan.Zero),
+                EventType = TimelineEventType.Milestone
+            }
+        ];
+
+        var cut = context.Render<Timeline>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Project Began"));
+            Assert.That(cut.Markup, Does.Not.Contain("Edit Event"));
+        });
+
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit Event"));
+        });
+
+        cut.Find("button.event-edit-button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit Timeline Event"));
+            Assert.That(cut.Find("#timeline-title").GetAttribute("value"), Is.EqualTo("Project Began"));
+        });
     }
 
     [Test]

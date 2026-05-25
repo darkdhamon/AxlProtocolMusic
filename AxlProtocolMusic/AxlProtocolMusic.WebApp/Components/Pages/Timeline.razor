@@ -1,6 +1,7 @@
 @page "/timeline"
 @rendermode InteractiveServer
 @using System.Text.RegularExpressions
+@using Microsoft.AspNetCore.Components.Authorization
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
 @inject IJSRuntime JSRuntime
 @inject IReleaseService ReleaseService
@@ -262,7 +263,7 @@ else
                                                                     class="btn btn-outline-primary btn-sm event-edit-button"
                                                                     type="button"
                                                                     @onclick:stopPropagation="true"
-                                                                    @onclick="() => OpenEditModal(timelineEvent)">
+                                                                    @onclick="() => OpenEditModalAsync(timelineEvent)">
                                                                     Edit Event
                                                                 </button>
 
@@ -270,7 +271,7 @@ else
                                                                     class="btn btn-outline-danger btn-sm"
                                                                     type="button"
                                                                     @onclick:stopPropagation="true"
-                                                                    @onclick="() => OpenDeleteModal(timelineEvent)">
+                                                                    @onclick="() => OpenDeleteModalAsync(timelineEvent)">
                                                                     Delete
                                                                 </button>
                                                             </div>
@@ -435,6 +436,9 @@ else
     [SupplyParameterFromQuery(Name = "article")]
     public string? ArticleSlug { get; set; }
 
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
     private List<TimelineMonthSection> allTimelineMonths = [];
     private List<TimelineEntry> allTimelineEntries = [];
     private List<TimelineMonthSection> timelineYears = [];
@@ -466,7 +470,7 @@ else
     {
         NavigationManager.LocationChanged += HandleLocationChanged;
         await LoadTimelineAsync();
-        OpenCreateModalIfRequested();
+        await OpenCreateModalIfRequestedAsync();
     }
 
     protected override void OnParametersSet()
@@ -729,9 +733,9 @@ else
         }
     }
 
-    private void OpenEditModal(TimelineEntry timelineEvent)
+    private async Task OpenEditModalAsync(TimelineEntry timelineEvent)
     {
-        if (!timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
+        if (!await IsCurrentUserAdminAsync() || !timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
         {
             return;
         }
@@ -767,9 +771,9 @@ else
         isEditModalOpen = true;
     }
 
-    private void OpenDeleteModal(TimelineEntry timelineEvent)
+    private async Task OpenDeleteModalAsync(TimelineEntry timelineEvent)
     {
-        if (!timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
+        if (!await IsCurrentUserAdminAsync() || !timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
         {
             return;
         }
@@ -808,7 +812,7 @@ else
 
     private async Task SaveTimelineEventAsync()
     {
-        if (editableTimelineEvent is null)
+        if (!await IsCurrentUserAdminAsync() || editableTimelineEvent is null)
         {
             return;
         }
@@ -859,7 +863,7 @@ else
 
     private async Task DeleteTimelineEventAsync()
     {
-        if (timelineEventPendingDelete is null || string.IsNullOrWhiteSpace(timelineEventPendingDelete.Id))
+        if (!await IsCurrentUserAdminAsync() || timelineEventPendingDelete is null || string.IsNullOrWhiteSpace(timelineEventPendingDelete.Id))
         {
             return;
         }
@@ -898,12 +902,20 @@ else
 
     private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        OpenCreateModalIfRequested();
-        _ = InvokeAsync(StateHasChanged);
+        _ = InvokeAsync(async () =>
+        {
+            await OpenCreateModalIfRequestedAsync();
+            StateHasChanged();
+        });
     }
 
-    private void OpenCreateModalIfRequested()
+    private async Task OpenCreateModalIfRequestedAsync()
     {
+        if (!await IsCurrentUserAdminAsync())
+        {
+            return;
+        }
+
         var uri = new Uri(NavigationManager.Uri);
         var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
 
@@ -913,6 +925,15 @@ else
         {
             OpenCreateModal();
         }
+    }
+
+    private async Task<bool> IsCurrentUserAdminAsync()
+    {
+        var authenticationState = AuthenticationStateTask is null
+            ? null
+            : await AuthenticationStateTask;
+
+        return authenticationState?.User.IsInRole("Admin") == true;
     }
 
     private void RemoveArticleQueryParameter()
