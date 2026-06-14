@@ -92,12 +92,6 @@ public sealed class NewsArticleService : INewsArticleService
         return _newsArticleRepository.DeleteAsync(id, cancellationToken);
     }
 
-    public bool IsManagedImageUrl(string? imageUrl)
-    {
-        return !string.IsNullOrWhiteSpace(imageUrl)
-            && imageUrl.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase);
-    }
-
     private async Task<string> GenerateUniqueSlugAsync(
         string? title,
         CancellationToken cancellationToken)

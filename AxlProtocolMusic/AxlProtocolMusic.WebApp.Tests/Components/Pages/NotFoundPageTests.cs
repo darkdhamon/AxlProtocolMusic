@@ -109,8 +109,6 @@ public sealed class NotFoundPageTests
 
         public Task DeleteAsync(string id, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
-
-        public bool IsManagedImageUrl(string? imageUrl) => false;
     }
 
     private sealed class FakeReleaseService : IReleaseService
@@ -149,7 +147,5 @@ public sealed class NotFoundPageTests
 
         public Task<IReadOnlyList<string>> GetKnownTagsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>([]);
-
-        public bool IsManagedImageUrl(string? imageUrl) => false;
     }
 }

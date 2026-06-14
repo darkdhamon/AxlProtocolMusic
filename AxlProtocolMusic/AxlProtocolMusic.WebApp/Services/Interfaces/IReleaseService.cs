@@ -47,6 +47,4 @@ public interface IReleaseService
 
     Task<IReadOnlyList<string>> GetKnownTagsAsync(
         CancellationToken cancellationToken = default);
-
-    bool IsManagedImageUrl(string? imageUrl);
 }

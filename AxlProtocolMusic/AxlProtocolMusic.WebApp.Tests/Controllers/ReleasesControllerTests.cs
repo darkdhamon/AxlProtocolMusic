@@ -98,8 +98,7 @@ public sealed class ReleasesControllerTests
             {
                 Succeeded = true,
                 Slug = "updated-slug"
-            },
-            ManagedImageUrl = true
+            }
         };
 
         var imageStorageService = new FakeImageStorageService
@@ -170,8 +169,6 @@ public sealed class ReleasesControllerTests
 
         public ReleaseUpdateResult UpdateResult { get; set; } = new() { Succeeded = true, Slug = "updated-slug" };
 
-        public bool ManagedImageUrl { get; set; }
-
         public ReleaseUpdateRequest? LastCreateRequest { get; private set; }
 
         public ReleaseUpdateRequest? LastUpdateRequest { get; private set; }
@@ -208,8 +205,6 @@ public sealed class ReleasesControllerTests
 
         public Task<IReadOnlyList<FeaturedReleaseViewModel>> GetFeaturedReleasesAsync(CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
-
-        public bool IsManagedImageUrl(string? imageUrl) => ManagedImageUrl;
 
         public Task<ReleaseUpdateResult> UpdateReleaseAsync(ReleaseUpdateRequest request, CancellationToken cancellationToken = default)
         {

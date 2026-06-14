@@ -228,13 +228,13 @@ public sealed class ReleaseDetailsTests
             ShortDescription = "Private preview.",
             ReleaseType = "Single",
             ReleaseDateUtc = DateTimeOffset.UtcNow.AddDays(-5),
-            CoverImageUrl = "managed://vault-art"
+            CoverImageUrl = "https://testaccount.blob.core.windows.net/media/releases/vault-art.png"
         };
-        releaseService.ManagedImageUrls.Add("managed://vault-art");
+        imageStorageService.ManagedImageUrls.Add("https://testaccount.blob.core.windows.net/media/releases/vault-art.png");
         releaseService.DeleteResult = new ReleaseDeleteResult
         {
             Succeeded = true,
-            ImageStoragePath = "managed://vault-art"
+            ImageStoragePath = "https://testaccount.blob.core.windows.net/media/releases/vault-art.png"
         };
         var navigation = context.Services.GetRequiredService<NavigationManager>();
 
@@ -255,7 +255,7 @@ public sealed class ReleaseDetailsTests
         cut.Find("button.btn.btn-danger").Click();
 
         Assert.That(releaseService.LastDeletedSlug, Is.EqualTo("vault"));
-        Assert.That(imageStorageService.DeletedStoragePaths, Is.EqualTo(["managed://vault-art"]));
+        Assert.That(imageStorageService.DeletedStoragePaths, Is.EqualTo(["https://testaccount.blob.core.windows.net/media/releases/vault-art.png"]));
         Assert.That(navigation.Uri, Does.Contain("/releases?success=Release%20deleted."));
     }
 
@@ -287,8 +287,6 @@ public sealed class ReleaseDetailsTests
         public string? LastDeletedSlug { get; private set; }
 
         public ReleaseDeleteResult DeleteResult { get; set; } = new();
-
-        public HashSet<string> ManagedImageUrls { get; } = [];
 
         public Task<IReadOnlyList<FeaturedReleaseViewModel>> GetFeaturedReleasesAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<FeaturedReleaseViewModel>>([]);
@@ -332,18 +330,19 @@ public sealed class ReleaseDetailsTests
 
         public Task<IReadOnlyList<string>> GetKnownTagsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>(["Synthwave", "Instrumental"]);
-
-        public bool IsManagedImageUrl(string? imageUrl) => !string.IsNullOrWhiteSpace(imageUrl) && ManagedImageUrls.Contains(imageUrl);
     }
 
     private sealed class FakeImageStorageService : IImageStorageService
     {
         public List<string> DeletedStoragePaths { get; } = [];
 
+        public HashSet<string> ManagedImageUrls { get; } = [];
+
         public Task<ImageSaveResult> SaveReleaseImageAsync(IFormFile file, CancellationToken cancellationToken = default)
             => Task.FromResult(new ImageSaveResult());
 
-        public bool IsManagedImageUrl(string? imageUrl) => false;
+        public bool IsManagedImageUrl(string? imageUrl)
+            => !string.IsNullOrWhiteSpace(imageUrl) && ManagedImageUrls.Contains(imageUrl);
 
         public Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)
         {

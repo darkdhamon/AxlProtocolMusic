@@ -425,12 +425,6 @@ public sealed class ReleaseService : IReleaseService
             .ToList();
     }
 
-    public bool IsManagedImageUrl(string? imageUrl)
-    {
-        return !string.IsNullOrWhiteSpace(imageUrl)
-            && imageUrl.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase);
-    }
-
     private async Task<List<Release>> GetPublishedReleasesAsync(CancellationToken cancellationToken)
     {
         return (await _releaseRepository.GetAllAsync(cancellationToken))
