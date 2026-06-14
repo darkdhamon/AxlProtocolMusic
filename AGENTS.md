@@ -2,6 +2,12 @@
 
 Repository guidance for Codex-style agents working in `C:\GitHub\AxlProtocolMusic`.
 
+## Shared Parent Guidance
+
+- Default to the shared agent file at `C:\Github\AGENTS.md`.
+- Apply this repository file together with the shared parent file.
+- If this repository file conflicts with the shared parent file, this repository file overrides it for work in this repository.
+
 ## Operating Notes
 
 - When you discover a non-obvious workaround that materially speeds up future work in this repo, add it to this file before ending the task.
@@ -290,3 +296,4 @@ gh project edit 8 --owner darkdhamon --title "Axl Protocol Music Website"
 ```
 
 - Changing an issue to `OPEN` does not move it out of `Backlog`; update the project card separately.
+- The GitHub project for this repo is user-owned, not organization-owned. Use `https://github.com/users/darkdhamon/projects/8` when opening the board in a browser; `https://github.com/orgs/darkdhamon/projects/8` returns `404`.
