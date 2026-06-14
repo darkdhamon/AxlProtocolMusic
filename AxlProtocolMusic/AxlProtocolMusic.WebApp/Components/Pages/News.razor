@@ -407,7 +407,7 @@
     private DateTime editablePublicationDate;
     private string? editErrorMessage;
     private string? editStatusMessage;
-    private string? pendingImageUrlToDelete;
+    private List<string> pendingImageUrlsToDelete = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -521,7 +521,7 @@
         editablePublicationDate = article.PublicationDateUtc.UtcDateTime.Date;
         editErrorMessage = null;
         editStatusMessage = null;
-        pendingImageUrlToDelete = null;
+        pendingImageUrlsToDelete = [];
         isCreatingArticle = false;
         isEditModalOpen = true;
     }
@@ -542,7 +542,7 @@
         editablePublicationDate = DateTime.UtcNow.Date;
         editErrorMessage = null;
         editStatusMessage = null;
-        pendingImageUrlToDelete = null;
+        pendingImageUrlsToDelete = [];
         isCreatingArticle = true;
         isEditModalOpen = true;
     }
@@ -557,7 +557,7 @@
     {
         isEditModalOpen = false;
         editableArticle = null;
-        pendingImageUrlToDelete = null;
+        pendingImageUrlsToDelete = [];
         editErrorMessage = null;
         editStatusMessage = null;
         isCreatingArticle = false;
@@ -725,6 +725,10 @@
             if (isCreatingArticle)
             {
                 await NewsArticleService.CreateAsync(BuildUpdateRequest());
+                if (pendingImageUrlsToDelete.Count > 0)
+                {
+                    await DeletePendingUploadedImagesAsync();
+                }
                 await RefreshVisibleArticlesAsync();
                 CloseEditArticle();
                 return;
@@ -743,16 +747,12 @@
                 await ImageStorageService.DeleteAsync(previousImageUrl);
             }
 
-            if (!string.IsNullOrWhiteSpace(pendingImageUrlToDelete)
-                && !string.Equals(pendingImageUrlToDelete, previousImageUrl, StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(pendingImageUrlToDelete, updatedArticle.ImageUrl, StringComparison.OrdinalIgnoreCase)
-                && ImageStorageService.IsManagedImageUrl(pendingImageUrlToDelete))
-            {
-                await ImageStorageService.DeleteAsync(pendingImageUrlToDelete);
-            }
+            await DeletePendingUploadedImagesAsync(
+                previousImageUrl,
+                updatedArticle.ImageUrl);
 
             await RefreshVisibleArticlesAsync(updatedArticle.Id);
-            pendingImageUrlToDelete = null;
+            pendingImageUrlsToDelete = [];
             CloseEditArticle();
         }
         catch (Exception exception)
@@ -795,11 +795,7 @@
                 && !string.Equals(previousImageUrl, imageSaveResult.Url, StringComparison.OrdinalIgnoreCase)
                 && ImageStorageService.IsManagedImageUrl(previousImageUrl))
             {
-                pendingImageUrlToDelete = previousImageUrl;
-            }
-            else
-            {
-                pendingImageUrlToDelete = null;
+                AddPendingImageUrlForDelete(previousImageUrl);
             }
 
             editableArticle.ImageUrl = imageSaveResult.Url;
@@ -825,10 +821,16 @@
 
         await NewsArticleService.DeleteAsync(articlePendingDelete.Id);
 
-        if (!string.IsNullOrWhiteSpace(imageUrlToDelete)
-            && ImageStorageService.IsManagedImageUrl(imageUrlToDelete))
+        try
         {
-            await ImageStorageService.DeleteAsync(imageUrlToDelete);
+            if (!string.IsNullOrWhiteSpace(imageUrlToDelete)
+                && ImageStorageService.IsManagedImageUrl(imageUrlToDelete))
+            {
+                await ImageStorageService.DeleteAsync(imageUrlToDelete);
+            }
+        }
+        catch
+        {
         }
 
         if (selectedArticle?.Id == articlePendingDelete.Id)
@@ -843,6 +845,32 @@
 
         await RefreshVisibleArticlesAsync();
         CloseDeleteArticle();
+    }
+
+    private void AddPendingImageUrlForDelete(string imageUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(imageUrl)
+            && !pendingImageUrlsToDelete.Contains(imageUrl, StringComparer.OrdinalIgnoreCase))
+        {
+            pendingImageUrlsToDelete.Add(imageUrl);
+        }
+    }
+
+    private async Task DeletePendingUploadedImagesAsync(params string?[] excludedImageUrls)
+    {
+        var exclusions = excludedImageUrls
+            .Where(imageUrl => !string.IsNullOrWhiteSpace(imageUrl))
+            .ToList();
+
+        foreach (var imageUrl in pendingImageUrlsToDelete.Where(url => !exclusions.Contains(url, StringComparer.OrdinalIgnoreCase)))
+        {
+            if (ImageStorageService.IsManagedImageUrl(imageUrl))
+            {
+                await ImageStorageService.DeleteAsync(imageUrl);
+            }
+        }
+
+        pendingImageUrlsToDelete = [];
     }
 
     private static string GetPreviewText(string content, int wordCount)
