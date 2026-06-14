@@ -407,6 +407,7 @@
     private DateTime editablePublicationDate;
     private string? editErrorMessage;
     private string? editStatusMessage;
+    private string? pendingImageUrlToDelete;
 
     protected override async Task OnInitializedAsync()
     {
@@ -520,6 +521,7 @@
         editablePublicationDate = article.PublicationDateUtc.UtcDateTime.Date;
         editErrorMessage = null;
         editStatusMessage = null;
+        pendingImageUrlToDelete = null;
         isCreatingArticle = false;
         isEditModalOpen = true;
     }
@@ -540,6 +542,7 @@
         editablePublicationDate = DateTime.UtcNow.Date;
         editErrorMessage = null;
         editStatusMessage = null;
+        pendingImageUrlToDelete = null;
         isCreatingArticle = true;
         isEditModalOpen = true;
     }
@@ -554,6 +557,7 @@
     {
         isEditModalOpen = false;
         editableArticle = null;
+        pendingImageUrlToDelete = null;
         editErrorMessage = null;
         editStatusMessage = null;
         isCreatingArticle = false;
@@ -733,13 +737,22 @@
             var updatedArticle = await NewsArticleService.UpdateAsync(BuildUpdateRequest());
 
             if (!string.IsNullOrWhiteSpace(previousImageUrl)
-                && ImageStorageService.IsManagedImageUrl(previousImageUrl)
-                && !string.Equals(previousImageUrl, updatedArticle.ImageUrl, StringComparison.OrdinalIgnoreCase))
+                && !string.Equals(previousImageUrl, updatedArticle.ImageUrl, StringComparison.OrdinalIgnoreCase)
+                && ImageStorageService.IsManagedImageUrl(previousImageUrl))
             {
                 await ImageStorageService.DeleteAsync(previousImageUrl);
             }
 
+            if (!string.IsNullOrWhiteSpace(pendingImageUrlToDelete)
+                && !string.Equals(pendingImageUrlToDelete, previousImageUrl, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(pendingImageUrlToDelete, updatedArticle.ImageUrl, StringComparison.OrdinalIgnoreCase)
+                && ImageStorageService.IsManagedImageUrl(pendingImageUrlToDelete))
+            {
+                await ImageStorageService.DeleteAsync(pendingImageUrlToDelete);
+            }
+
             await RefreshVisibleArticlesAsync(updatedArticle.Id);
+            pendingImageUrlToDelete = null;
             CloseEditArticle();
         }
         catch (Exception exception)
@@ -776,11 +789,17 @@
 
             var imageSaveResult = await ImageStorageService.SaveReleaseImageAsync(formFile);
 
-            if (!string.IsNullOrWhiteSpace(editableArticle.ImageUrl)
-                && ImageStorageService.IsManagedImageUrl(editableArticle.ImageUrl)
-                && !string.Equals(editableArticle.ImageUrl, imageSaveResult.Url, StringComparison.OrdinalIgnoreCase))
+            var previousImageUrl = editableArticle.ImageUrl;
+
+            if (!string.IsNullOrWhiteSpace(previousImageUrl)
+                && !string.Equals(previousImageUrl, imageSaveResult.Url, StringComparison.OrdinalIgnoreCase)
+                && ImageStorageService.IsManagedImageUrl(previousImageUrl))
             {
-                await ImageStorageService.DeleteAsync(editableArticle.ImageUrl);
+                pendingImageUrlToDelete = previousImageUrl;
+            }
+            else
+            {
+                pendingImageUrlToDelete = null;
             }
 
             editableArticle.ImageUrl = imageSaveResult.Url;
@@ -802,13 +821,15 @@
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(articlePendingDelete.ImageUrl)
-            && ImageStorageService.IsManagedImageUrl(articlePendingDelete.ImageUrl))
-        {
-            await ImageStorageService.DeleteAsync(articlePendingDelete.ImageUrl);
-        }
+        var imageUrlToDelete = articlePendingDelete.ImageUrl;
 
         await NewsArticleService.DeleteAsync(articlePendingDelete.Id);
+
+        if (!string.IsNullOrWhiteSpace(imageUrlToDelete)
+            && ImageStorageService.IsManagedImageUrl(imageUrlToDelete))
+        {
+            await ImageStorageService.DeleteAsync(imageUrlToDelete);
+        }
 
         if (selectedArticle?.Id == articlePendingDelete.Id)
         {

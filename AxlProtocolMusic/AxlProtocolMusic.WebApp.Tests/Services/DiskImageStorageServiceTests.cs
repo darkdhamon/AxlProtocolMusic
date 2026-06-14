@@ -138,7 +138,25 @@ public sealed class DiskImageStorageServiceTests
         Assert.Pass();
     }
 
-    private DiskImageStorageService CreateService(out string webRootPath, long maxFileSizeBytes = 1024)
+    [Test]
+    public void IsManagedImageUrl_WhenImageUsesLegacyUploadsDirectory_ReturnsTrue()
+    {
+        var service = CreateService(out _);
+
+        Assert.That(service.IsManagedImageUrl("/uploads/releases/story.png"), Is.True);
+        Assert.That(service.IsManagedImageUrl("/media-library/news/story.png"), Is.False);
+    }
+
+    [Test]
+    public void IsManagedImageUrl_WhenUploadRootDiffers_ReturnsTrueForConfiguredRoot()
+    {
+        var service = CreateService(out _, maxFileSizeBytes: 1024, uploadRoot: "media-library");
+
+        Assert.That(service.IsManagedImageUrl("/media-library/releases/story.png"), Is.True);
+        Assert.That(service.IsManagedImageUrl("/uploads/releases/story.png"), Is.True);
+    }
+
+    private DiskImageStorageService CreateService(out string webRootPath, long maxFileSizeBytes = 1024, string uploadRoot = "uploads")
     {
         webRootPath = Path.Combine(
             "C:\\GitHub\\AxlProtocolMusic\\_buildcheck",
@@ -157,7 +175,7 @@ public sealed class DiskImageStorageServiceTests
             environment,
             Options.Create(new ImageStorageSettings
             {
-                UploadRoot = "uploads",
+                UploadRoot = uploadRoot,
                 MaxFileSizeBytes = maxFileSizeBytes
             }));
     }
