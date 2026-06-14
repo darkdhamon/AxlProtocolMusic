@@ -130,7 +130,5 @@ public sealed class ReleasesPageTests
 
         public Task<IReadOnlyList<string>> GetKnownTagsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>([]);
-
-        public bool IsManagedImageUrl(string? imageUrl) => false;
     }
 }

@@ -639,20 +639,6 @@ public sealed class ReleaseServiceTests
         });
     }
 
-    [Test]
-    public void IsManagedImageUrl_ReturnsTrueOnlyForUploadsPaths()
-    {
-        var service = new ReleaseService(new InMemoryReleaseRepository([]));
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(service.IsManagedImageUrl("/uploads/releases/image.png"), Is.True);
-            Assert.That(service.IsManagedImageUrl("/images/releases/image.png"), Is.False);
-            Assert.That(service.IsManagedImageUrl(""), Is.False);
-            Assert.That(service.IsManagedImageUrl(null), Is.False);
-        });
-    }
-
     private static Release CreateRelease(
         string slug,
         int daysAgo,

@@ -19,6 +19,4 @@ public interface INewsArticleService
     Task DeleteAsync(
         string id,
         CancellationToken cancellationToken = default);
-
-    bool IsManagedImageUrl(string? imageUrl);
 }

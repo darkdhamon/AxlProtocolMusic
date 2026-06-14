@@ -733,7 +733,7 @@
             var updatedArticle = await NewsArticleService.UpdateAsync(BuildUpdateRequest());
 
             if (!string.IsNullOrWhiteSpace(previousImageUrl)
-                && NewsArticleService.IsManagedImageUrl(previousImageUrl)
+                && ImageStorageService.IsManagedImageUrl(previousImageUrl)
                 && !string.Equals(previousImageUrl, updatedArticle.ImageUrl, StringComparison.OrdinalIgnoreCase))
             {
                 await ImageStorageService.DeleteAsync(previousImageUrl);
@@ -777,7 +777,7 @@
             var imageSaveResult = await ImageStorageService.SaveReleaseImageAsync(formFile);
 
             if (!string.IsNullOrWhiteSpace(editableArticle.ImageUrl)
-                && NewsArticleService.IsManagedImageUrl(editableArticle.ImageUrl)
+                && ImageStorageService.IsManagedImageUrl(editableArticle.ImageUrl)
                 && !string.Equals(editableArticle.ImageUrl, imageSaveResult.Url, StringComparison.OrdinalIgnoreCase))
             {
                 await ImageStorageService.DeleteAsync(editableArticle.ImageUrl);
@@ -803,7 +803,7 @@
         }
 
         if (!string.IsNullOrWhiteSpace(articlePendingDelete.ImageUrl)
-            && NewsArticleService.IsManagedImageUrl(articlePendingDelete.ImageUrl))
+            && ImageStorageService.IsManagedImageUrl(articlePendingDelete.ImageUrl))
         {
             await ImageStorageService.DeleteAsync(articlePendingDelete.ImageUrl);
         }

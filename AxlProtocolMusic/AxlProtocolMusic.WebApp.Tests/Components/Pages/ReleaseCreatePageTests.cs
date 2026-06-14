@@ -189,7 +189,5 @@ public sealed class ReleaseCreatePageTests
 
         public Task<IReadOnlyList<string>> GetKnownTagsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<string>>(["Synthwave"]);
-
-        public bool IsManagedImageUrl(string? imageUrl) => false;
     }
 }

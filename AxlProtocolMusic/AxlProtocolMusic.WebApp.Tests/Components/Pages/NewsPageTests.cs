@@ -481,13 +481,13 @@ public sealed class NewsPageTests
                 Title = "Launch Story",
                 Slug = "launch-story",
                 Content = "Original article body.",
-                ImageUrl = "managed://launch-story",
+                ImageUrl = "https://testaccount.blob.core.windows.net/media/news/launch-story.png",
                 PublicationDateUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero),
                 IsPublished = true,
                 IsFeatured = true
             }
         ];
-        newsService.ManagedImageUrls.Add("managed://launch-story");
+        imageStorageService.ManagedImageUrls.Add("https://testaccount.blob.core.windows.net/media/news/launch-story.png");
         newsService.UpdatedImageUrl = "https://cdn.example/updated-story.jpg";
 
         navigation.NavigateTo("/news?editor=existing");
@@ -523,7 +523,7 @@ public sealed class NewsPageTests
         Assert.That(newsService.UpdateRequests[0].OriginalSlug, Is.EqualTo("launch-story"));
         Assert.That(newsService.UpdateRequests[0].Title, Is.EqualTo("Launch Story Updated"));
         Assert.That(newsService.UpdateRequests[0].Content, Is.EqualTo("Updated article body."));
-        Assert.That(imageStorageService.DeletedStoragePaths, Is.EqualTo(["managed://launch-story"]));
+        Assert.That(imageStorageService.DeletedStoragePaths, Is.EqualTo(["https://testaccount.blob.core.windows.net/media/news/launch-story.png"]));
     }
 
     [Test]
@@ -587,13 +587,13 @@ public sealed class NewsPageTests
                 Title = "Launch Story",
                 Slug = "launch-story",
                 Content = "Full launch story content.",
-                ImageUrl = "managed://launch-story",
+                ImageUrl = "/media-library/news/launch-story.png",
                 PublicationDateUtc = DateTimeOffset.UtcNow.AddDays(-1),
                 IsPublished = true,
                 IsFeatured = false
             }
         ];
-        newsService.ManagedImageUrls.Add("managed://launch-story");
+        imageStorageService.ManagedImageUrls.Add("/media-library/news/launch-story.png");
 
         var cut = context.Render<News>();
 
@@ -618,7 +618,7 @@ public sealed class NewsPageTests
         });
 
         Assert.That(newsService.DeletedIds, Is.EqualTo(["article-1"]));
-        Assert.That(imageStorageService.DeletedStoragePaths, Is.EqualTo(["managed://launch-story"]));
+        Assert.That(imageStorageService.DeletedStoragePaths, Is.EqualTo(["/media-library/news/launch-story.png"]));
     }
 
     private static BunitContext CreateContext(out FakeNewsArticleService newsService, NavigationManager? navigationManager = null)
@@ -670,8 +670,6 @@ public sealed class NewsPageTests
 
         public List<string> DeletedIds { get; } = [];
 
-        public HashSet<string> ManagedImageUrls { get; } = [];
-
         public string? UpdatedImageUrl { get; set; }
 
         public bool LastIncludeUnpublished { get; private set; }
@@ -722,8 +720,6 @@ public sealed class NewsPageTests
             return Task.CompletedTask;
         }
 
-        public bool IsManagedImageUrl(string? imageUrl) => !string.IsNullOrWhiteSpace(imageUrl) && ManagedImageUrls.Contains(imageUrl);
-
         private static NewsArticleUpdateRequest CloneRequest(NewsArticleUpdateRequest request)
         {
             return new NewsArticleUpdateRequest
@@ -743,13 +739,16 @@ public sealed class NewsPageTests
     {
         public List<string> DeletedStoragePaths { get; } = [];
 
+        public HashSet<string> ManagedImageUrls { get; } = [];
+
         public Task<ImageSaveResult> SaveReleaseImageAsync(IFormFile file, CancellationToken cancellationToken = default)
             => Task.FromResult(new ImageSaveResult
             {
                 Url = "managed://uploaded-image"
             });
 
-        public bool IsManagedImageUrl(string? imageUrl) => false;
+        public bool IsManagedImageUrl(string? imageUrl)
+            => !string.IsNullOrWhiteSpace(imageUrl) && ManagedImageUrls.Contains(imageUrl);
 
         public Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)
         {
