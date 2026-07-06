@@ -918,6 +918,131 @@ public sealed class NewsPageTests
     }
 
     [Test]
+    public async Task News_WhenEditSaveCompletesAfterCancel_DeletesPreviousManagedImage()
+    {
+        using var context = CreateContext(out var newsService, out var imageStorageService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "article-1",
+                Title = "Launch Story",
+                Slug = "launch-story",
+                Content = "Original article body.",
+                ImageUrl = "https://testaccount.blob.core.windows.net/media/news/original-launch-story.png",
+                PublicationDateUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero),
+                IsPublished = true,
+                IsFeatured = true
+            }
+        ];
+        imageStorageService.ManagedImageUrls.Add("https://testaccount.blob.core.windows.net/media/news/original-launch-story.png");
+        imageStorageService.UploadedImageUrls.Enqueue("managed://replacement-upload");
+        newsService.HoldUpdateCallNumber = 1;
+        newsService.UpdateStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        newsService.UpdateGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var cut = context.Render<News>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Launch Story"));
+        });
+
+        cut.FindAll("button.btn.btn-outline-light")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Edit Article", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit Article"));
+        });
+
+        UploadArticleImage(cut, "replacement-upload.png", "managed://replacement-upload");
+
+        var saveTask = InvokeSaveEditedArticleAsync(cut);
+        await newsService.UpdateStarted!.Task;
+
+        var cancelTask = InvokeCancelEditArticleAsync(cut);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Not.Contain("Database-backed news editor"));
+        });
+
+        newsService.UpdateGate.SetResult(true);
+        await saveTask;
+        await cancelTask;
+
+        Assert.That(newsService.UpdateRequests, Has.Count.EqualTo(1));
+        Assert.That(newsService.UpdateRequests[0].ImageUrl, Is.EqualTo("managed://replacement-upload"));
+        Assert.That(newsService.Articles.Single().ImageUrl, Is.EqualTo("managed://replacement-upload"));
+        Assert.That(imageStorageService.DeletedStoragePaths, Does.Contain("https://testaccount.blob.core.windows.net/media/news/original-launch-story.png"));
+        Assert.That(imageStorageService.DeletedStoragePaths, Does.Not.Contain("managed://replacement-upload"));
+    }
+
+    [Test]
+    public async Task News_WhenDisposedBeforeSaveFailure_DoesNotRestoreSaveOwnedUpload()
+    {
+        using var context = CreateContext(out var newsService, out var imageStorageService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "article-1",
+                Title = "Launch Story",
+                Slug = "launch-story",
+                Content = "Original article body.",
+                ImageUrl = "https://testaccount.blob.core.windows.net/media/news/launch-story.png",
+                PublicationDateUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero),
+                IsPublished = true,
+                IsFeatured = true
+            }
+        ];
+        imageStorageService.ManagedImageUrls.Add("https://testaccount.blob.core.windows.net/media/news/launch-story.png");
+        imageStorageService.UploadedImageUrls.Enqueue("managed://failed-save-upload");
+        newsService.HoldUpdateCallNumber = 1;
+        newsService.UpdateStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        newsService.UpdateGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        newsService.UpdateException = new InvalidOperationException("Save failed after disposal.");
+
+        var cut = context.Render<News>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Launch Story"));
+        });
+
+        cut.FindAll("button.btn.btn-outline-light")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Edit Article", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit Article"));
+        });
+
+        UploadArticleImage(cut, "failed-save-upload.png", "managed://failed-save-upload");
+
+        var saveTask = InvokeSaveEditedArticleAsync(cut);
+        await newsService.UpdateStarted!.Task;
+
+        await cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
+
+        newsService.UpdateGate.SetResult(true);
+        await saveTask;
+
+        Assert.That(newsService.UpdateRequests, Has.Count.EqualTo(1));
+        Assert.That(newsService.Articles.Single().ImageUrl, Is.EqualTo("https://testaccount.blob.core.windows.net/media/news/launch-story.png"));
+        Assert.That(imageStorageService.DeletedStoragePaths, Does.Contain("managed://failed-save-upload"));
+    }
+
+    [Test]
     public void News_WhenCreateUsesMultipleUploadedImages_DeletesSupersededUploadsAfterSave()
     {
         using var context = CreateContext(out var newsService, out var imageStorageService);
@@ -1320,6 +1445,16 @@ public sealed class NewsPageTests
 
         public TaskCompletionSource<bool>? GetArticlesGate { get; set; }
 
+        public int HoldUpdateCallNumber { get; set; }
+
+        public int UpdateCallCount { get; private set; }
+
+        public TaskCompletionSource<bool>? UpdateStarted { get; set; }
+
+        public TaskCompletionSource<bool>? UpdateGate { get; set; }
+
+        public Exception? UpdateException { get; set; }
+
         public async Task<IReadOnlyList<NewsArticle>> GetArticlesAsync(bool includeUnpublished = false, CancellationToken cancellationToken = default)
         {
             LastIncludeUnpublished = includeUnpublished;
@@ -1357,9 +1492,25 @@ public sealed class NewsPageTests
             return Task.FromResult(created);
         }
 
-        public Task<NewsArticle> UpdateAsync(NewsArticleUpdateRequest request, CancellationToken cancellationToken = default)
+        public async Task<NewsArticle> UpdateAsync(NewsArticleUpdateRequest request, CancellationToken cancellationToken = default)
         {
+            UpdateCallCount++;
             UpdateRequests.Add(CloneRequest(request));
+
+            if (HoldUpdateCallNumber > 0 && UpdateCallCount == HoldUpdateCallNumber)
+            {
+                UpdateStarted?.TrySetResult(true);
+                if (UpdateGate is not null)
+                {
+                    await UpdateGate.Task;
+                }
+            }
+
+            if (UpdateException is not null)
+            {
+                throw UpdateException;
+            }
+
             var existing = Articles.First(article => string.Equals(article.Slug, request.OriginalSlug, StringComparison.OrdinalIgnoreCase));
             existing.Title = request.Title;
             existing.Content = request.Content;
@@ -1367,7 +1518,7 @@ public sealed class NewsPageTests
             existing.PublicationDateUtc = new DateTimeOffset(request.PublicationDate, TimeSpan.Zero);
             existing.IsPublished = request.IsPublished;
             existing.IsFeatured = request.IsFeatured;
-            return Task.FromResult(existing);
+            return existing;
         }
 
         public Task DeleteAsync(string id, CancellationToken cancellationToken = default)

@@ -405,6 +405,7 @@
     private bool isDeleteModalOpen;
     private bool isFeaturedCarouselHovered;
     private bool isSavingArticle;
+    private bool isDisposed;
     private DateTime editablePublicationDate;
     private long editSessionVersion;
     private bool isEditSessionAcceptingUploads;
@@ -738,6 +739,7 @@
 
         var sessionUploadedImageUrlsToDelete = TakeSessionUploadedImageUrls();
         string? committedImageUrl = null;
+        var originalEditableImageUrlToDelete = originalEditableImageUrl;
         isSavingArticle = true;
         InvalidateEditSession();
 
@@ -761,12 +763,12 @@
 
             RemoveCommittedUploadedImage(sessionUploadedImageUrlsToDelete, committedImageUrl);
 
-            if (!string.IsNullOrWhiteSpace(originalEditableImageUrl)
-                && !string.Equals(originalEditableImageUrl, updatedArticle.ImageUrl, StringComparison.OrdinalIgnoreCase)
-                && ImageStorageService.IsManagedImageUrl(originalEditableImageUrl))
+            if (!string.IsNullOrWhiteSpace(originalEditableImageUrlToDelete)
+                && !string.Equals(originalEditableImageUrlToDelete, updatedArticle.ImageUrl, StringComparison.OrdinalIgnoreCase)
+                && ImageStorageService.IsManagedImageUrl(originalEditableImageUrlToDelete))
             {
                 await DeleteManagedImagesBestEffortAsync(
-                    [originalEditableImageUrl],
+                    [originalEditableImageUrlToDelete],
                     updatedArticle.ImageUrl);
             }
 
@@ -961,7 +963,9 @@
     }
 
     private bool CanRestoreEditSession()
-        => isEditModalOpen && editableArticle is not null;
+        => !isDisposed
+            && isEditModalOpen
+            && editableArticle is not null;
 
     private bool IsCurrentEditSession(long sessionVersion)
         => isEditModalOpen
@@ -1218,8 +1222,12 @@
 
     public async ValueTask DisposeAsync()
     {
+        isDisposed = true;
         var sessionUploadedImageUrlsToDelete = CaptureSessionUploadedImageUrls();
         InvalidateEditSession();
+        isEditModalOpen = false;
+        editableArticle = null;
+        originalEditableImageUrl = null;
         sessionUploadedImageUrls = [];
 
         await DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete);
