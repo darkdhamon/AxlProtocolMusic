@@ -66,8 +66,13 @@ public sealed class DiskImageStorageService : IImageStorageService
 
     public bool IsManagedImageUrl(string? imageUrl)
     {
-        return !string.IsNullOrWhiteSpace(imageUrl)
-            && imageUrl.StartsWith($"/{_settings.UploadRoot}/", StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(imageUrl))
+        {
+            return false;
+        }
+
+        return imageUrl.StartsWith($"/{_settings.UploadRoot}/", StringComparison.OrdinalIgnoreCase)
+            || imageUrl.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase);
     }
 
     public Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)

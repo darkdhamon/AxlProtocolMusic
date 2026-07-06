@@ -416,9 +416,6 @@ public sealed class SiteChatbotContextBuilderTests
 
         public Task<IReadOnlyList<string>> GetKnownTagsAsync(CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
-
-        public bool IsManagedImageUrl(string? imageUrl)
-            => throw new NotSupportedException();
     }
 
     private sealed class FakeNewsArticleService : INewsArticleService
@@ -440,9 +437,6 @@ public sealed class SiteChatbotContextBuilderTests
             => throw new NotSupportedException();
 
         public Task DeleteAsync(string id, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
-        public bool IsManagedImageUrl(string? imageUrl)
             => throw new NotSupportedException();
     }
 

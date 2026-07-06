@@ -219,21 +219,6 @@ public sealed class NewsArticleServiceTests
         Assert.That(exception!.Message, Is.EqualTo("The article id is required."));
     }
 
-    [Test]
-    public void IsManagedImageUrl_ReturnsTrueOnlyForUploadsPaths()
-    {
-        var service = new NewsArticleService(new InMemoryRepository<NewsArticle>([]));
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(service.IsManagedImageUrl("/uploads/news/image.png"), Is.True);
-            Assert.That(service.IsManagedImageUrl("/UPLOADS/news/image.png"), Is.True);
-            Assert.That(service.IsManagedImageUrl("/images/news/image.png"), Is.False);
-            Assert.That(service.IsManagedImageUrl(""), Is.False);
-            Assert.That(service.IsManagedImageUrl(null), Is.False);
-        });
-    }
-
     private static NewsArticle CreateArticle(string slug, DateTimeOffset publicationDateUtc, bool isPublished, string? id = null)
     {
         return new NewsArticle
