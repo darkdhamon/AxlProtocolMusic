@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
+using AxlProtocolMusic.WebApp.Validation;
 
 namespace AxlProtocolMusic.WebApp.Models.Content;
 
@@ -34,7 +35,7 @@ public sealed class ReleaseUpdateRequest
 
     public List<string> Tags { get; set; } = [];
 
-    [Required]
+    [NonDefaultDate(ErrorMessage = "Release date is required.")]
     public DateTime ReleaseDate { get; set; }
 
     public bool IsPublished { get; set; }

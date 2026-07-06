@@ -124,6 +124,11 @@ public sealed class NewsArticleService : INewsArticleService
         {
             throw new InvalidOperationException("Content is required.");
         }
+
+        if (request.PublicationDate == default)
+        {
+            throw new InvalidOperationException("Publication date is required.");
+        }
     }
 
     private static string NormalizeSlug(string? value)
