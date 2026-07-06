@@ -723,16 +723,18 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(editableArticle.Title))
+        var request = BuildUpdateRequest();
+        var validationResults = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
+        if (!System.ComponentModel.DataAnnotations.Validator.TryValidateObject(
+                request,
+                new System.ComponentModel.DataAnnotations.ValidationContext(request),
+                validationResults,
+                validateAllProperties: true))
         {
-            editErrorMessage = "Title is required.";
-            editStatusMessage = null;
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(editableArticle.Content))
-        {
-            editErrorMessage = "Content is required.";
+            editErrorMessage = validationResults
+                .Select(result => result.ErrorMessage)
+                .FirstOrDefault(message => !string.IsNullOrWhiteSpace(message))
+                ?? "Complete all required news article fields.";
             editStatusMessage = null;
             return;
         }
@@ -747,7 +749,7 @@
         {
             if (isCreatingArticle)
             {
-                var createdArticle = await NewsArticleService.CreateAsync(BuildUpdateRequest());
+                var createdArticle = await NewsArticleService.CreateAsync(request);
                 committedImageUrl = createdArticle.ImageUrl;
                 RemoveCommittedUploadedImage(sessionUploadedImageUrlsToDelete, committedImageUrl);
                 await DeleteManagedImagesBestEffortAsync(
@@ -758,7 +760,7 @@
                 return;
             }
 
-            var updatedArticle = await NewsArticleService.UpdateAsync(BuildUpdateRequest());
+            var updatedArticle = await NewsArticleService.UpdateAsync(request);
             committedImageUrl = updatedArticle.ImageUrl;
 
             RemoveCommittedUploadedImage(sessionUploadedImageUrlsToDelete, committedImageUrl);

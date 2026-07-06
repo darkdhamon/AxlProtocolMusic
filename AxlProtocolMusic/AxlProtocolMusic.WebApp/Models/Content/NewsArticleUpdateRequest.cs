@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
+using AxlProtocolMusic.WebApp.Validation;
 
 namespace AxlProtocolMusic.WebApp.Models.Content;
 
@@ -20,7 +21,7 @@ public sealed class NewsArticleUpdateRequest
 
     public IFormFile? ImageFile { get; set; }
 
-    [Required]
+    [NonDefaultDate(ErrorMessage = "Publication date is required.")]
     public DateTime PublicationDate { get; set; }
 
     public bool IsPublished { get; set; }
