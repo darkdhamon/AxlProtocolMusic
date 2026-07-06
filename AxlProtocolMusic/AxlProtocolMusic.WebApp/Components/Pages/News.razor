@@ -724,17 +724,23 @@
         }
 
         var request = BuildUpdateRequest();
-        var validationResults = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
-        if (!System.ComponentModel.DataAnnotations.Validator.TryValidateObject(
-                request,
-                new System.ComponentModel.DataAnnotations.ValidationContext(request),
-                validationResults,
-                validateAllProperties: true))
+        if (string.IsNullOrWhiteSpace(request.Title))
         {
-            editErrorMessage = validationResults
-                .Select(result => result.ErrorMessage)
-                .FirstOrDefault(message => !string.IsNullOrWhiteSpace(message))
-                ?? "Complete all required news article fields.";
+            editErrorMessage = "Title is required.";
+            editStatusMessage = null;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Content))
+        {
+            editErrorMessage = "Content is required.";
+            editStatusMessage = null;
+            return;
+        }
+
+        if (request.PublicationDate == default)
+        {
+            editErrorMessage = "Publication date is required.";
             editStatusMessage = null;
             return;
         }
