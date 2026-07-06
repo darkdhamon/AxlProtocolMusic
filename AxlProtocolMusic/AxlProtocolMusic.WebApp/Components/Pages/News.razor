@@ -404,6 +404,7 @@
     private bool isCreatingArticle;
     private bool isDeleteModalOpen;
     private bool isFeaturedCarouselHovered;
+    private bool isSavingArticle;
     private DateTime editablePublicationDate;
     private long editSessionVersion;
     private bool isEditSessionAcceptingUploads;
@@ -716,7 +717,7 @@
 
     private async Task SaveEditedArticle()
     {
-        if (editableArticle is null)
+        if (editableArticle is null || isSavingArticle)
         {
             return;
         }
@@ -735,7 +736,9 @@
             return;
         }
 
-        var sessionUploadedImageUrlsToDelete = CaptureSessionUploadedImageUrls();
+        var sessionUploadedImageUrlsToDelete = TakeSessionUploadedImageUrls();
+        string? committedImageUrl = null;
+        isSavingArticle = true;
         InvalidateEditSession();
 
         try
@@ -743,7 +746,8 @@
             if (isCreatingArticle)
             {
                 var createdArticle = await NewsArticleService.CreateAsync(BuildUpdateRequest());
-                RemoveCommittedUploadedImage(createdArticle.ImageUrl);
+                committedImageUrl = createdArticle.ImageUrl;
+                RemoveCommittedUploadedImage(sessionUploadedImageUrlsToDelete, committedImageUrl);
                 await DeleteManagedImagesBestEffortAsync(
                     sessionUploadedImageUrlsToDelete,
                     createdArticle.ImageUrl);
@@ -753,8 +757,9 @@
             }
 
             var updatedArticle = await NewsArticleService.UpdateAsync(BuildUpdateRequest());
+            committedImageUrl = updatedArticle.ImageUrl;
 
-            RemoveCommittedUploadedImage(updatedArticle.ImageUrl);
+            RemoveCommittedUploadedImage(sessionUploadedImageUrlsToDelete, committedImageUrl);
 
             if (!string.IsNullOrWhiteSpace(originalEditableImageUrl)
                 && !string.Equals(originalEditableImageUrl, updatedArticle.ImageUrl, StringComparison.OrdinalIgnoreCase)
@@ -774,9 +779,23 @@
         }
         catch (Exception exception)
         {
-            RestoreEditSessionUploads();
-            editErrorMessage = exception.Message;
-            editStatusMessage = null;
+            if (CanRestoreEditSession())
+            {
+                RestoreSessionUploadedImageUrls(sessionUploadedImageUrlsToDelete);
+                RestoreEditSessionUploads();
+                editErrorMessage = exception.Message;
+                editStatusMessage = null;
+            }
+            else
+            {
+                await DeleteManagedImagesBestEffortAsync(
+                    sessionUploadedImageUrlsToDelete,
+                    committedImageUrl);
+            }
+        }
+        finally
+        {
+            isSavingArticle = false;
         }
     }
 
@@ -889,6 +908,13 @@
     private List<string> CaptureSessionUploadedImageUrls()
         => [.. sessionUploadedImageUrls];
 
+    private List<string> TakeSessionUploadedImageUrls()
+    {
+        var uploadedImageUrls = CaptureSessionUploadedImageUrls();
+        sessionUploadedImageUrls = [];
+        return uploadedImageUrls;
+    }
+
     private List<string> CloseEditArticleAndCaptureSessionUploadedImages()
     {
         var uploadedImageUrls = CaptureSessionUploadedImageUrls();
@@ -896,14 +922,14 @@
         return uploadedImageUrls;
     }
 
-    private void RemoveCommittedUploadedImage(string? imageUrl)
+    private static void RemoveCommittedUploadedImage(List<string> uploadedImageUrls, string? imageUrl)
     {
         if (string.IsNullOrWhiteSpace(imageUrl))
         {
             return;
         }
 
-        sessionUploadedImageUrls.RemoveAll(url => string.Equals(url, imageUrl, StringComparison.OrdinalIgnoreCase));
+        uploadedImageUrls.RemoveAll(url => string.Equals(url, imageUrl, StringComparison.OrdinalIgnoreCase));
     }
 
     private void StartEditSession()
@@ -920,11 +946,22 @@
 
     private void RestoreEditSessionUploads()
     {
-        if (isEditModalOpen && editableArticle is not null)
+        if (CanRestoreEditSession())
         {
             StartEditSession();
         }
     }
+
+    private void RestoreSessionUploadedImageUrls(IEnumerable<string> imageUrls)
+    {
+        foreach (var imageUrl in imageUrls)
+        {
+            AddSessionUploadedImageUrl(imageUrl);
+        }
+    }
+
+    private bool CanRestoreEditSession()
+        => isEditModalOpen && editableArticle is not null;
 
     private bool IsCurrentEditSession(long sessionVersion)
         => isEditModalOpen
