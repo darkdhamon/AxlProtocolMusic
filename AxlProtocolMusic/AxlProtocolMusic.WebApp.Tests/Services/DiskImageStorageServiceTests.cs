@@ -139,6 +139,34 @@ public sealed class DiskImageStorageServiceTests
     }
 
     [Test]
+    public async Task DeleteAsync_WhenStoragePathEscapesUploadRoot_DoesNothing()
+    {
+        var service = CreateService(out var webRootPath);
+        var uploadDirectory = Path.Combine(webRootPath, "uploads", "releases");
+        var targetPath = Path.Combine(webRootPath, "appsettings.json");
+        Directory.CreateDirectory(uploadDirectory);
+        await File.WriteAllBytesAsync(targetPath, [1, 2, 3]);
+
+        await service.DeleteAsync("/uploads/../../appsettings.json");
+
+        Assert.That(File.Exists(targetPath), Is.True);
+    }
+
+    [Test]
+    public async Task DeleteAsync_WhenUploadRootDiffers_DeletesLegacyUploadsFile()
+    {
+        var service = CreateService(out var webRootPath, uploadRoot: "media-library");
+        var relativePath = Path.Combine("uploads", "releases", "legacy.png");
+        var physicalPath = Path.Combine(webRootPath, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(physicalPath)!);
+        await File.WriteAllBytesAsync(physicalPath, [1, 2, 3]);
+
+        await service.DeleteAsync("/uploads/releases/legacy.png");
+
+        Assert.That(File.Exists(physicalPath), Is.False);
+    }
+
+    [Test]
     public void IsManagedImageUrl_WhenImageUsesLegacyUploadsDirectory_ReturnsTrue()
     {
         var service = CreateService(out _);
