@@ -160,6 +160,67 @@ Notes:
 - This is the reliable way to run focused tests while the site is still open locally.
 - `--artifacts-path` avoids both the locked `bin\Debug` outputs and the shared-generated-file collision that happened when `BaseIntermediateOutputPath` was forced to a single folder.
 
+### Keeping `Microsoft.NET.Test.Sdk 18.5.1` And `NUnit3TestAdapter 6.2.0` Compatible With The Existing Coverage Workflow
+
+Problem:
+- Updating the test projects to `Microsoft.NET.Test.Sdk 18.5.1` and `NUnit3TestAdapter 6.2.0` while keeping the NUnit runner opt-in (`EnableNUnitRunner` / `TestingPlatformDotnetTestSupport`) causes `dotnet test` to fail on the .NET 10 SDK with `Testing with VSTest target is no longer supported by Microsoft.Testing.Platform on .NET 10 SDK and later`.
+- Opting the repo into native MTP with `global.json` allows the test host to start, but the repo's current Coverlet-based workflow no longer emits `AxlProtocolMusic\TestResults\Coverage\coverage.cobertura.xml`, which breaks the existing GitHub Actions coverage parsing and threshold checks.
+
+Verified workaround:
+1. Keep the package bumps, but remove the NUnit runner / MTP opt-in properties from both test project files instead of adding `global.json`.
+2. Leave the repo on the existing VSTest-style `dotnet test` path so Coverlet keeps generating `coverage.json` and `coverage.cobertura.xml` in `AxlProtocolMusic\TestResults\Coverage`.
+3. Validate with the same Release build + Release test flow that GitHub Actions uses.
+
+Working commands:
+
+```powershell
+dotnet build "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.Tests\AxlProtocolMusic.WebApp.Tests.csproj" --configuration Release --no-restore
+```
+
+```powershell
+dotnet test "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.Tests\AxlProtocolMusic.WebApp.Tests.csproj" --configuration Release --no-build
+```
+
+```powershell
+dotnet build "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.IntegrationTests\AxlProtocolMusic.WebApp.IntegrationTests.csproj" --configuration Release --no-restore
+```
+
+```powershell
+dotnet test "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.IntegrationTests\AxlProtocolMusic.WebApp.IntegrationTests.csproj" --configuration Release --no-build
+```
+
+Notes:
+- This kept the repo compatible with `Microsoft.NET.Test.Sdk 18.5.1` and `NUnit3TestAdapter 6.2.0` without changing the current GitHub Actions coverage logic.
+- If a future issue wants native Microsoft Testing Platform (`global.json` with `"runner": "Microsoft.Testing.Platform"`), treat that as a separate workflow migration because the repo's current Coverlet settings and failure parsing are VSTest-shaped.
+
+### Verifying Hosted Azure Cosmos Mongo Compatibility Before Driver Bumps
+
+Problem:
+- MongoDB's official C# driver upgrade guide says driver `3.5` and later drop support for MongoDB Server `4.0` and earlier.
+- This repo's production connection string is stored as `mongodb+srv://...mongocluster.cosmos.azure.com`, but a direct `mongosh` attempt can fail at the SRV bootstrap step with `queryTxt ECONNREFUSED ...`.
+- That SRV bootstrap failure can make it look like the hosted server version is unknown even when the deployment itself is reachable.
+
+Verified workaround:
+1. Resolve `_mongodb._tcp.axlprotocolmusic-prod-mongo.mongocluster.cosmos.azure.com` to get the direct Azure Cosmos Mongo node host and port.
+2. Reuse the credentials and query-string options from `AxlProtocolMusic.WebApp\appsecrets.json`, but connect with a direct `mongodb://` URI to the resolved host on port `10260`.
+3. Run read-only `hello`, `isMaster`, or `buildInfo` commands from `mongosh` against that direct URI.
+4. Use the reported server version as the release gate for MongoDB driver upgrades instead of assuming the SRV bootstrap result reflects driver compatibility.
+
+Working files:
+
+```text
+C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\appsecrets.json
+```
+
+```text
+C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\AxlProtocolMusic.WebApp.csproj
+```
+
+Notes:
+- Verified on `2026-07-06`: the production Azure Cosmos Mongo endpoint reported `buildInfo.version = 8.0.0` and `hello.maxWireVersion = 25`.
+- That is well above the C# driver `3.5+` minimum server requirement of `4.2`, so issue `#17` can keep `MongoDB.Driver 3.8.1`.
+- Keep the version probe read-only. Do not use this workflow for schema resets, login tests, or any destructive validation against Azure.
+
 ### Keeping PR Testing Off The Azure Mongo Database
 
 Problem:
