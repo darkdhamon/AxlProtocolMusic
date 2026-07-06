@@ -192,27 +192,33 @@ Notes:
 - This kept the repo compatible with `Microsoft.NET.Test.Sdk 18.5.1` and `NUnit3TestAdapter 6.2.0` without changing the current GitHub Actions coverage logic.
 - If a future issue wants native Microsoft Testing Platform (`global.json` with `"runner": "Microsoft.Testing.Platform"`), treat that as a separate workflow migration because the repo's current Coverlet settings and failure parsing are VSTest-shaped.
 
-### Capping `MongoDB.Driver` Below `3.5` Until The Hosted Server Version Is Verified
+### Verifying Hosted Azure Cosmos Mongo Compatibility Before Driver Bumps
 
 Problem:
 - MongoDB's official C# driver upgrade guide says driver `3.5` and later drop support for MongoDB Server `4.0` and earlier.
-- This repo's checked-in config and tests do not prove that the deployed Azure-hosted Mongo API is already on `4.2` or later.
-- Bumping straight from `3.4.0` to `3.8.1` can therefore pass local tests while still risking a production connection failure if the hosted server is older.
+- This repo's production connection string is stored as `mongodb+srv://...mongocluster.cosmos.azure.com`, but a direct `mongosh` attempt can fail at the SRV bootstrap step with `queryTxt ECONNREFUSED ...`.
+- That SRV bootstrap failure can make it look like the hosted server version is unknown even when the deployment itself is reachable.
 
 Verified workaround:
-1. Keep the test-stack package upgrades from issue `#17`, but cap `MongoDB.Driver` at the latest `3.4.x` patch until the deployed server version is explicitly verified.
-2. Use `3.4.3` as the safe update target when the deployment version is unknown, because it stays below the `3.5` compatibility break while still taking the current `3.4.x` patch line.
-3. Only retry a `3.5+` driver bump after confirming the hosted Mongo or Cosmos Mongo API is `4.2` or newer.
+1. Resolve `_mongodb._tcp.axlprotocolmusic-prod-mongo.mongocluster.cosmos.azure.com` to get the direct Azure Cosmos Mongo node host and port.
+2. Reuse the credentials and query-string options from `AxlProtocolMusic.WebApp\appsecrets.json`, but connect with a direct `mongodb://` URI to the resolved host on port `10260`.
+3. Run read-only `hello`, `isMaster`, or `buildInfo` commands from `mongosh` against that direct URI.
+4. Use the reported server version as the release gate for MongoDB driver upgrades instead of assuming the SRV bootstrap result reflects driver compatibility.
 
-Working file:
+Working files:
+
+```text
+C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\appsecrets.json
+```
 
 ```text
 C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\AxlProtocolMusic.WebApp.csproj
 ```
 
 Notes:
-- The official MongoDB docs are the source of truth for the `3.5` server-support break.
-- Treat a future production-version verification as a prerequisite for any new PR that raises `MongoDB.Driver` back above `3.4.x`.
+- Verified on `2026-07-06`: the production Azure Cosmos Mongo endpoint reported `buildInfo.version = 8.0.0` and `hello.maxWireVersion = 25`.
+- That is well above the C# driver `3.5+` minimum server requirement of `4.2`, so issue `#17` can keep `MongoDB.Driver 3.8.1`.
+- Keep the version probe read-only. Do not use this workflow for schema resets, login tests, or any destructive validation against Azure.
 
 ### Keeping PR Testing Off The Azure Mongo Database
 
