@@ -21,8 +21,14 @@ Repository guidance for Codex-style agents working in `C:\GitHub\AxlProtocolMusi
 - If an item is selected directly from `Backlog` or already sitting in `Ready`, move it to `In Progress` only when implementation or coding has actually started.
 - For issue implementation work, treat opening the feature PR and marking it `Ready for review` as part of the implementation step. Do not stop at local code/test completion while the issue still lacks its PR.
 - Creating a pull request moves the item to `In Review`.
-- After the pull request is approved and the work has been moved into the `dev` branch, move the item to `Ready for Release`.
-- After the work has been moved into the `main` branch, move the item to `Done` and then close the item.
+- After the pull request is approved and the work has been moved into the `dev` branch, move the item to `Done`.
+- After the work has been moved into the `main` branch, move the item to `Released`.
+- `Backlog` means the issue exists but has not yet been analyzed, marked ready, or approved to be worked on.
+- `Ready` means the issue is ready to be worked on.
+- `In Progress` means Codex, the user, or another developer is actively working on it.
+- `In Review` means the issue has an active pull request targeting `dev`.
+- `Done` means the work has been merged into `dev`.
+- `Released` means the work has been merged into `main`.
 
 ## Pull Request Review Workflow For `DarkDhamon`
 
@@ -341,8 +347,8 @@ Status option ids on this board:
 - `Ready` = `61e4505c`
 - `In progress` = `47fc9ee4`
 - `In review` = `df73e18b`
-- `Ready For Release` = `68b70198`
 - `Done` = `98236657`
+- `Released` = `68b70198`
 
 Working example:
 
