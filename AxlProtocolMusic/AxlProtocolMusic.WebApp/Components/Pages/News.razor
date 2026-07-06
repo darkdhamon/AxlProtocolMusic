@@ -405,6 +405,7 @@
     private bool isDeleteModalOpen;
     private bool isFeaturedCarouselHovered;
     private DateTime editablePublicationDate;
+    private long editSessionVersion;
     private string? editErrorMessage;
     private string? editStatusMessage;
     private string? originalEditableImageUrl;
@@ -518,6 +519,7 @@
 
     private void OpenEditArticle(NewsArticle article)
     {
+        editSessionVersion++;
         editableArticle = CloneArticle(article);
         editablePublicationDate = article.PublicationDateUtc.UtcDateTime.Date;
         editErrorMessage = null;
@@ -530,6 +532,7 @@
 
     private void OpenCreateArticle()
     {
+        editSessionVersion++;
         editableArticle = new NewsArticle
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -779,6 +782,7 @@
             return;
         }
 
+        var activeEditSessionVersion = editSessionVersion;
         editErrorMessage = null;
         editStatusMessage = "Uploading article image...";
         await InvokeAsync(StateHasChanged);
@@ -790,6 +794,11 @@
             await readStream.CopyToAsync(memoryStream);
             memoryStream.Position = 0;
 
+            if (!IsCurrentEditSession(activeEditSessionVersion))
+            {
+                return;
+            }
+
             var formFile = new Microsoft.AspNetCore.Http.FormFile(memoryStream, 0, memoryStream.Length, file.Name, file.Name)
             {
                 Headers = new Microsoft.AspNetCore.Http.HeaderDictionary(),
@@ -797,6 +806,13 @@
             };
 
             var imageSaveResult = await ImageStorageService.SaveReleaseImageAsync(formFile);
+
+            if (!IsCurrentEditSession(activeEditSessionVersion))
+            {
+                await DeleteManagedImagesBestEffortAsync([imageSaveResult.Url]);
+                return;
+            }
+
             AddSessionUploadedImageUrl(imageSaveResult.Url);
             editableArticle.ImageUrl = imageSaveResult.Url;
             editStatusMessage = "Article image uploaded.";
@@ -804,6 +820,11 @@
         }
         catch (Exception exception)
         {
+            if (!IsCurrentEditSession(activeEditSessionVersion))
+            {
+                return;
+            }
+
             editErrorMessage = exception.Message;
             editStatusMessage = null;
             await InvokeAsync(StateHasChanged);
@@ -865,6 +886,11 @@
 
         sessionUploadedImageUrls.RemoveAll(url => string.Equals(url, imageUrl, StringComparison.OrdinalIgnoreCase));
     }
+
+    private bool IsCurrentEditSession(long sessionVersion)
+        => isEditModalOpen
+            && editableArticle is not null
+            && editSessionVersion == sessionVersion;
 
     private async Task DeleteManagedImagesBestEffortAsync(
         IEnumerable<string> imageUrls,
