@@ -7,6 +7,7 @@ using Bunit;
 using Bunit.TestDoubles;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -466,6 +467,170 @@ public sealed class NewsPageTests
     }
 
     [Test]
+    public void News_WhenEditUploadIsCanceled_DeletesTemporaryManagedUploadsButKeepsPersistedImage()
+    {
+        using var context = CreateContext(out var newsService, out var imageStorageService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "article-1",
+                Title = "Launch Story",
+                Slug = "launch-story",
+                Content = "Original article body.",
+                ImageUrl = "https://testaccount.blob.core.windows.net/media/news/launch-story.png",
+                PublicationDateUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero),
+                IsPublished = true,
+                IsFeatured = true
+            }
+        ];
+        imageStorageService.ManagedImageUrls.Add("https://testaccount.blob.core.windows.net/media/news/launch-story.png");
+        imageStorageService.UploadedImageUrls.Enqueue("managed://edit-upload-1");
+        imageStorageService.UploadedImageUrls.Enqueue("managed://edit-upload-2");
+
+        var cut = context.Render<News>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Launch Story"));
+        });
+
+        cut.FindAll("button.btn.btn-outline-light")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Edit Article", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit Article"));
+        });
+
+        UploadArticleImage(cut, "edit-upload-1.png", "managed://edit-upload-1");
+        UploadArticleImage(cut, "edit-upload-2.png", "managed://edit-upload-2");
+
+        cut.FindAll("button.btn.btn-outline-secondary")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Cancel", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Not.Contain("Database-backed news editor"));
+        });
+
+        Assert.That(newsService.UpdateRequests, Is.Empty);
+        Assert.That(newsService.Articles.Single().ImageUrl, Is.EqualTo("https://testaccount.blob.core.windows.net/media/news/launch-story.png"));
+        Assert.That(imageStorageService.DeletedStoragePaths, Is.EqualTo(["managed://edit-upload-1", "managed://edit-upload-2"]));
+    }
+
+    [Test]
+    public void News_WhenCreateUsesMultipleUploadedImages_DeletesSupersededUploadsAfterSave()
+    {
+        using var context = CreateContext(out var newsService, out var imageStorageService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/news?editor=new");
+        imageStorageService.UploadedImageUrls.Enqueue("managed://create-upload-1");
+        imageStorageService.UploadedImageUrls.Enqueue("managed://create-upload-2");
+
+        var cut = context.Render<News>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Create Article"));
+        });
+
+        UploadArticleImage(cut, "create-upload-1.png", "managed://create-upload-1");
+        UploadArticleImage(cut, "create-upload-2.png", "managed://create-upload-2");
+
+        cut.Find("#news-title").Change("New Story");
+        cut.Find("textarea#news-content").Input("Freshly published content.");
+        cut.Find("input#news-publication-date").Change("2026-03-15");
+        cut.FindAll("input.form-check-input")[0].Change(true);
+        cut.Find("button.btn.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("New Story"));
+            Assert.That(cut.Markup, Does.Not.Contain("Database-backed news editor"));
+            Assert.That(navigation.Uri, Does.EndWith("/news"));
+        });
+
+        Assert.That(newsService.CreateRequests, Has.Count.EqualTo(1));
+        Assert.That(newsService.CreateRequests[0].ImageUrl, Is.EqualTo("managed://create-upload-2"));
+        Assert.That(imageStorageService.DeletedStoragePaths, Is.EqualTo(["managed://create-upload-1"]));
+    }
+
+    [Test]
+    public void News_WhenEditUsesMultipleUploadedImages_DeletesOriginalAndSupersededUploadsAfterSave()
+    {
+        using var context = CreateContext(out var newsService, out var imageStorageService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        newsService.Articles =
+        [
+            new NewsArticle
+            {
+                Id = "article-1",
+                Title = "Launch Story",
+                Slug = "launch-story",
+                Content = "Original article body.",
+                ImageUrl = "https://testaccount.blob.core.windows.net/media/news/launch-story.png",
+                PublicationDateUtc = new DateTimeOffset(2026, 3, 1, 0, 0, 0, TimeSpan.Zero),
+                IsPublished = true,
+                IsFeatured = true
+            }
+        ];
+        imageStorageService.ManagedImageUrls.Add("https://testaccount.blob.core.windows.net/media/news/launch-story.png");
+        imageStorageService.UploadedImageUrls.Enqueue("managed://edit-save-upload-1");
+        imageStorageService.UploadedImageUrls.Enqueue("managed://edit-save-upload-2");
+
+        navigation.NavigateTo("/news?editor=existing");
+        var cut = context.Render<News>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Launch Story"));
+        });
+
+        cut.FindAll("button.btn.btn-outline-light")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Edit Article", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit Article"));
+        });
+
+        UploadArticleImage(cut, "edit-save-upload-1.png", "managed://edit-save-upload-1");
+        UploadArticleImage(cut, "edit-save-upload-2.png", "managed://edit-save-upload-2");
+
+        cut.Find("#news-title").Change("Launch Story Updated");
+        cut.Find("textarea#news-content").Input("Updated article body.");
+        cut.Find("button.btn.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Launch Story Updated"));
+            Assert.That(cut.Markup, Does.Not.Contain("Database-backed news editor"));
+            Assert.That(navigation.Uri, Does.EndWith("/news"));
+        });
+
+        Assert.That(newsService.UpdateRequests, Has.Count.EqualTo(1));
+        Assert.That(newsService.UpdateRequests[0].ImageUrl, Is.EqualTo("managed://edit-save-upload-2"));
+        Assert.That(imageStorageService.DeletedStoragePaths, Is.EqualTo(
+            [
+                "https://testaccount.blob.core.windows.net/media/news/launch-story.png",
+                "managed://edit-save-upload-1"
+            ]));
+    }
+
+    [Test]
     public void News_WhenEditSucceedsWithNewImage_DeletesPreviousManagedImageAndClearsEditorQuery()
     {
         using var context = CreateContext(out var newsService, out var imageStorageService);
@@ -646,6 +811,20 @@ public sealed class NewsPageTests
         return context;
     }
 
+    private static void UploadArticleImage(
+        IRenderedComponent<News> cut,
+        string fileName,
+        string expectedUrl)
+    {
+        cut.FindComponent<InputFile>()
+            .UploadFiles(InputFileContent.CreateFromText("fake-image-content", fileName, contentType: "image/png"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Find("input#news-image-url").GetAttribute("value"), Is.EqualTo(expectedUrl));
+        });
+    }
+
     private sealed class ConfigurableNavigationManager : NavigationManager
     {
         public ConfigurableNavigationManager(string baseUri, string uri)
@@ -739,13 +918,24 @@ public sealed class NewsPageTests
     {
         public List<string> DeletedStoragePaths { get; } = [];
 
-        public HashSet<string> ManagedImageUrls { get; } = [];
+        public HashSet<string> ManagedImageUrls { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public Queue<string> UploadedImageUrls { get; } = new();
+
+        public string DefaultUploadedImageUrl { get; set; } = "managed://uploaded-image";
 
         public Task<ImageSaveResult> SaveReleaseImageAsync(IFormFile file, CancellationToken cancellationToken = default)
-            => Task.FromResult(new ImageSaveResult
+        {
+            var uploadedImageUrl = UploadedImageUrls.Count > 0
+                ? UploadedImageUrls.Dequeue()
+                : DefaultUploadedImageUrl;
+
+            ManagedImageUrls.Add(uploadedImageUrl);
+            return Task.FromResult(new ImageSaveResult
             {
-                Url = "managed://uploaded-image"
+                Url = uploadedImageUrl
             });
+        }
 
         public bool IsManagedImageUrl(string? imageUrl)
             => !string.IsNullOrWhiteSpace(imageUrl) && ManagedImageUrls.Contains(imageUrl);
@@ -753,6 +943,7 @@ public sealed class NewsPageTests
         public Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)
         {
             DeletedStoragePaths.Add(storagePath);
+            ManagedImageUrls.Remove(storagePath);
             return Task.CompletedTask;
         }
     }
