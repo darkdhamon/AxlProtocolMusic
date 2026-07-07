@@ -1357,7 +1357,7 @@ public sealed class NewsPageTests
         return cut.InvokeAsync(() => (Task)method!.Invoke(cut.Instance, [args])!);
     }
 
-    private static Task InvokeCancelEditArticleAsync(IRenderedComponent<News> cut)
+    private static async Task InvokeCancelEditArticleAsync(IRenderedComponent<News> cut)
     {
         var method = typeof(News).GetMethod(
             "CancelEditArticleAsync",
@@ -1365,7 +1365,8 @@ public sealed class NewsPageTests
 
         Assert.That(method, Is.Not.Null);
 
-        return cut.InvokeAsync(() => (Task)method!.Invoke(cut.Instance, null)!);
+        await cut.InvokeAsync(() => (Task)method!.Invoke(cut.Instance, null)!);
+        cut.Render();
     }
 
     private static Task InvokeSaveEditedArticleAsync(IRenderedComponent<News> cut)
