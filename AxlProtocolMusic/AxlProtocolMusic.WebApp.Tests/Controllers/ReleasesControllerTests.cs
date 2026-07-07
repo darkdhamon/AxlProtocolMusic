@@ -6,6 +6,7 @@ using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace AxlProtocolMusic.WebApp.Tests.Controllers;
 
@@ -35,6 +36,27 @@ public sealed class ReleasesControllerTests
         Assert.That(redirectResult.Url, Does.Contain("slug=my-release"));
         Assert.That(redirectResult.Url, Does.Contain("releaseDate=2026-03-01"));
         Assert.That(redirectResult.Url, Does.Contain("isPublished=True"));
+    }
+
+    [Test]
+    public async Task Create_WhenReleaseDateIsMissing_RedirectsBackToCreateWithDateValidationError()
+    {
+        var controller = CreateController();
+        var request = new ReleaseUpdateRequest
+        {
+            Title = "My Release",
+            Slug = "my-release",
+            ShortDescription = "Short description"
+        };
+        AddValidationErrors(controller, request);
+
+        var result = await controller.Create(request);
+
+        var redirectResult = result as RedirectResult;
+        Assert.That(redirectResult, Is.Not.Null);
+        Assert.That(redirectResult!.Url, Does.StartWith("/releases/new?"));
+        Assert.That(redirectResult.Url, Does.Contain("error=Release%20date%20is%20required."));
+        Assert.That(redirectResult.Url, Does.Not.Contain("releaseDate="));
     }
 
     [Test]
@@ -87,6 +109,24 @@ public sealed class ReleasesControllerTests
         Assert.That(
             redirectResult!.Url,
             Is.EqualTo("/releases/valid-slug?error=Original%20release%20slug%20is%20required."));
+    }
+
+    [Test]
+    public async Task Update_WhenReleaseDateIsMissing_RedirectsToDetailsWithDateValidationError()
+    {
+        var controller = CreateController();
+        var request = CreateValidRequest();
+        request.OriginalSlug = "original-slug";
+        request.ReleaseDate = default;
+        AddValidationErrors(controller, request);
+
+        var result = await controller.Update(request);
+
+        var redirectResult = result as RedirectResult;
+        Assert.That(redirectResult, Is.Not.Null);
+        Assert.That(
+            redirectResult!.Url,
+            Is.EqualTo("/releases/original-slug?error=Release%20date%20is%20required."));
     }
 
     [Test]
@@ -161,6 +201,22 @@ public sealed class ReleasesControllerTests
     {
         var stream = new MemoryStream(Encoding.UTF8.GetBytes("image-content"));
         return new FormFile(stream, 0, stream.Length, "coverImageFile", "cover.png");
+    }
+
+    private static void AddValidationErrors(ReleasesController controller, object model)
+    {
+        var validationResults = new List<ValidationResult>();
+        Validator.TryValidateObject(
+            model,
+            new ValidationContext(model),
+            validationResults,
+            validateAllProperties: true);
+
+        foreach (var validationResult in validationResults)
+        {
+            var memberName = validationResult.MemberNames.FirstOrDefault() ?? string.Empty;
+            controller.ModelState.AddModelError(memberName, validationResult.ErrorMessage ?? "Invalid value.");
+        }
     }
 
     private sealed class FakeReleaseService : IReleaseService

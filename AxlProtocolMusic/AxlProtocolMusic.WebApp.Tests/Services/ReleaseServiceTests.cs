@@ -252,6 +252,22 @@ public sealed class ReleaseServiceTests
     }
 
     [Test]
+    public async Task CreateReleaseAsync_WhenReleaseDateIsMissing_ReturnsError()
+    {
+        var service = new ReleaseService(new InMemoryReleaseRepository([]));
+
+        var result = await service.CreateReleaseAsync(new ReleaseUpdateRequest
+        {
+            Title = "New release",
+            Slug = "new-release",
+            ShortDescription = "Description"
+        });
+
+        Assert.That(result.Succeeded, Is.False);
+        Assert.That(result.ErrorMessage, Is.EqualTo("Release date is required."));
+    }
+
+    [Test]
     public async Task CreateReleaseAsync_WhenOptionalCollectionsAreNull_UsesEmptyNormalizedValues()
     {
         var repository = new InMemoryReleaseRepository([]);
@@ -402,6 +418,24 @@ public sealed class ReleaseServiceTests
 
         Assert.That(result.Succeeded, Is.False);
         Assert.That(result.ErrorMessage, Is.EqualTo("Slug is required."));
+    }
+
+    [Test]
+    public async Task UpdateReleaseAsync_WhenReleaseDateIsMissing_ReturnsError()
+    {
+        var existing = CreateRelease("original", 10, true, id: "release-1");
+        var service = new ReleaseService(new InMemoryReleaseRepository([existing]));
+
+        var result = await service.UpdateReleaseAsync(new ReleaseUpdateRequest
+        {
+            OriginalSlug = "original",
+            Title = "Updated",
+            Slug = "updated",
+            ShortDescription = "Updated"
+        });
+
+        Assert.That(result.Succeeded, Is.False);
+        Assert.That(result.ErrorMessage, Is.EqualTo("Release date is required."));
     }
 
     [Test]
