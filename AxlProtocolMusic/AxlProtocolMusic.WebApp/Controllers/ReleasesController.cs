@@ -27,6 +27,8 @@ public sealed class ReleasesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create([FromForm] ReleaseUpdateRequest request)
     {
+        string? uploadedCoverImagePath = null;
+
         if (!ModelState.IsValid)
         {
             return RedirectToCreate(
@@ -40,6 +42,7 @@ public sealed class ReleasesController : Controller
             {
                 var imageSaveResult = await _imageStorageService.SaveReleaseImageAsync(request.CoverImageFile);
                 request.CoverImageUrl = imageSaveResult.Url;
+                uploadedCoverImagePath = imageSaveResult.StoragePath;
             }
             catch (InvalidOperationException exception)
             {
@@ -50,6 +53,11 @@ public sealed class ReleasesController : Controller
         var result = await _releaseService.CreateReleaseAsync(request);
         if (!result.Succeeded)
         {
+            if (!string.IsNullOrWhiteSpace(uploadedCoverImagePath))
+            {
+                await _imageStorageService.DeleteAsync(uploadedCoverImagePath);
+            }
+
             return RedirectToCreate(request, result.ErrorMessage);
         }
 
@@ -61,6 +69,8 @@ public sealed class ReleasesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Update([FromForm] ReleaseUpdateRequest request)
     {
+        string? uploadedCoverImagePath = null;
+
         if (string.IsNullOrWhiteSpace(request.OriginalSlug))
         {
             return RedirectToDetails(request.Slug, "Original release slug is required.");
@@ -81,6 +91,7 @@ public sealed class ReleasesController : Controller
             {
                 var imageSaveResult = await _imageStorageService.SaveReleaseImageAsync(request.CoverImageFile);
                 request.CoverImageUrl = imageSaveResult.Url;
+                uploadedCoverImagePath = imageSaveResult.StoragePath;
             }
             catch (InvalidOperationException exception)
             {
@@ -91,6 +102,11 @@ public sealed class ReleasesController : Controller
         var result = await _releaseService.UpdateReleaseAsync(request);
         if (!result.Succeeded)
         {
+            if (!string.IsNullOrWhiteSpace(uploadedCoverImagePath))
+            {
+                await _imageStorageService.DeleteAsync(uploadedCoverImagePath);
+            }
+
             return RedirectToDetails(request.OriginalSlug, result.ErrorMessage);
         }
 
