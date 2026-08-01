@@ -32,6 +32,25 @@ public sealed class RoutesTests
     }
 
     [Test]
+    public void Routes_WhenUserLacksAdminRole_GoesToAccessDenied()
+    {
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("viewer");
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        context.Services.AddSingleton<INewsArticleService>(new FakeNewsArticleService());
+        context.Services.AddSingleton<IReleaseService>(new FakeReleaseService());
+        navigation.NavigateTo("https://localhost/admin");
+
+        var cut = context.Render<Routes>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(navigation.Uri, Does.EndWith("/access-denied"));
+        });
+    }
+
+    [Test]
     public void Routes_WhenRouteIsMissing_ShowsNotFoundPage()
     {
         using var context = new BunitContext();
