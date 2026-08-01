@@ -1,7 +1,9 @@
 using AxlProtocolMusic.WebApp.Models;
+using MongoDB.Bson.Serialization.Attributes;
 
 namespace AxlProtocolMusic.WebApp.Models.Content;
 
+[BsonIgnoreExtraElements]
 public sealed class AboutPageContent : IEntity
 {
     public const string SingletonId = "about-page";
