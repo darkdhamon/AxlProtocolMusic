@@ -3,6 +3,7 @@ using AxlProtocolMusic.WebApp.Models;
 using AxlProtocolMusic.WebApp.Models.Content;
 using AxlProtocolMusic.WebApp.Repositories.Interfaces;
 using AxlProtocolMusic.WebApp.Services;
+using MongoDB.Bson;
 
 namespace AxlProtocolMusic.WebApp.Tests.Services;
 
@@ -120,6 +121,36 @@ public sealed class AboutPageServiceTests
         Assert.That(updated.OriginMarkdown, Is.EqualTo("Origin"));
         Assert.That(updated.Pillars[0].Title, Is.EqualTo("Identity"));
         Assert.That(updated.Pillars[0].Description, Is.EqualTo("Value"));
+    }
+
+    [Test]
+    public async Task UpdateAsync_WhenStoredContentHasFutureFields_PreservesThem()
+    {
+        var existing = new AboutPageContent
+        {
+            Id = AboutPageContent.SingletonId,
+            HeroLead = "Existing",
+            ExtraElements = new BsonDocument("SocialLinks", new BsonArray
+            {
+                new BsonDocument
+                {
+                    ["Platform"] = "Website",
+                    ["Url"] = "https://example.test"
+                }
+            })
+        };
+        var repository = new InMemoryRepository<AboutPageContent>([existing]);
+        var service = new AboutPageService(repository);
+
+        await service.UpdateAsync(new AboutPageContent { HeroLead = "Updated" });
+
+        var updated = repository.UpdatedDocuments.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(updated.HeroLead, Is.EqualTo("Updated"));
+            Assert.That(updated.ExtraElements["SocialLinks"].AsBsonArray, Has.Count.EqualTo(1));
+            Assert.That(updated.ExtraElements, Is.Not.SameAs(existing.ExtraElements));
+        });
     }
 
     [Test]
