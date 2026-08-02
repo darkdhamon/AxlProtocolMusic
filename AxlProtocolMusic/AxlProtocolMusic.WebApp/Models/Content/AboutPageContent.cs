@@ -1,4 +1,6 @@
 using AxlProtocolMusic.WebApp.Models;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
 
 namespace AxlProtocolMusic.WebApp.Models.Content;
 
@@ -21,4 +23,7 @@ public sealed class AboutPageContent : IEntity
     public string OriginMarkdown { get; set; } = string.Empty;
 
     public List<AboutPillar> Pillars { get; set; } = [];
+
+    [BsonExtraElements]
+    public BsonDocument ExtraElements { get; set; } = new();
 }

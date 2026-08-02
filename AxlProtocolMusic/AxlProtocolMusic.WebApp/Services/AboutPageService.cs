@@ -1,6 +1,7 @@
 using AxlProtocolMusic.WebApp.Models.Content;
 using AxlProtocolMusic.WebApp.Repositories.Interfaces;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using MongoDB.Bson;
 
 namespace AxlProtocolMusic.WebApp.Services;
 
@@ -21,8 +22,8 @@ public sealed class AboutPageService : IAboutPageService
 
     public async Task UpdateAsync(AboutPageContent content, CancellationToken cancellationToken = default)
     {
-        var normalized = Normalize(content);
         var existing = await _aboutRepository.GetByIdAsync(AboutPageContent.SingletonId, cancellationToken);
+        var normalized = Normalize(content);
 
         if (existing is null)
         {
@@ -30,6 +31,7 @@ public sealed class AboutPageService : IAboutPageService
             return;
         }
 
+        normalized.ExtraElements = CloneExtraElements(existing.ExtraElements);
         await _aboutRepository.UpdateAsync(normalized, cancellationToken);
     }
 
@@ -68,8 +70,16 @@ public sealed class AboutPageService : IAboutPageService
                     Description = pillar.Description.Trim()
                 })
                 .Where(pillar => !string.IsNullOrWhiteSpace(pillar.Title) || !string.IsNullOrWhiteSpace(pillar.Description))
-                .ToList()
+                .ToList(),
+            ExtraElements = CloneExtraElements(content.ExtraElements)
         };
+    }
+
+    private static BsonDocument CloneExtraElements(BsonDocument? extraElements)
+    {
+        return extraElements is null
+            ? new BsonDocument()
+            : extraElements.DeepClone().AsBsonDocument;
     }
 
     private static AboutPageContent CreateDefaultContent()
