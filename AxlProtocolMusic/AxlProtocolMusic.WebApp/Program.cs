@@ -4,7 +4,9 @@ using AxlProtocolMusic.WebApp.Extensions;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.Identity;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
+using System.Threading.RateLimiting;
 using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,6 +23,29 @@ builder.Services.AddRazorComponents()
 builder.Services.AddControllersWithViews();
 builder.Services.AddMongoDataAccess(builder.Configuration);
 builder.Services.AddApplicationAuthentication(builder.Configuration);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async context =>
+    {
+        context.HttpContext.Response.Headers["Retry-After"] = "60";
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { error = "Too many requests. Please wait before trying again." });
+    };
+
+    options.AddPolicy("chatbot-abuse", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            GetIpAddressPartition(httpContext.Connection.RemoteIpAddress, httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                AutoReplenishment = true,
+                QueueLimit = 0,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+            }));
+});
 
 var app = builder.Build();
 var startupDiagnosticsEnabled = builder.Configuration.GetValue<bool>("StartupDiagnostics:ShowOnPage");
@@ -42,6 +67,7 @@ else
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 
 app.UseAntiforgery();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -122,4 +148,15 @@ void ConfigureDevelopmentDataProtection(WebApplicationBuilder webApplicationBuil
     webApplicationBuilder.Services
         .AddDataProtection()
         .PersistKeysToFileSystem(new DirectoryInfo(keysDirectory));
+}
+
+static string GetIpAddressPartition(IPAddress? remoteIpAddress, HttpContext httpContext)
+{
+    var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].ToString();
+    if (!string.IsNullOrWhiteSpace(forwardedFor))
+    {
+        return forwardedFor.Split(',')[0].Trim();
+    }
+
+    return remoteIpAddress?.ToString() ?? "anonymous";
 }

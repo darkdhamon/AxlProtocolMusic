@@ -34,6 +34,54 @@ public sealed class ChatbotControllerTests
     }
 
     [Test]
+    public async Task PostMessage_WhenMessageIsTooLong_ReturnsBadRequestAndDoesNotCallService()
+    {
+        var chatbotService = new FakeSiteChatbotService();
+        var controller = CreateController(chatbotService);
+
+        var result = await controller.PostMessage(
+            new ChatbotMessageRequest
+            {
+                Message = new string('x', 1001),
+                History = []
+            },
+            CancellationToken.None);
+
+        var badRequestResult = result.Result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        Assert.That(badRequestResult.Value?.ToString(), Does.Contain("Message too long"));
+        Assert.That(chatbotService.CallCount, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task PostMessage_WhenHistoryIsTooLong_ReturnsBadRequestAndDoesNotCallService()
+    {
+        var chatbotService = new FakeSiteChatbotService();
+        var controller = CreateController(chatbotService);
+        var longHistory = new List<ChatbotConversationMessage>();
+
+        for (var i = 0; i < 41; i++)
+        {
+            longHistory.Add(new ChatbotConversationMessage { Role = "user", Content = $"Message {i}" });
+        }
+
+        var result = await controller.PostMessage(
+            new ChatbotMessageRequest
+            {
+                Message = "What changed?",
+                History = longHistory
+            },
+            CancellationToken.None);
+
+        var badRequestResult = result.Result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult!.StatusCode, Is.EqualTo(StatusCodes.Status400BadRequest));
+        Assert.That(badRequestResult.Value?.ToString(), Does.Contain("History too long"));
+        Assert.That(chatbotService.CallCount, Is.EqualTo(0));
+    }
+
+    [Test]
     public async Task PostMessage_WhenMessageIsValid_ForwardsArgumentsAndReturnsOk()
     {
         var chatbotService = new FakeSiteChatbotService
