@@ -60,6 +60,35 @@ public sealed class ReleasesControllerTests
     }
 
     [Test]
+    public async Task Create_WhenImageSaveFails_RedirectsBackToCreateWithErrorAndInput()
+    {
+        var releaseService = new FakeReleaseService();
+        var imageStorageService = new FakeImageStorageService
+        {
+            ThrowOnSave = new InvalidOperationException("Image format is not supported.")
+        };
+
+        var request = CreateValidRequest();
+        request.CoverImageFile = CreateFormFile();
+        request.CoverImageUrl = "/uploaded/previous-image.png";
+
+        var controller = CreateController(releaseService, imageStorageService);
+
+        var result = await controller.Create(request);
+
+        var redirectResult = result as RedirectResult;
+        Assert.That(redirectResult, Is.Not.Null);
+        Assert.That(redirectResult!.Url, Does.StartWith("/releases/new?"));
+        Assert.That(redirectResult.Url, Does.Contain("error=Image%20format%20is%20not%20supported."));
+        Assert.That(redirectResult.Url, Does.Contain("slug=valid-slug"));
+        Assert.That(redirectResult.Url, Does.Contain("releaseDate=2026-03-20"));
+        Assert.That(redirectResult.Url, Does.Contain("coverImageUrl=%2Fuploaded%2Fprevious-image.png"));
+        Assert.That(redirectResult.Url, Does.Contain("isPublished=True"));
+        Assert.That(releaseService.LastCreateRequest, Is.Null);
+        Assert.That(imageStorageService.SavedFiles, Is.Empty);
+    }
+
+    [Test]
     public async Task Create_WhenImageSaveSucceeds_PassesSavedImageUrlToReleaseServiceAndRedirectsToDetails()
     {
         var releaseService = new FakeReleaseService
@@ -272,6 +301,7 @@ public sealed class ReleasesControllerTests
     private sealed class FakeImageStorageService : IImageStorageService
     {
         public ImageSaveResult SaveResult { get; set; } = new();
+        public Exception? ThrowOnSave { get; set; }
 
         public List<string> DeletedPaths { get; } = [];
 
@@ -288,6 +318,11 @@ public sealed class ReleasesControllerTests
 
         public Task<ImageSaveResult> SaveReleaseImageAsync(IFormFile file, CancellationToken cancellationToken = default)
         {
+            if (ThrowOnSave is not null)
+            {
+                throw ThrowOnSave;
+            }
+
             SavedFiles.Add(file);
             return Task.FromResult(SaveResult);
         }
