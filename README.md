@@ -120,6 +120,11 @@ Once signed in as an admin, the app supports:
 
 Admin traffic is intentionally excluded from analytics reporting.
 
+When an admin signs in, that browser can remain marked for admin analytics exclusion even after logout. This is
+expected behavior and is not a bug. The app assumes admin-owned devices represent owner or test traffic, so keeping
+that browser excluded avoids polluting audience metrics with geography or interest data that is not useful for
+understanding real visitors.
+
 ## Deployment
 
 The repository includes a GitHub Actions workflow that:

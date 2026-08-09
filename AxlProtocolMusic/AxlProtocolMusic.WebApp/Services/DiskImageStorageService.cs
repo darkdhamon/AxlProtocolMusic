@@ -66,8 +66,13 @@ public sealed class DiskImageStorageService : IImageStorageService
 
     public bool IsManagedImageUrl(string? imageUrl)
     {
-        return !string.IsNullOrWhiteSpace(imageUrl)
-            && imageUrl.StartsWith($"/{_settings.UploadRoot}/", StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(imageUrl))
+        {
+            return false;
+        }
+
+        return imageUrl.StartsWith($"/{_settings.UploadRoot}/", StringComparison.OrdinalIgnoreCase)
+            || imageUrl.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase);
     }
 
     public Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)
@@ -77,8 +82,11 @@ public sealed class DiskImageStorageService : IImageStorageService
             return Task.CompletedTask;
         }
 
-        var normalizedPath = storagePath.TrimStart('/').Replace("/", Path.DirectorySeparatorChar.ToString());
-        var physicalPath = Path.Combine(_environment.WebRootPath, normalizedPath);
+        var physicalPath = TryResolveManagedPhysicalPath(storagePath);
+        if (physicalPath is null)
+        {
+            return Task.CompletedTask;
+        }
 
         if (File.Exists(physicalPath))
         {
@@ -86,6 +94,85 @@ public sealed class DiskImageStorageService : IImageStorageService
         }
 
         return Task.CompletedTask;
+    }
+
+    private string? TryResolveManagedPhysicalPath(string storagePath)
+    {
+        var normalizedStoragePath = storagePath.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedStoragePath))
+        {
+            return null;
+        }
+
+        var relativePath = normalizedStoragePath
+            .TrimStart('/', '\\')
+            .Replace('/', Path.DirectorySeparatorChar)
+            .Replace('\\', Path.DirectorySeparatorChar);
+
+        string candidatePath;
+        try
+        {
+            candidatePath = Path.GetFullPath(Path.Combine(_environment.WebRootPath, relativePath));
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        catch (PathTooLongException)
+        {
+            return null;
+        }
+
+        foreach (var uploadRootPath in GetAllowedUploadRootPaths())
+        {
+            if (IsPathWithinRoot(candidatePath, uploadRootPath))
+            {
+                return candidatePath;
+            }
+        }
+
+        return null;
+    }
+
+    private IEnumerable<string> GetAllowedUploadRootPaths()
+    {
+        var uploadRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            NormalizeUploadRoot(_settings.UploadRoot),
+            "uploads"
+        };
+
+        foreach (var uploadRoot in uploadRoots)
+        {
+            yield return Path.GetFullPath(Path.Combine(_environment.WebRootPath, uploadRoot));
+        }
+    }
+
+    private static string NormalizeUploadRoot(string uploadRoot)
+    {
+        return uploadRoot
+            .Trim()
+            .Trim('/', '\\')
+            .Replace('/', Path.DirectorySeparatorChar)
+            .Replace('\\', Path.DirectorySeparatorChar);
+    }
+
+    private static bool IsPathWithinRoot(string candidatePath, string rootPath)
+    {
+        if (string.Equals(candidatePath, rootPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var rootWithSeparator = rootPath.EndsWith(Path.DirectorySeparatorChar)
+            ? rootPath
+            : rootPath + Path.DirectorySeparatorChar;
+
+        return candidatePath.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase);
     }
 
     internal static void ValidateImage(IFormFile file, long maxFileSizeBytes)

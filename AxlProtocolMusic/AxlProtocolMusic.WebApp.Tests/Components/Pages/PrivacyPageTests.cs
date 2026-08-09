@@ -41,6 +41,10 @@ public sealed class PrivacyPageTests
         {
             Assert.That(cut.Markup, Does.Contain("Your Data And This Site"));
             Assert.That(cut.Markup, Does.Contain("Turning this off will stop future essential analytics for this browser"));
+            Assert.That(cut.Markup, Does.Contain("local storage"));
+            Assert.That(cut.Markup, Does.Contain("current page path, page title, and a bounded excerpt of visible page content"));
+            Assert.That(cut.Markup, Does.Contain("even after logout"));
+            Assert.That(cut.Markup, Does.Contain("interest-based audience insights"));
             Assert.That(cut.Markup, Does.Contain("See Collected Data"));
         });
 

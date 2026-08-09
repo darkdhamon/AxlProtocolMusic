@@ -947,7 +947,7 @@ else
             }
 
             if (!string.IsNullOrWhiteSpace(previousCoverImageUrl)
-                && ReleaseService.IsManagedImageUrl(previousCoverImageUrl)
+                && ImageStorageService.IsManagedImageUrl(previousCoverImageUrl)
                 && !string.Equals(previousCoverImageUrl, editableRelease.CoverImageUrl, StringComparison.OrdinalIgnoreCase))
             {
                 await ImageStorageService.DeleteAsync(previousCoverImageUrl, cancellationToken);
@@ -1262,7 +1262,7 @@ else
             }
 
             if (!string.IsNullOrWhiteSpace(result.ImageStoragePath)
-                && ReleaseService.IsManagedImageUrl(result.ImageStoragePath))
+                && ImageStorageService.IsManagedImageUrl(result.ImageStoragePath))
             {
                 await ImageStorageService.DeleteAsync(result.ImageStoragePath);
             }

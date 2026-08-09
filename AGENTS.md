@@ -8,6 +8,15 @@ Repository guidance for Codex-style agents working in `C:\GitHub\AxlProtocolMusi
 - Prefer documenting concrete commands and outcomes, not vague reminders.
 - Keep the notes focused on repo-specific friction, tooling behavior, or repeatable recovery steps.
 
+## Project Board Workflow
+
+- New project items start in `Backlog`.
+- Analysis-only work should move an item to `Ready` and keep it there until coding begins.
+- If an item is selected directly from `Backlog` or already sitting in `Ready`, move it to `In Progress` only when implementation or coding has actually started.
+- Creating a pull request moves the item to `In Review`.
+- After the pull request is approved and the work has been moved into the `dev` branch, move the item to `Ready for Release`.
+- After the work has been moved into the `main` branch, move the item to `Done` and then close the item.
+
 ## Workarounds
 
 ### Capturing Unit Test Failure Details In GitHub Actions
@@ -93,7 +102,7 @@ Problem:
 
 Verified workaround:
 1. Check the deployed production setting for `Chatbot:Enabled` or the environment override `Chatbot__Enabled`.
-2. If the admin dashboard says the chatbot is enabled but the launcher is missing site-wide, verify the production host is not inheriting `appsettings.json` with `"Chatbot": { "Enabled": false }`.
+2. If the admin dashboard says the chatbot is enabled but the launcher is missing site-wide, verify the deployed host is not inheriting `appsettings.json` with `"Chatbot": { "Enabled": false }`.
 3. Keep the admin UI aligned with the render gate by exposing the config flag in the dashboard when investigating live issues.
 
 Working files:
@@ -113,3 +122,65 @@ C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\Components\P
 Notes:
 - `SiteChatbot.razor` only renders when `ChatbotOptions.Value.Enabled` is true and the manual disable flag is false.
 - `appsettings.Development.json` enables the chatbot, but the repo default in `appsettings.json` disables it, so production must override it explicitly.
+- When comparing against ReSharper/dotCover, treat the app package entry as the comparable scope. dotCover usually shows app-only statement coverage, while Cobertura reports line coverage.
+
+### Managing GitHub Project Status For Repo Issues
+
+Problem:
+- GitHub issue state (`OPEN` or `CLOSED`) is separate from the GitHub Project board status for this repo.
+- `gh issue view` can show the attached project item, but moving the card requires the project id, item id, status field id, and the single-select option id.
+
+Verified workflow:
+1. The repo's GitHub Project board is project `8` under `darkdhamon`, titled `Axl Protocol Music Website`.
+2. Confirm the issue's current project attachment and status:
+
+```powershell
+gh issue view 6 --repo darkdhamon/AxlProtocolMusic --json number,title,state,labels,assignees,projectItems,url
+```
+
+3. Confirm the project number and project id:
+
+```powershell
+gh project list --owner darkdhamon
+```
+
+4. Capture the `Status` field id and option ids:
+
+```powershell
+gh project field-list 8 --owner darkdhamon --format json
+```
+
+5. Capture the project item id for the target issue:
+
+```powershell
+gh project item-list 8 --owner darkdhamon --format json
+```
+
+6. Move the card by updating the single-select status field:
+
+```powershell
+gh project item-edit --id <item-id> --project-id PVT_kwHOACEO7s4BYnAv --field-id PVTSSF_lAHOACEO7s4BYnAvzhTroGQ --single-select-option-id <status-option-id>
+```
+
+Status option ids on this board:
+- `Backlog` = `f75ad846`
+- `Ready` = `61e4505c`
+- `In progress` = `47fc9ee4`
+- `In review` = `df73e18b`
+- `Done` = `98236657`
+
+Working example:
+
+```powershell
+gh project item-edit --id PVTI_lAHOACEO7s4BYnAvzgtoMyE --project-id PVT_kwHOACEO7s4BYnAv --field-id PVTSSF_lAHOACEO7s4BYnAvzhTroGQ --single-select-option-id 47fc9ee4
+```
+
+Notes:
+- Renaming the project title works with:
+
+```powershell
+gh project edit 8 --owner darkdhamon --title "Axl Protocol Music Website"
+```
+
+- Changing an issue to `OPEN` does not move it out of `Backlog`; update the project card separately.
+

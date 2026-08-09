@@ -252,6 +252,22 @@ public sealed class ReleaseServiceTests
     }
 
     [Test]
+    public async Task CreateReleaseAsync_WhenReleaseDateIsMissing_ReturnsError()
+    {
+        var service = new ReleaseService(new InMemoryReleaseRepository([]));
+
+        var result = await service.CreateReleaseAsync(new ReleaseUpdateRequest
+        {
+            Title = "New release",
+            Slug = "new-release",
+            ShortDescription = "Description"
+        });
+
+        Assert.That(result.Succeeded, Is.False);
+        Assert.That(result.ErrorMessage, Is.EqualTo("Release date is required."));
+    }
+
+    [Test]
     public async Task CreateReleaseAsync_WhenOptionalCollectionsAreNull_UsesEmptyNormalizedValues()
     {
         var repository = new InMemoryReleaseRepository([]);
@@ -402,6 +418,24 @@ public sealed class ReleaseServiceTests
 
         Assert.That(result.Succeeded, Is.False);
         Assert.That(result.ErrorMessage, Is.EqualTo("Slug is required."));
+    }
+
+    [Test]
+    public async Task UpdateReleaseAsync_WhenReleaseDateIsMissing_ReturnsError()
+    {
+        var existing = CreateRelease("original", 10, true, id: "release-1");
+        var service = new ReleaseService(new InMemoryReleaseRepository([existing]));
+
+        var result = await service.UpdateReleaseAsync(new ReleaseUpdateRequest
+        {
+            OriginalSlug = "original",
+            Title = "Updated",
+            Slug = "updated",
+            ShortDescription = "Updated"
+        });
+
+        Assert.That(result.Succeeded, Is.False);
+        Assert.That(result.ErrorMessage, Is.EqualTo("Release date is required."));
     }
 
     [Test]
@@ -636,20 +670,6 @@ public sealed class ReleaseServiceTests
             Assert.That(contributorRoles.Keys, Is.EqualTo(["Alice"]));
             Assert.That(contributorRoles["Alice"], Is.EqualTo(["Mix"]));
             Assert.That(tags, Is.EqualTo(["Synth"]));
-        });
-    }
-
-    [Test]
-    public void IsManagedImageUrl_ReturnsTrueOnlyForUploadsPaths()
-    {
-        var service = new ReleaseService(new InMemoryReleaseRepository([]));
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(service.IsManagedImageUrl("/uploads/releases/image.png"), Is.True);
-            Assert.That(service.IsManagedImageUrl("/images/releases/image.png"), Is.False);
-            Assert.That(service.IsManagedImageUrl(""), Is.False);
-            Assert.That(service.IsManagedImageUrl(null), Is.False);
         });
     }
 

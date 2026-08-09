@@ -63,7 +63,7 @@
             <p class="eyebrow">Editorial</p>
             <h1>News Articles</h1>
             <p class="news-lead">
-                Featured stories lead the page, published articles flow underneath by recency, and admin users can create, edit, schedule, publish, and delete seeded news content directly from this view.
+                Featured stories lead the page, recent published articles flow underneath by recency, older articles remain available on the timeline, and admin users can create, edit, schedule, publish, and delete seeded news content directly from this view.
             </p>
         </div>
 
@@ -174,7 +174,7 @@
                         <div class="article-card-overlay">
                             <div class="article-card-meta">
                                 <p class="article-card-date">@FormatPublicationLabel(article)</p>
-                                @if (isAdmin && !IsLiveForPublic(article))
+                                @if (isAdmin && !IsVisibleInRecentFeed(article))
                                 {
                                     <span class="article-visibility-badge">Admin Preview</span>
                                 }
@@ -275,7 +275,7 @@
                         <p class="news-modal-date">Database-backed news editor</p>
                     </div>
 
-                    <button type="button" class="btn-close" aria-label="Close" @onclick="CloseEditArticle"></button>
+                    <button type="button" class="btn-close" aria-label="Close" @onclick="CancelEditArticleAsync"></button>
                 </div>
 
                 @if (!string.IsNullOrWhiteSpace(editErrorMessage))
@@ -328,7 +328,7 @@
                     </div>
 
                     <div class="admin-edit-actions">
-                        <button class="btn btn-outline-secondary" type="button" @onclick="CloseEditArticle">Cancel</button>
+                        <button class="btn btn-outline-secondary" type="button" @onclick="CancelEditArticleAsync">Cancel</button>
                         <button class="btn btn-primary" type="button" @onclick="SaveEditedArticle">
                             @(isCreatingArticle ? "Create Article" : "Save Changes")
                         </button>
@@ -404,9 +404,15 @@
     private bool isCreatingArticle;
     private bool isDeleteModalOpen;
     private bool isFeaturedCarouselHovered;
+    private bool isSavingArticle;
+    private bool isDisposed;
     private DateTime editablePublicationDate;
+    private long editSessionVersion;
+    private bool isEditSessionAcceptingUploads;
     private string? editErrorMessage;
     private string? editStatusMessage;
+    private string? originalEditableImageUrl;
+    private List<string> sessionUploadedImageUrls = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -493,7 +499,7 @@
         hasMoreArticles = loadedArticles.Count < feedArticles.Count;
     }
 
-    private static bool IsLiveForPublic(NewsArticle article)
+    private static bool IsVisibleInRecentFeed(NewsArticle article)
     {
         var publicCutoff = DateTimeOffset.UtcNow.AddMonths(-3);
 
@@ -516,16 +522,20 @@
 
     private void OpenEditArticle(NewsArticle article)
     {
+        StartEditSession();
         editableArticle = CloneArticle(article);
         editablePublicationDate = article.PublicationDateUtc.UtcDateTime.Date;
         editErrorMessage = null;
         editStatusMessage = null;
+        originalEditableImageUrl = article.ImageUrl;
+        sessionUploadedImageUrls = [];
         isCreatingArticle = false;
         isEditModalOpen = true;
     }
 
     private void OpenCreateArticle()
     {
+        StartEditSession();
         editableArticle = new NewsArticle
         {
             Id = Guid.NewGuid().ToString("N"),
@@ -540,6 +550,8 @@
         editablePublicationDate = DateTime.UtcNow.Date;
         editErrorMessage = null;
         editStatusMessage = null;
+        originalEditableImageUrl = null;
+        sessionUploadedImageUrls = [];
         isCreatingArticle = true;
         isEditModalOpen = true;
     }
@@ -552,12 +564,21 @@
 
     private void CloseEditArticle()
     {
+        InvalidateEditSession();
         isEditModalOpen = false;
         editableArticle = null;
+        originalEditableImageUrl = null;
+        sessionUploadedImageUrls = [];
         editErrorMessage = null;
         editStatusMessage = null;
         isCreatingArticle = false;
         RemoveEditorQueryParameter();
+    }
+
+    private async Task CancelEditArticleAsync()
+    {
+        var sessionUploadedImageUrlsToDelete = CloseEditArticleAndCaptureSessionUploadedImages();
+        await DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete);
     }
 
     private void CloseDeleteArticle()
@@ -697,66 +718,109 @@
 
     private async Task SaveEditedArticle()
     {
-        if (editableArticle is null)
+        if (editableArticle is null || isSavingArticle)
         {
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(editableArticle.Title))
+        var request = BuildUpdateRequest();
+        if (string.IsNullOrWhiteSpace(request.Title))
         {
             editErrorMessage = "Title is required.";
             editStatusMessage = null;
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(editableArticle.Content))
+        if (string.IsNullOrWhiteSpace(request.Content))
         {
             editErrorMessage = "Content is required.";
             editStatusMessage = null;
             return;
         }
 
+        if (request.PublicationDate == default)
+        {
+            editErrorMessage = "Publication date is required.";
+            editStatusMessage = null;
+            return;
+        }
+
+        var sessionUploadedImageUrlsToDelete = TakeSessionUploadedImageUrls();
+        string? committedImageUrl = null;
+        var originalEditableImageUrlToDelete = originalEditableImageUrl;
+        isSavingArticle = true;
+        InvalidateEditSession();
+
         try
         {
             if (isCreatingArticle)
             {
-                await NewsArticleService.CreateAsync(BuildUpdateRequest());
+                var createdArticle = await NewsArticleService.CreateAsync(request);
+                committedImageUrl = createdArticle.ImageUrl;
+                RemoveCommittedUploadedImage(sessionUploadedImageUrlsToDelete, committedImageUrl);
+                await DeleteManagedImagesBestEffortAsync(
+                    sessionUploadedImageUrlsToDelete,
+                    createdArticle.ImageUrl);
                 await RefreshVisibleArticlesAsync();
                 CloseEditArticle();
                 return;
             }
 
-            var previousImageUrl = allArticles
-                .FirstOrDefault(article => article.Id == editableArticle.Id)?
-                .ImageUrl;
+            var updatedArticle = await NewsArticleService.UpdateAsync(request);
+            committedImageUrl = updatedArticle.ImageUrl;
 
-            var updatedArticle = await NewsArticleService.UpdateAsync(BuildUpdateRequest());
+            RemoveCommittedUploadedImage(sessionUploadedImageUrlsToDelete, committedImageUrl);
 
-            if (!string.IsNullOrWhiteSpace(previousImageUrl)
-                && NewsArticleService.IsManagedImageUrl(previousImageUrl)
-                && !string.Equals(previousImageUrl, updatedArticle.ImageUrl, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(originalEditableImageUrlToDelete)
+                && !string.Equals(originalEditableImageUrlToDelete, updatedArticle.ImageUrl, StringComparison.OrdinalIgnoreCase)
+                && ImageStorageService.IsManagedImageUrl(originalEditableImageUrlToDelete))
             {
-                await ImageStorageService.DeleteAsync(previousImageUrl);
+                await DeleteManagedImagesBestEffortAsync(
+                    [originalEditableImageUrlToDelete],
+                    updatedArticle.ImageUrl);
             }
+
+            await DeleteManagedImagesBestEffortAsync(
+                sessionUploadedImageUrlsToDelete,
+                updatedArticle.ImageUrl);
 
             await RefreshVisibleArticlesAsync(updatedArticle.Id);
             CloseEditArticle();
         }
         catch (Exception exception)
         {
-            editErrorMessage = exception.Message;
-            editStatusMessage = null;
+            if (CanRestoreEditSession())
+            {
+                RestoreSessionUploadedImageUrls(sessionUploadedImageUrlsToDelete);
+                RestoreEditSessionUploads();
+                editErrorMessage = exception.Message;
+                editStatusMessage = null;
+            }
+            else
+            {
+                await DeleteManagedImagesBestEffortAsync(
+                    sessionUploadedImageUrlsToDelete,
+                    committedImageUrl);
+            }
+        }
+        finally
+        {
+            isSavingArticle = false;
         }
     }
 
     private async Task HandleArticleImageSelectedAsync(InputFileChangeEventArgs args)
     {
         var file = args.File;
-        if (file is null || editableArticle is null)
+        if (file is null
+            || editableArticle is null
+            || !isEditModalOpen
+            || !isEditSessionAcceptingUploads)
         {
             return;
         }
 
+        var activeEditSessionVersion = editSessionVersion;
         editErrorMessage = null;
         editStatusMessage = "Uploading article image...";
         await InvokeAsync(StateHasChanged);
@@ -768,6 +832,11 @@
             await readStream.CopyToAsync(memoryStream);
             memoryStream.Position = 0;
 
+            if (!IsCurrentEditSession(activeEditSessionVersion))
+            {
+                return;
+            }
+
             var formFile = new Microsoft.AspNetCore.Http.FormFile(memoryStream, 0, memoryStream.Length, file.Name, file.Name)
             {
                 Headers = new Microsoft.AspNetCore.Http.HeaderDictionary(),
@@ -776,19 +845,24 @@
 
             var imageSaveResult = await ImageStorageService.SaveReleaseImageAsync(formFile);
 
-            if (!string.IsNullOrWhiteSpace(editableArticle.ImageUrl)
-                && NewsArticleService.IsManagedImageUrl(editableArticle.ImageUrl)
-                && !string.Equals(editableArticle.ImageUrl, imageSaveResult.Url, StringComparison.OrdinalIgnoreCase))
+            if (!IsCurrentEditSession(activeEditSessionVersion))
             {
-                await ImageStorageService.DeleteAsync(editableArticle.ImageUrl);
+                await DeleteManagedImagesBestEffortAsync([imageSaveResult.Url]);
+                return;
             }
 
+            AddSessionUploadedImageUrl(imageSaveResult.Url);
             editableArticle.ImageUrl = imageSaveResult.Url;
             editStatusMessage = "Article image uploaded.";
             await InvokeAsync(StateHasChanged);
         }
         catch (Exception exception)
         {
+            if (!IsCurrentEditSession(activeEditSessionVersion))
+            {
+                return;
+            }
+
             editErrorMessage = exception.Message;
             editStatusMessage = null;
             await InvokeAsync(StateHasChanged);
@@ -802,13 +876,21 @@
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(articlePendingDelete.ImageUrl)
-            && NewsArticleService.IsManagedImageUrl(articlePendingDelete.ImageUrl))
-        {
-            await ImageStorageService.DeleteAsync(articlePendingDelete.ImageUrl);
-        }
+        var imageUrlToDelete = articlePendingDelete.ImageUrl;
 
         await NewsArticleService.DeleteAsync(articlePendingDelete.Id);
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(imageUrlToDelete)
+                && ImageStorageService.IsManagedImageUrl(imageUrlToDelete))
+            {
+                await ImageStorageService.DeleteAsync(imageUrlToDelete);
+            }
+        }
+        catch
+        {
+        }
 
         if (selectedArticle?.Id == articlePendingDelete.Id)
         {
@@ -822,6 +904,109 @@
 
         await RefreshVisibleArticlesAsync();
         CloseDeleteArticle();
+    }
+
+    private void AddSessionUploadedImageUrl(string imageUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(imageUrl)
+            && !sessionUploadedImageUrls.Contains(imageUrl, StringComparer.OrdinalIgnoreCase))
+        {
+            sessionUploadedImageUrls.Add(imageUrl);
+        }
+    }
+
+    private List<string> CaptureSessionUploadedImageUrls()
+        => [.. sessionUploadedImageUrls];
+
+    private List<string> TakeSessionUploadedImageUrls()
+    {
+        var uploadedImageUrls = CaptureSessionUploadedImageUrls();
+        sessionUploadedImageUrls = [];
+        return uploadedImageUrls;
+    }
+
+    private List<string> CloseEditArticleAndCaptureSessionUploadedImages()
+    {
+        var uploadedImageUrls = CaptureSessionUploadedImageUrls();
+        CloseEditArticle();
+        return uploadedImageUrls;
+    }
+
+    private static void RemoveCommittedUploadedImage(List<string> uploadedImageUrls, string? imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl))
+        {
+            return;
+        }
+
+        uploadedImageUrls.RemoveAll(url => string.Equals(url, imageUrl, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void StartEditSession()
+    {
+        editSessionVersion++;
+        isEditSessionAcceptingUploads = true;
+    }
+
+    private void InvalidateEditSession()
+    {
+        editSessionVersion++;
+        isEditSessionAcceptingUploads = false;
+    }
+
+    private void RestoreEditSessionUploads()
+    {
+        if (CanRestoreEditSession())
+        {
+            StartEditSession();
+        }
+    }
+
+    private void RestoreSessionUploadedImageUrls(IEnumerable<string> imageUrls)
+    {
+        foreach (var imageUrl in imageUrls)
+        {
+            AddSessionUploadedImageUrl(imageUrl);
+        }
+    }
+
+    private bool CanRestoreEditSession()
+        => !isDisposed
+            && isEditModalOpen
+            && editableArticle is not null;
+
+    private bool IsCurrentEditSession(long sessionVersion)
+        => isEditModalOpen
+            && editableArticle is not null
+            && isEditSessionAcceptingUploads
+            && editSessionVersion == sessionVersion;
+
+    private async Task DeleteManagedImagesBestEffortAsync(
+        IEnumerable<string> imageUrls,
+        params string?[] excludedImageUrls)
+    {
+        var exclusions = excludedImageUrls
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var deletedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var imageUrl in imageUrls.Where(url => !string.IsNullOrWhiteSpace(url)))
+        {
+            if (exclusions.Contains(imageUrl)
+                || !deletedUrls.Add(imageUrl)
+                || !ImageStorageService.IsManagedImageUrl(imageUrl))
+            {
+                continue;
+            }
+
+            try
+            {
+                await ImageStorageService.DeleteAsync(imageUrl);
+            }
+            catch
+            {
+            }
+        }
     }
 
     private static string GetPreviewText(string content, int wordCount)
@@ -882,7 +1067,7 @@
         allArticles = (await NewsArticleService.GetArticlesAsync(includeUnpublished: true)).ToList();
         visibleArticles = isAdmin
             ? allArticles.ToList()
-            : allArticles.Where(IsLiveForPublic).ToList();
+            : allArticles.Where(IsVisibleInRecentFeed).ToList();
 
         featuredArticles = visibleArticles
             .Where(article => article.IsFeatured)
@@ -933,6 +1118,40 @@
 
         selectedArticle = visibleArticles.FirstOrDefault(article =>
             string.Equals(article.Slug, ArticleSlug, StringComparison.OrdinalIgnoreCase));
+
+        if (selectedArticle is not null || isAdmin)
+        {
+            return;
+        }
+
+        var archivedArticle = allArticles.FirstOrDefault(article =>
+            string.Equals(article.Slug, ArticleSlug, StringComparison.OrdinalIgnoreCase)
+            && article.IsPublished
+            && article.PublicationDateUtc <= DateTimeOffset.UtcNow
+            && !IsVisibleInRecentFeed(article));
+
+        if (archivedArticle is null)
+        {
+            return;
+        }
+
+        if (!IsCurrentNewsRoute())
+        {
+            return;
+        }
+
+        NavigationManager.NavigateTo($"timeline?article={Uri.EscapeDataString(archivedArticle.Slug)}", replace: true);
+    }
+
+    private bool IsCurrentNewsRoute()
+    {
+        var baseRelativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        var currentPath = baseRelativePath
+            .Split(['?', '#'], 2)[0]
+            .Trim('/');
+
+        return string.Equals(currentPath, "news", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentPath, "news-articles", StringComparison.OrdinalIgnoreCase);
     }
 
     private bool IsSelectedArticle(NewsArticle article)
@@ -1011,6 +1230,16 @@
 
     public async ValueTask DisposeAsync()
     {
+        isDisposed = true;
+        var sessionUploadedImageUrlsToDelete = CaptureSessionUploadedImageUrls();
+        InvalidateEditSession();
+        isEditModalOpen = false;
+        editableArticle = null;
+        originalEditableImageUrl = null;
+        sessionUploadedImageUrls = [];
+
+        await DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete);
+
         featuredCarouselRotationCancellationTokenSource?.Cancel();
         featuredCarouselRotationCancellationTokenSource?.Dispose();
 

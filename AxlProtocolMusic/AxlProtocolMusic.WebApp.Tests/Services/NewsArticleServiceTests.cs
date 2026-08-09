@@ -129,6 +129,20 @@ public sealed class NewsArticleServiceTests
     }
 
     [Test]
+    public void CreateAsync_WhenPublicationDateIsMissing_ThrowsInvalidOperationException()
+    {
+        var service = new NewsArticleService(new InMemoryRepository<NewsArticle>([]));
+
+        var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await service.CreateAsync(new NewsArticleUpdateRequest
+        {
+            Title = "Title",
+            Content = "Content"
+        }));
+
+        Assert.That(exception!.Message, Is.EqualTo("Publication date is required."));
+    }
+
+    [Test]
     public async Task UpdateAsync_WhenArticleExists_NormalizesAndPersistsChangesWithoutChangingSlug()
     {
         var existing = CreateArticle("original-slug", new DateTimeOffset(2026, 3, 10, 0, 0, 0, TimeSpan.Zero), isPublished: false);
@@ -193,6 +207,22 @@ public sealed class NewsArticleServiceTests
     }
 
     [Test]
+    public void UpdateAsync_WhenPublicationDateIsMissing_ThrowsInvalidOperationException()
+    {
+        var existing = CreateArticle("original-slug", new DateTimeOffset(2026, 3, 10, 0, 0, 0, TimeSpan.Zero), isPublished: false);
+        var service = new NewsArticleService(new InMemoryRepository<NewsArticle>([existing]));
+
+        var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await service.UpdateAsync(new NewsArticleUpdateRequest
+        {
+            OriginalSlug = "original-slug",
+            Title = "Updated",
+            Content = "Updated content"
+        }));
+
+        Assert.That(exception!.Message, Is.EqualTo("Publication date is required."));
+    }
+
+    [Test]
     public async Task DeleteAsync_WhenIdIsValid_DeletesArticle()
     {
         var repository = new InMemoryRepository<NewsArticle>(
@@ -217,21 +247,6 @@ public sealed class NewsArticleServiceTests
         var exception = Assert.ThrowsAsync<InvalidOperationException>(async () => await service.DeleteAsync(" "));
 
         Assert.That(exception!.Message, Is.EqualTo("The article id is required."));
-    }
-
-    [Test]
-    public void IsManagedImageUrl_ReturnsTrueOnlyForUploadsPaths()
-    {
-        var service = new NewsArticleService(new InMemoryRepository<NewsArticle>([]));
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(service.IsManagedImageUrl("/uploads/news/image.png"), Is.True);
-            Assert.That(service.IsManagedImageUrl("/UPLOADS/news/image.png"), Is.True);
-            Assert.That(service.IsManagedImageUrl("/images/news/image.png"), Is.False);
-            Assert.That(service.IsManagedImageUrl(""), Is.False);
-            Assert.That(service.IsManagedImageUrl(null), Is.False);
-        });
     }
 
     private static NewsArticle CreateArticle(string slug, DateTimeOffset publicationDateUtc, bool isPublished, string? id = null)

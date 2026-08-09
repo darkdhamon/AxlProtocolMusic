@@ -1,6 +1,7 @@
 @page "/timeline"
 @rendermode InteractiveServer
 @using System.Text.RegularExpressions
+@using Microsoft.AspNetCore.Components.Authorization
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
 @inject IJSRuntime JSRuntime
 @inject IReleaseService ReleaseService
@@ -262,7 +263,7 @@ else
                                                                     class="btn btn-outline-primary btn-sm event-edit-button"
                                                                     type="button"
                                                                     @onclick:stopPropagation="true"
-                                                                    @onclick="() => OpenEditModal(timelineEvent)">
+                                                                    @onclick="() => OpenEditModalAsync(timelineEvent)">
                                                                     Edit Event
                                                                 </button>
 
@@ -270,7 +271,7 @@ else
                                                                     class="btn btn-outline-danger btn-sm"
                                                                     type="button"
                                                                     @onclick:stopPropagation="true"
-                                                                    @onclick="() => OpenDeleteModal(timelineEvent)">
+                                                                    @onclick="() => OpenDeleteModalAsync(timelineEvent)">
                                                                     Delete
                                                                 </button>
                                                             </div>
@@ -432,7 +433,14 @@ else
     private const int MonthBatchSize = 4;
     private const string PlaceholderAlbumArtPath = "/Assets/Misc/Placeholder-AlbumArt.png";
 
+    [SupplyParameterFromQuery(Name = "article")]
+    public string? ArticleSlug { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthenticationStateTask { get; set; }
+
     private List<TimelineMonthSection> allTimelineMonths = [];
+    private List<TimelineEntry> allTimelineEntries = [];
     private List<TimelineMonthSection> timelineYears = [];
     private bool isLoading = true;
     private int releaseEventCount;
@@ -462,7 +470,12 @@ else
     {
         NavigationManager.LocationChanged += HandleLocationChanged;
         await LoadTimelineAsync();
-        OpenCreateModalIfRequested();
+        await OpenCreateModalIfRequestedAsync();
+    }
+
+    protected override void OnParametersSet()
+    {
+        SyncSelectedTimelineEntryFromQuery();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -567,6 +580,7 @@ else
             .ToList();
 
         totalTimelineEvents = combinedEvents.Count;
+        allTimelineEntries = combinedEvents;
 
         allTimelineMonths = combinedEvents
             .GroupBy(item => new DateTime(item.EventDateUtc.Year, item.EventDateUtc.Month, 1))
@@ -579,6 +593,8 @@ else
         selectedTimelineEntry = PreserveSelectedTimelineEntry(combinedEvents);
         timelineYears = [];
         LoadNextMonthBatch(Math.Max(loadedMonthCount, MonthBatchSize));
+        SyncSelectedTimelineEntryFromQuery();
+        EnsureSelectedTimelineEntryMonthIsLoaded();
         isLoading = false;
     }
 
@@ -627,10 +643,43 @@ else
         return combinedEvents.FirstOrDefault(entry => string.Equals(entry.SelectionKey, selectedTimelineEntry.SelectionKey, StringComparison.Ordinal));
     }
 
-    private void SelectTimelineEntry(TimelineEntry timelineEvent)
+    private void SyncSelectedTimelineEntryFromQuery()
+    {
+        if (string.IsNullOrWhiteSpace(ArticleSlug))
+        {
+            return;
+        }
+
+        var matchingNewsEntry = allTimelineEntries.FirstOrDefault(entry =>
+            entry.NewsArticle is not null
+            && string.Equals(entry.NewsArticle.Slug, ArticleSlug, StringComparison.OrdinalIgnoreCase));
+
+        if (matchingNewsEntry is null)
+        {
+            return;
+        }
+
+        SelectTimelineEntry(matchingNewsEntry, updateArticleQuery: false);
+    }
+
+    private void SelectTimelineEntry(TimelineEntry timelineEvent, bool updateArticleQuery = true)
     {
         revealedTimelineEntryKeys.Add(timelineEvent.SelectionKey);
         selectedTimelineEntry = timelineEvent;
+        EnsureSelectedTimelineEntryMonthIsLoaded();
+
+        if (!updateArticleQuery)
+        {
+            return;
+        }
+
+        if (timelineEvent.NewsArticle is not null)
+        {
+            SetArticleQueryParameter(timelineEvent.NewsArticle.Slug);
+            return;
+        }
+
+        RemoveArticleQueryParameter();
     }
 
     private bool IsSelectedTimelineEntry(TimelineEntry timelineEvent)
@@ -662,9 +711,31 @@ else
         }
     }
 
-    private void OpenEditModal(TimelineEntry timelineEvent)
+    private void EnsureSelectedTimelineEntryMonthIsLoaded()
     {
-        if (!timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
+        if (selectedTimelineEntry is null)
+        {
+            return;
+        }
+
+        var selectedMonthIndex = allTimelineMonths.FindIndex(section =>
+            section.Events.Any(entry => string.Equals(entry.SelectionKey, selectedTimelineEntry.SelectionKey, StringComparison.Ordinal)));
+
+        if (selectedMonthIndex < 0)
+        {
+            return;
+        }
+
+        var requiredMonthCount = selectedMonthIndex + 1;
+        if (requiredMonthCount > timelineYears.Count)
+        {
+            LoadNextMonthBatch(requiredMonthCount);
+        }
+    }
+
+    private async Task OpenEditModalAsync(TimelineEntry timelineEvent)
+    {
+        if (!await IsCurrentUserAdminAsync() || !timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
         {
             return;
         }
@@ -700,9 +771,9 @@ else
         isEditModalOpen = true;
     }
 
-    private void OpenDeleteModal(TimelineEntry timelineEvent)
+    private async Task OpenDeleteModalAsync(TimelineEntry timelineEvent)
     {
-        if (!timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
+        if (!await IsCurrentUserAdminAsync() || !timelineEvent.IsManualEvent || string.IsNullOrWhiteSpace(timelineEvent.Id))
         {
             return;
         }
@@ -741,7 +812,7 @@ else
 
     private async Task SaveTimelineEventAsync()
     {
-        if (editableTimelineEvent is null)
+        if (!await IsCurrentUserAdminAsync() || editableTimelineEvent is null)
         {
             return;
         }
@@ -792,7 +863,7 @@ else
 
     private async Task DeleteTimelineEventAsync()
     {
-        if (timelineEventPendingDelete is null || string.IsNullOrWhiteSpace(timelineEventPendingDelete.Id))
+        if (!await IsCurrentUserAdminAsync() || timelineEventPendingDelete is null || string.IsNullOrWhiteSpace(timelineEventPendingDelete.Id))
         {
             return;
         }
@@ -831,12 +902,20 @@ else
 
     private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        OpenCreateModalIfRequested();
-        _ = InvokeAsync(StateHasChanged);
+        _ = InvokeAsync(async () =>
+        {
+            await OpenCreateModalIfRequestedAsync();
+            StateHasChanged();
+        });
     }
 
-    private void OpenCreateModalIfRequested()
+    private async Task OpenCreateModalIfRequestedAsync()
     {
+        if (!await IsCurrentUserAdminAsync())
+        {
+            return;
+        }
+
         var uri = new Uri(NavigationManager.Uri);
         var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
 
@@ -848,19 +927,54 @@ else
         }
     }
 
-    private void RemoveEditorQueryParameter()
+    private async Task<bool> IsCurrentUserAdminAsync()
     {
-        var uri = new Uri(NavigationManager.Uri);
-        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query)
-            .Where(entry => !string.Equals(entry.Key, "editor", StringComparison.OrdinalIgnoreCase))
-            .ToDictionary(entry => entry.Key, entry => (string?)entry.Value.ToString());
+        var authenticationState = AuthenticationStateTask is null
+            ? null
+            : await AuthenticationStateTask;
 
-        var baseUri = uri.GetLeftPart(UriPartial.Path);
-        var targetUri = query.Count == 0
-            ? baseUri
-            : Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(baseUri, query);
+        return authenticationState?.User.IsInRole("Admin") == true;
+    }
+
+    private void RemoveArticleQueryParameter()
+    {
+        var targetUri = BuildUriWithoutQueryKeys("article");
+        NavigationManager.NavigateTo(targetUri, replace: true);
+    }
+
+    private void SetArticleQueryParameter(string slug)
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query)
+            .Where(entry => !string.Equals(entry.Key, "article", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(entry => entry.Key, entry => (string?)entry.Value.ToString(), StringComparer.OrdinalIgnoreCase);
+
+        query["article"] = slug;
+
+        var targetUri = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
+            uri.GetLeftPart(UriPartial.Path),
+            query);
 
         NavigationManager.NavigateTo(targetUri, replace: true);
+    }
+
+    private void RemoveEditorQueryParameter()
+    {
+        var targetUri = BuildUriWithoutQueryKeys("editor");
+        NavigationManager.NavigateTo(targetUri, replace: true);
+    }
+
+    private string BuildUriWithoutQueryKeys(params string[] keysToRemove)
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        var filteredEntries = query
+            .Where(entry => !keysToRemove.Any(key => string.Equals(entry.Key, key, StringComparison.OrdinalIgnoreCase)))
+            .SelectMany(entry => entry.Value, (entry, value) => new KeyValuePair<string, string?>(entry.Key, value));
+
+        return Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
+            uri.GetLeftPart(UriPartial.Path),
+            filteredEntries);
     }
 
     private sealed record TimelineMonthSection(

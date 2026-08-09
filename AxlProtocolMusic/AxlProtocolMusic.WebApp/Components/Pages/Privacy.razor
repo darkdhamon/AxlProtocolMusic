@@ -34,9 +34,9 @@ else
                     <li>a repeat-visitor cookie for aggregate metrics, enabled by default</li>
                     <li>coarse region data only when hosting or proxy data makes it available</li>
                     <li>optional coarse browser location for city/state/country reporting and a 25-mile privacy radius map</li>
-                    <li>anonymous chatbot message logging for admin review of abuse patterns and safeguard improvements</li>
+                    <li>browser-local chatbot transcript and panel state plus separate anonymous chatbot logs for admin review</li>
                     <li>no planned automatic deletion of metric data based on time</li>
-                    <li>admin traffic excluded from reporting</li>
+                    <li>admin traffic excluded from reporting, including browsers previously used for admin sign-in</li>
                     <li>no sale of visitor or user data to third parties</li>
                 </ul>
             </div>
@@ -150,8 +150,10 @@ else
                     There is currently no planned automatic deletion schedule for metric data based on time alone.
                 </p>
                 <p class="supporting-copy">
-                    If you use the site chatbot, your messages and the assistant replies may also be stored for admin review,
-                    but they are stored without attaching them to a visitor id or user account.
+                    If you use the site chatbot, your browser also stores the chatbot transcript and panel state in local storage
+                    so the conversation can continue when you reopen the site. That browser-local history is separate from the
+                    anonymous chatbot logs this site may store for admin review, and those stored logs are kept without attaching
+                    them to a visitor id or user account.
                 </p>
             </article>
 
@@ -196,6 +198,10 @@ else
                 </p>
                 <p>
                     Chatbot requests and responses are also processed through the configured AI provider in order to generate replies.
+                    Those requests can include your current page path, page title, and a bounded excerpt of visible page content in
+                    addition to your message and recent chat history so the assistant can answer about the page you are viewing.
+                </p>
+                <p>
                     Anonymous chatbot logs stored by this site may be reviewed by the admin to understand misuse patterns and improve safeguards.
                 </p>
                 <p>
@@ -216,7 +222,16 @@ else
                     updated, tested, and managed.
                 </p>
                 <p>
-                    When an admin signs in, that browser is marked so future analytics from it can continue to be excluded.
+                    When an admin signs in, that browser is marked so future analytics from it can continue to be excluded,
+                    even after logout.
+                </p>
+                <p>
+                    This is intentional because admin devices are assumed to be owned by the admin or site operator. Keeping
+                    that marker helps avoid mixing owner or testing traffic into audience reports.
+                </p>
+                <p>
+                    As a result, activity from that browser is not treated as useful data for geographic or
+                    interest-based audience insights.
                 </p>
             </article>
         </section>
@@ -290,7 +305,7 @@ else
     private string pendingPreferenceDescription = string.Empty;
     private int uniqueVisitorCount;
     private const int MinimumUniqueVisitors = 1000;
-    private static readonly DateOnly LastUpdated = new(2026, 4, 2);
+    private static readonly DateOnly LastUpdated = new(2026, 5, 25);
     private bool canDisableEssentialMetrics => uniqueVisitorCount >= MinimumUniqueVisitors;
 
     protected override async Task OnInitializedAsync()

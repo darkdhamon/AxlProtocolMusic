@@ -28,6 +28,11 @@ public sealed class AboutAxlProtocolTests
                 Pillars =
                 [
                     new AboutPillar { Title = "Story", Description = "Every release expands the world." }
+                ],
+                SocialLinks =
+                [
+                    new AboutSocialLink { Platform = "Instagram", Url = "https://instagram.com/axlprotocolmusic" },
+                    new AboutSocialLink { Platform = "Spotify", Url = "https://open.spotify.com/artist/example" }
                 ]
             }
         };
@@ -50,6 +55,9 @@ public sealed class AboutAxlProtocolTests
             Assert.That(cut.Markup, Does.Contain("Started as a midnight recording experiment."));
             Assert.That(cut.Markup, Does.Contain("Story"));
             Assert.That(cut.Markup, Does.Contain("Every release expands the world."));
+            Assert.That(cut.Markup, Does.Contain("Social And Streaming Links"));
+            Assert.That(cut.Markup, Does.Contain("Instagram"));
+            Assert.That(cut.Markup, Does.Contain("open.spotify.com/artist/example"));
             Assert.That(cut.Markup, Does.Contain("Browse Releases"));
             Assert.That(cut.Markup, Does.Contain("See Updates"));
             Assert.That(cut.Markup, Does.Contain("View Timeline"));
@@ -80,6 +88,71 @@ public sealed class AboutAxlProtocolTests
             Assert.That(cut.Markup, Does.Contain("Focus points will appear here."));
             Assert.That(cut.Markup, Does.Contain("Narrative highlights will appear here."));
             Assert.That(cut.Markup, Does.Contain("Pillars Coming Soon"));
+            Assert.That(cut.Markup, Does.Contain("Links Coming Soon"));
+        });
+    }
+
+    [Test]
+    public void AboutAxlProtocol_WhenSocialLinksContainInvalidEntries_RendersOnlySafeLinks()
+    {
+        using var context = new BunitContext();
+        var service = new FakeAboutPageService
+        {
+            Content = new AboutPageContent
+            {
+                HeroLead = "Axl Protocol",
+                HeroBody = "About page body.",
+                SocialLinks =
+                [
+                    new AboutSocialLink { Platform = "YouTube", Url = "https://www.youtube.com/@AxlProtocol" },
+                    new AboutSocialLink { Platform = "Unsafe", Url = "javascript:alert(1)" },
+                    new AboutSocialLink { Platform = "Incomplete", Url = "" }
+                ]
+            }
+        };
+
+        context.AddAuthorization().SetNotAuthorized();
+        context.Services.AddSingleton<IAboutPageService>(service);
+        context.Services.AddSingleton<MarkdownService>();
+
+        var cut = context.Render<AboutAxlProtocol>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("YouTube"));
+            Assert.That(cut.Markup, Does.Not.Contain("Unsafe"));
+            Assert.That(cut.Markup, Does.Not.Contain("Incomplete"));
+            Assert.That(cut.Markup, Does.Not.Contain("javascript:alert(1)"));
+            Assert.That(cut.Markup, Does.Not.Contain("Links Coming Soon"));
+        });
+    }
+
+    [Test]
+    public void AboutAxlProtocol_WhenLegacyContentHasNullSocialLinks_RendersEmptyLinkState()
+    {
+        using var context = new BunitContext();
+        var content = new AboutPageContent
+        {
+            HeroLead = "Axl Protocol",
+            HeroBody = "About page body."
+        };
+        content.SocialLinks = null!;
+
+        var service = new FakeAboutPageService
+        {
+            Content = content
+        };
+
+        context.AddAuthorization().SetNotAuthorized();
+        context.Services.AddSingleton<IAboutPageService>(service);
+        context.Services.AddSingleton<MarkdownService>();
+
+        var cut = context.Render<AboutAxlProtocol>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Social And Streaming Links"));
+            Assert.That(cut.Markup, Does.Contain("Links Coming Soon"));
         });
     }
 

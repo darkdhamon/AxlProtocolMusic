@@ -24,6 +24,8 @@ public sealed class AboutPageContent : IEntity
 
     public List<AboutPillar> Pillars { get; set; } = [];
 
+    public List<AboutSocialLink> SocialLinks { get; set; } = [];
+
     [BsonExtraElements]
     public BsonDocument ExtraElements { get; set; } = new();
 }

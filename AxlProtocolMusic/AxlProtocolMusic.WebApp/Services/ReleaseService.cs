@@ -198,6 +198,16 @@ public sealed class ReleaseService : IReleaseService
             };
         }
 
+        var validationError = ValidateRequest(request);
+        if (validationError is not null)
+        {
+            return new ReleaseUpdateResult
+            {
+                Succeeded = false,
+                ErrorMessage = validationError
+            };
+        }
+
         var normalizedSlug = request.Slug.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(normalizedSlug))
         {
@@ -251,6 +261,16 @@ public sealed class ReleaseService : IReleaseService
         CancellationToken cancellationToken = default)
     {
         var releases = await _releaseRepository.GetAllAsync(cancellationToken);
+
+        var validationError = ValidateRequest(request);
+        if (validationError is not null)
+        {
+            return new ReleaseCreateResult
+            {
+                Succeeded = false,
+                ErrorMessage = validationError
+            };
+        }
 
         var normalizedSlug = request.Slug.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(normalizedSlug))
@@ -425,18 +445,22 @@ public sealed class ReleaseService : IReleaseService
             .ToList();
     }
 
-    public bool IsManagedImageUrl(string? imageUrl)
-    {
-        return !string.IsNullOrWhiteSpace(imageUrl)
-            && imageUrl.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase);
-    }
-
     private async Task<List<Release>> GetPublishedReleasesAsync(CancellationToken cancellationToken)
     {
         return (await _releaseRepository.GetAllAsync(cancellationToken))
             .Where(release => release.IsPublished)
             .OrderByDescending(release => release.ReleaseDateUtc)
             .ToList();
+    }
+
+    private static string? ValidateRequest(ReleaseUpdateRequest request)
+    {
+        if (request.ReleaseDate == default)
+        {
+            return "Release date is required.";
+        }
+
+        return null;
     }
 
     private static string NormalizeSlug(string? value)
