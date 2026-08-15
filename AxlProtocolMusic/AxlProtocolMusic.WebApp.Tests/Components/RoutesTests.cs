@@ -1,12 +1,16 @@
 using AxlProtocolMusic.WebApp.Components;
+using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Components.Pages;
 using AxlProtocolMusic.WebApp.Models.Content;
+using AxlProtocolMusic.WebApp.Models.Chatbot;
+using AxlProtocolMusic.WebApp.Repositories.Interfaces;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Bunit;
 using Bunit.TestDoubles;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace AxlProtocolMusic.WebApp.Tests.Components;
 
@@ -91,6 +95,47 @@ public sealed class RoutesTests
         Assert.That(cut.Markup, Does.Contain("The page you requested does not exist or may have moved."));
     }
 
+    [Test]
+    public void Routes_WhenAuthorizedAdmin_EntersAdminDashboard()
+    {
+        using var context = new BunitContext();
+        context.AddAuthorization().SetAuthorized("admin");
+        context.Services.AddSingleton<IRepository<Release>>(new FakeReleaseRepository
+        {
+            Releases =
+            [
+                new Release { Id = "release-1", Title = "Signal", Slug = "signal", IsPublished = true }
+            ]
+        });
+        context.Services.AddSingleton<IAboutPageService>(new FakeAboutPageService());
+        context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService());
+        context.Services.AddSingleton<IChatbotBudgetService>(new FakeChatbotBudgetService
+        {
+            Summary = new ChatbotBudgetSummary
+            {
+                DisableThresholdUsd = 10m,
+                TotalEstimatedCostUsd = 0m
+            }
+        });
+        context.Services.AddSingleton<IChatbotConversationLogService>(new FakeChatbotConversationLogService());
+        context.Services.AddSingleton<IOptions<OpenAiChatSettings>>(Options.Create(new OpenAiChatSettings
+        {
+            ApiKey = "key"
+        }));
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("https://localhost/admin");
+
+        var cut = context.Render<Routes>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(navigation.Uri, Does.EndWith("/admin"));
+            Assert.That(cut.Markup, Does.Contain("Admin"));
+            Assert.That(cut.Markup, Does.Contain("Dashboard"));
+            Assert.That(cut.Markup, Does.Contain("published releases"));
+        });
+    }
+
     private sealed class FakeNewsArticleService : INewsArticleService
     {
         public IReadOnlyList<NewsArticle> Articles { get; set; } = [];
@@ -169,5 +214,120 @@ public sealed class RoutesTests
             => Task.FromResult<IReadOnlyList<string>>([]);
 
         public bool IsManagedImageUrl(string? imageUrl) => false;
+    }
+
+    private sealed class FakeReleaseRepository : IRepository<Release>
+    {
+        public IReadOnlyList<Release> Releases { get; set; } = [];
+
+        public Task<IReadOnlyList<Release>> GetAllAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(Releases);
+
+        public Task<Release?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+            => Task.FromResult(Releases.FirstOrDefault(release => release.Id == id));
+
+        public Task<IReadOnlyList<Release>> FindAsync(System.Linq.Expressions.Expression<Func<Release, bool>> filter, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<Release>>([]);
+
+        public Task CreateAsync(Release document, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task UpdateAsync(Release document, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task DeleteAsync(string id, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+
+    private sealed class FakeAboutPageService : IAboutPageService
+    {
+        public Task<AboutPageContent> GetAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new AboutPageContent());
+
+        public Task UpdateAsync(AboutPageContent content, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task SeedAsync(CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+
+    private sealed class FakeAnalyticsService : IAnalyticsService
+    {
+        public Task RecordPageVisitAsync(Models.Analytics.PageVisitMetric metric, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task RecordExternalLinkClickAsync(Models.Analytics.ExternalLinkClickMetric metric, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task DeleteVisitorDataAsync(string clientId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task DeleteVisitorLocationDataAsync(string clientId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<AnalyticsDashboardSummary> GetDashboardSummaryAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new AnalyticsDashboardSummary());
+
+        public Task<VisitorCollectedDataViewModel> GetVisitorCollectedDataAsync(string clientId, CancellationToken cancellationToken = default)
+            => Task.FromResult(new VisitorCollectedDataViewModel());
+    }
+
+    private sealed class FakeChatbotBudgetService : IChatbotBudgetService
+    {
+        public ChatbotBudgetSummary Summary { get; set; } = new();
+
+        public Task<ChatbotBudgetSummary> GetSummaryAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(Summary);
+
+        public Task<ChatbotBudgetSummary> RecordUsageAsync(
+            string model,
+            long inputTokens,
+            long outputTokens,
+            long cachedInputTokens,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(Summary);
+
+        public Task DisableForQuotaErrorAsync(
+            string model,
+            string errorCode,
+            string errorMessage,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task RecordFailureAsync(
+            string model,
+            string errorCode,
+            string errorMessage,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task ResetAsync(CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<ChatbotBudgetSummary> SetManualDisabledAsync(
+            bool isDisabled,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(Summary);
+    }
+
+    private sealed class FakeChatbotConversationLogService : IChatbotConversationLogService
+    {
+        public Task RecordAsync(
+            string userMessage,
+            string assistantReply,
+            string outcome,
+            ChatbotPageContext? currentPage = null,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetRecentAsync(
+            int count = 25,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
+
+        public Task<IReadOnlyList<ChatbotConversationLogEntry>> GetExportAsync(
+            int count = 5000,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ChatbotConversationLogEntry>>([]);
     }
 }
