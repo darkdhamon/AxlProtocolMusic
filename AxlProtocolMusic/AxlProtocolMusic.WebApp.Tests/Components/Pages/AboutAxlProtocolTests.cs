@@ -1,10 +1,12 @@
 using AxlProtocolMusic.WebApp.Components.Pages;
+using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Models.Content;
 using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using Bunit;
 using Bunit.TestDoubles;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace AxlProtocolMusic.WebApp.Tests.Components.Pages;
 
@@ -234,6 +236,67 @@ public sealed class AboutAxlProtocolTests
         {
             Assert.That(cut.Markup, Does.Contain("Save failed."));
         }, timeout: TimeSpan.FromSeconds(3));
+
+        var errorAlert = cut.Find("div.alert.alert-danger[role='alert']");
+        Assert.That(errorAlert.TextContent, Does.Contain("Save failed."));
+        Assert.That(errorAlert.GetAttribute("aria-live"), Is.EqualTo("assertive"));
+    }
+
+    [Test]
+    public void AboutAxlProtocol_WhenAutosaveStarts_TransitionsThroughSavingAndSavedMessages()
+    {
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+
+        var service = new FakeAboutPageService
+        {
+            Content = new AboutPageContent
+            {
+                HeroLead = "Lead",
+                HeroBody = "Body",
+                FocusPoints = ["Existing focus point"]
+            }
+        };
+
+        context.Services.AddSingleton<IAboutPageService>(service);
+        context.Services.AddSingleton<MarkdownService>();
+        context.Services.AddSingleton<IOptions<EditorSettings>>(Options.Create(new EditorSettings
+        {
+            AutosaveDelayMilliseconds = 25
+        }));
+
+        var cut = context.Render<AboutAxlProtocol>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit About Page"));
+            Assert.That(cut.Markup, Does.Not.Contain("Saving changes..."));
+        });
+
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Contains("Add Point", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var statusAlert = cut.Find("div.alert.alert-success[role='alert']");
+            Assert.That(statusAlert.TextContent, Does.Contain("Saving changes..."));
+            Assert.That(statusAlert.GetAttribute("aria-live"), Is.EqualTo("polite"));
+        }, timeout: TimeSpan.FromSeconds(3));
+
+        Assert.That(SpinWait.SpinUntil(() => service.UpdateCallCount >= 1, TimeSpan.FromSeconds(3)), Is.True);
+        cut.Render();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("All changes saved."));
+        }, timeout: TimeSpan.FromSeconds(4));
+
+        var finalStatus = cut.Find("div.alert.alert-success[role='alert']");
+        Assert.That(finalStatus.TextContent, Does.Contain("All changes saved."));
+        Assert.That(finalStatus.TextContent, Does.Not.Contain("Saving changes..."));
     }
 
     private sealed class FakeAboutPageService : IAboutPageService
