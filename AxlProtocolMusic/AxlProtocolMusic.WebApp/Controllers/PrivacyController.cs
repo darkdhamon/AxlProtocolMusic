@@ -17,7 +17,7 @@ public sealed class PrivacyController : Controller
     }
 
     [HttpPost("essential-metrics")]
-    [IgnoreAntiforgeryToken]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> SetEssentialMetricsPreference([FromBody] EssentialMetricsPreferenceRequest request, CancellationToken cancellationToken)
     {
         if (request.AllowEssentialSiteMetrics)
