@@ -14,6 +14,7 @@
 else
 {
     <div class="privacy-page">
+        <input id="privacy-essential-metrics-anti-forgery-token" type="hidden" value="@essentialMetricsAntiforgeryToken" />
         <section class="privacy-hero">
             <div class="privacy-hero-copy">
                 <p class="eyebrow">Privacy</p>
@@ -306,10 +307,19 @@ else
     private int uniqueVisitorCount;
     private const int MinimumUniqueVisitors = 1000;
     private static readonly DateOnly LastUpdated = new(2026, 5, 25);
+    private string essentialMetricsAntiforgeryToken = string.Empty;
     private bool canDisableEssentialMetrics => uniqueVisitorCount >= MinimumUniqueVisitors;
 
     protected override async Task OnInitializedAsync()
     {
+        if (HttpContextAccessor.HttpContext is not null && HttpContextAccessor.HttpContext.RequestServices is not null)
+        {
+            var antiforgeryService = HttpContextAccessor.HttpContext.RequestServices.GetService(typeof(Microsoft.AspNetCore.Antiforgery.IAntiforgery));
+            essentialMetricsAntiforgeryToken = antiforgeryService is Microsoft.AspNetCore.Antiforgery.IAntiforgery antiforgery
+                ? antiforgery.GetAndStoreTokens(HttpContextAccessor.HttpContext).RequestToken ?? string.Empty
+                : string.Empty;
+        }
+
         var analyticsSummary = await AnalyticsService.GetDashboardSummaryAsync();
         uniqueVisitorCount = analyticsSummary.UniqueVisitors;
     }
