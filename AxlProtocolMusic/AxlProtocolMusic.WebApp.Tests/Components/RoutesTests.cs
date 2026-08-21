@@ -1,4 +1,6 @@
 using AxlProtocolMusic.WebApp.Components;
+using AxlProtocolMusic.WebApp.Components.Common;
+using AxlProtocolMusic.WebApp.Components.Layout;
 using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Components.Pages;
 using AxlProtocolMusic.WebApp.Models.Content;
@@ -10,6 +12,8 @@ using Bunit;
 using Bunit.TestDoubles;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace AxlProtocolMusic.WebApp.Tests.Components;
@@ -20,11 +24,11 @@ public sealed class RoutesTests
     [Test]
     public void Routes_WhenUserIsAnonymous_RoutesToLoginOnProtectedPage()
     {
-        using var context = new BunitContext();
+        using var context = CreateContextWithMainLayout();
         context.AddAuthorization().SetNotAuthorized();
-        var navigation = context.Services.GetRequiredService<NavigationManager>();
         context.Services.AddSingleton<INewsArticleService>(new FakeNewsArticleService());
         context.Services.AddSingleton<IReleaseService>(new FakeReleaseService());
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("https://localhost/admin");
 
         var cut = context.Render<Routes>();
@@ -38,12 +42,12 @@ public sealed class RoutesTests
     [Test]
     public void Routes_WhenUserLacksAdminRole_GoesToAccessDenied()
     {
-        using var context = new BunitContext();
+        using var context = CreateContextWithMainLayout();
         var authorization = context.AddAuthorization();
         authorization.SetAuthorized("viewer");
-        var navigation = context.Services.GetRequiredService<NavigationManager>();
         context.Services.AddSingleton<INewsArticleService>(new FakeNewsArticleService());
         context.Services.AddSingleton<IReleaseService>(new FakeReleaseService());
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
         navigation.NavigateTo("https://localhost/admin");
 
         var cut = context.Render<Routes>();
@@ -57,7 +61,8 @@ public sealed class RoutesTests
     [Test]
     public void Routes_WhenRouteIsMissing_ShowsNotFoundPage()
     {
-        using var context = new BunitContext();
+        using var context = CreateContextWithMainLayout();
+        context.AddAuthorization().SetNotAuthorized();
         context.Services.AddSingleton<INewsArticleService>(new FakeNewsArticleService
         {
             Articles =
@@ -98,8 +103,10 @@ public sealed class RoutesTests
     [Test]
     public void Routes_WhenAuthorizedAdmin_EntersAdminDashboard()
     {
-        using var context = new BunitContext();
-        context.AddAuthorization().SetAuthorized("admin");
+        using var context = CreateContextWithMainLayout();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
         context.Services.AddSingleton<IRepository<Release>>(new FakeReleaseRepository
         {
             Releases =
@@ -134,6 +141,28 @@ public sealed class RoutesTests
             Assert.That(cut.Markup, Does.Contain("Dashboard"));
             Assert.That(cut.Markup, Does.Contain("published releases"));
         });
+    }
+
+    private static BunitContext CreateContextWithMainLayout()
+    {
+        var context = new BunitContext();
+        context.JSInterop.Mode = JSRuntimeMode.Loose;
+        context.JSInterop.Setup<string>("axlTheme.initializeTheme").SetResult("light");
+        context.ComponentFactories.AddStub<NavMenu>();
+        context.ComponentFactories.AddStub<SiteChatbot>();
+        context.Services.AddSingleton<IHostEnvironment>(new FakeHostEnvironment());
+        return context;
+    }
+
+    private sealed class FakeHostEnvironment : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Production;
+
+        public string ApplicationName { get; set; } = "AxlProtocolMusic.WebApp";
+
+        public string ContentRootPath { get; set; } = AppContext.BaseDirectory;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
 
     private sealed class FakeNewsArticleService : INewsArticleService
