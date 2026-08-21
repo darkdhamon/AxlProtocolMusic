@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject IAnalyticsService AnalyticsService
 @inject IPrivacyPreferencesService PrivacyPreferencesService
+@inject IDeviceIdService DeviceIdService
 @inject IHttpContextAccessor HttpContextAccessor
 @* Reminder: whenever this privacy page content changes, update the LastUpdated date below. *@
 
@@ -45,10 +46,10 @@ else
 
         <section class="privacy-card preference-card">
             <p class="eyebrow">Privacy Preferences</p>
-            <h2>Optional Metrics And Future Consent</h2>
+            <h2>Privacy And AI Chat Access</h2>
             <p class="supporting-copy">
-                These switches are stored in your browser and are meant for optional analytics features that may be added later.
-                Preferences save automatically when you change them.
+                Preferences save automatically in your browser. Device-ID tracking is enabled by default and can be turned off here;
+                AI chat requires it so the site can enforce a fair per-device request limit.
             </p>
             <p class="supporting-copy">
                 You can also review the analytics currently tied to this browser on the collected-data page, including grouped page visits,
@@ -61,29 +62,20 @@ else
             }
 
             <div class="preference-list">
-                <div class="preference-row disabled-row">
+                <div class="preference-row">
                     <div>
-                        <h3>Essential Site Analytics</h3>
+                        <h3>Device ID And Essential Site Analytics</h3>
                         <p>
                             Required for aggregate page-visit reporting, time-on-page metrics, repeat-visitor counts, and outbound-link click totals.
-                            Basic metrics data is enabled by default, and the related cookie is currently marked as essential.
+                            This default-enabled setting stores a server-issued device ID in an essential cookie. The ID supports these metrics
+                            and is required to enforce per-device limits for AI chat.
                         </p>
-                        @if (!canDisableEssentialMetrics)
-                        {
-                            <p class="preference-note">
-                                This control stays disabled until the site reaches at least @MinimumUniqueVisitors unique visitors.
-                                Current unique visitors: @uniqueVisitorCount.
-                            </p>
-                        }
-                        else
-                        {
-                            <p class="preference-note">
-                                Turning this off will stop future essential analytics for this browser and delete existing analytics tied to this visitor id.
-                            </p>
-                        }
+                        <p class="preference-note">
+                            Turning this off deletes this browser's device ID and associated analytics. AI chat will be unavailable until you enable it again.
+                        </p>
                     </div>
                     <label class="switch">
-                        <input type="checkbox" checked="@preferences.AllowEssentialSiteMetrics" @onchange="HandleEssentialMetricsChanged" disabled="@(!canDisableEssentialMetrics)" />
+                        <input type="checkbox" checked="@preferences.AllowEssentialSiteMetrics" @onchange="HandleEssentialMetricsChanged" />
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -145,7 +137,13 @@ else
                     and how the site can improve over time.
                 </p>
                 <p class="supporting-copy">
-                    Basic metrics data is enabled by default, and the related repeat-visitor cookie is currently treated as essential.
+                    Device-ID tracking and basic metrics are enabled by default. Disabling them removes the identifier and blocks AI chat;
+                    the site does not use browser fingerprinting or collect extra device attributes for chatbot access.
+                </p>
+                <p class="supporting-copy">
+                    The protected device-ID cookie may be retained for up to two years. Clearing site cookies removes it; if tracking remains
+                    enabled, a later visit establishes a new device ID and its per-device AI-chat limit starts with that new identifier.
+                    The site does not use IP addresses or fingerprinting to reconnect a deliberately removed identifier.
                 </p>
                 <p class="supporting-copy">
                     There is currently no planned automatic deletion schedule for metric data based on time alone.
@@ -304,13 +302,10 @@ else
     private string pendingPreferenceKey = string.Empty;
     private string pendingPreferenceLabel = string.Empty;
     private string pendingPreferenceDescription = string.Empty;
-    private int uniqueVisitorCount;
-    private const int MinimumUniqueVisitors = 1000;
-    private static readonly DateOnly LastUpdated = new(2026, 5, 25);
+    private static readonly DateOnly LastUpdated = new(2026, 8, 21);
     private string essentialMetricsAntiforgeryToken = string.Empty;
-    private bool canDisableEssentialMetrics => uniqueVisitorCount >= MinimumUniqueVisitors;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         if (HttpContextAccessor.HttpContext is not null && HttpContextAccessor.HttpContext.RequestServices is not null)
         {
@@ -319,9 +314,6 @@ else
                 ? antiforgery.GetAndStoreTokens(HttpContextAccessor.HttpContext).RequestToken ?? string.Empty
                 : string.Empty;
         }
-
-        var analyticsSummary = await AnalyticsService.GetDashboardSummaryAsync();
-        uniqueVisitorCount = analyticsSummary.UniqueVisitors;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -369,8 +361,8 @@ else
         }
         else if (previousValue && !preferences.ShareApproximateLocation)
         {
-            var visitorId = HttpContextAccessor.HttpContext?.Request.Cookies[VisitorCookieName];
-            if (!string.IsNullOrWhiteSpace(visitorId))
+            var visitorCookie = HttpContextAccessor.HttpContext?.Request.Cookies[VisitorCookieName];
+            if (TryResolveVisitorId(visitorCookie, out var visitorId))
             {
                 await AnalyticsService.DeleteVisitorLocationDataAsync(visitorId);
             }
@@ -389,8 +381,8 @@ else
         {
             ShowPreferenceConfirmModal(
                 "essential-metrics",
-                "Essential Site Analytics",
-                "Turning this off will stop future essential analytics for this browser and delete existing analytics tied to this visitor id.");
+                "Device ID And Essential Site Analytics",
+                "Turning this off deletes this browser's device ID and associated analytics. AI chat will be unavailable until device-ID tracking is enabled again.");
             return;
         }
 
@@ -462,8 +454,8 @@ else
                 var result = await PrivacyPreferencesService.SyncApproximateLocationPreferenceAsync(preferences);
                 preferences = result.Preferences;
 
-                var visitorId = HttpContextAccessor.HttpContext?.Request.Cookies[VisitorCookieName];
-                if (!string.IsNullOrWhiteSpace(visitorId))
+                var visitorCookie = HttpContextAccessor.HttpContext?.Request.Cookies[VisitorCookieName];
+                if (TryResolveVisitorId(visitorCookie, out var visitorId))
                 {
                     await AnalyticsService.DeleteVisitorLocationDataAsync(visitorId);
                 }
@@ -481,6 +473,17 @@ else
         }
 
         HidePreferenceConfirmModal();
+    }
+
+    private bool TryResolveVisitorId(string? cookieValue, out string visitorId)
+    {
+        if (DeviceIdService.TryResolve(cookieValue, out visitorId))
+        {
+            return true;
+        }
+
+        visitorId = Guid.TryParseExact(cookieValue, "N", out _) ? cookieValue! : string.Empty;
+        return visitorId.Length > 0;
     }
 
     private static bool GetCheckboxValue(ChangeEventArgs args)

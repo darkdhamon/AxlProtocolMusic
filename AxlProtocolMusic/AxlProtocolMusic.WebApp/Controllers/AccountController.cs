@@ -22,6 +22,7 @@ public sealed class AccountController : Controller
     private readonly IHostEnvironment _hostEnvironment;
     private readonly DevelopmentDatabaseResetService _developmentDatabaseResetService;
     private readonly IAnalyticsService _analyticsService;
+    private readonly IDeviceIdService _deviceIdService;
 
     public AccountController(
         SignInManager<ApplicationUser> signInManager,
@@ -29,7 +30,8 @@ public sealed class AccountController : Controller
         IOptions<AdminBootstrapSettings> adminBootstrapOptions,
         IHostEnvironment hostEnvironment,
         DevelopmentDatabaseResetService developmentDatabaseResetService,
-        IAnalyticsService analyticsService)
+        IAnalyticsService analyticsService,
+        IDeviceIdService deviceIdService)
     {
         _signInManager = signInManager;
         _userManager = userManager;
@@ -37,6 +39,7 @@ public sealed class AccountController : Controller
         _hostEnvironment = hostEnvironment;
         _developmentDatabaseResetService = developmentDatabaseResetService;
         _analyticsService = analyticsService;
+        _deviceIdService = deviceIdService;
     }
 
     [AllowAnonymous]
@@ -221,10 +224,21 @@ public sealed class AccountController : Controller
 
     private async Task DeleteExistingVisitorMetricsAsync()
     {
-        if (Request.Cookies.TryGetValue(VisitorCookieName, out var visitorId)
-            && !string.IsNullOrWhiteSpace(visitorId))
+        if (Request.Cookies.TryGetValue(VisitorCookieName, out var visitorCookie)
+            && TryResolveVisitorId(visitorCookie, out var visitorId))
         {
             await _analyticsService.DeleteVisitorDataAsync(visitorId);
         }
+    }
+
+    private bool TryResolveVisitorId(string? visitorCookie, out string visitorId)
+    {
+        if (_deviceIdService.TryResolve(visitorCookie, out visitorId))
+        {
+            return true;
+        }
+
+        visitorId = Guid.TryParseExact(visitorCookie, "N", out _) ? visitorCookie! : string.Empty;
+        return visitorId.Length > 0;
     }
 }

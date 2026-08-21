@@ -12,10 +12,12 @@ public sealed class AnalyticsController : Controller
     private const string MetricsPreferenceCookieName = "axl_site_metrics";
     private const string AdminVisitorCookieName = "axl_admin_visitor";
     private readonly IAnalyticsService _analyticsService;
+    private readonly IDeviceIdService _deviceIdService;
 
-    public AnalyticsController(IAnalyticsService analyticsService)
+    public AnalyticsController(IAnalyticsService analyticsService, IDeviceIdService deviceIdService)
     {
         _analyticsService = analyticsService;
+        _deviceIdService = deviceIdService;
     }
 
     [HttpPost("page-visit")]
@@ -92,28 +94,32 @@ public sealed class AnalyticsController : Controller
         return Ok();
     }
 
-    private static string GetOrCreateVisitorId(HttpContext httpContext)
+    private string GetOrCreateVisitorId(HttpContext httpContext)
     {
         if (httpContext.Request.Cookies.TryGetValue(VisitorCookieName, out var existingCookie)
-            && !string.IsNullOrWhiteSpace(existingCookie))
+            && _deviceIdService.TryResolve(existingCookie, out var canonicalDeviceId))
         {
-            return existingCookie;
+            return canonicalDeviceId;
         }
 
-        var visitorId = Guid.NewGuid().ToString("N");
+        var canonicalVisitorId = Guid.TryParseExact(existingCookie, "N", out _)
+            ? existingCookie
+            : Guid.NewGuid().ToString("N");
+        var protectedVisitorId = _deviceIdService.Protect(canonicalVisitorId);
         httpContext.Response.Cookies.Append(
             VisitorCookieName,
-            visitorId,
+            protectedVisitorId,
             new CookieOptions
             {
                 HttpOnly = true,
                 IsEssential = true,
+                Path = "/",
                 SameSite = SameSiteMode.Lax,
                 Secure = httpContext.Request.IsHttps,
-                Expires = DateTimeOffset.UtcNow.AddYears(1)
+                Expires = DateTimeOffset.UtcNow.AddYears(2)
             });
 
-        return visitorId;
+        return canonicalVisitorId;
     }
 
     private static string ResolveRegion(HttpContext httpContext, string? approximateLocation)
