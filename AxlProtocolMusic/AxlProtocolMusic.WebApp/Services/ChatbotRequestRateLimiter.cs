@@ -52,6 +52,15 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter
             cancellationToken);
         if (admitted is null)
         {
+            var partitionExists = await rateLimits
+                .Find(Builders<BsonDocument>.Filter.Eq("_id", partitionId))
+                .Limit(1)
+                .AnyAsync(cancellationToken);
+            if (partitionExists)
+            {
+                return null;
+            }
+
             try
             {
                 await rateLimits.InsertOneAsync(new BsonDocument

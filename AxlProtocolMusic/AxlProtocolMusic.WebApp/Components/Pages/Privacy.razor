@@ -295,14 +295,7 @@ else
     private string pendingPreferenceKey = string.Empty;
     private string pendingPreferenceLabel = string.Empty;
     private string pendingPreferenceDescription = string.Empty;
-    private int uniqueVisitorCount;
     private static readonly DateOnly LastUpdated = new(2026, 8, 21);
-
-    protected override async Task OnInitializedAsync()
-    {
-        var analyticsSummary = await AnalyticsService.GetDashboardSummaryAsync();
-        uniqueVisitorCount = analyticsSummary.UniqueVisitors;
-    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

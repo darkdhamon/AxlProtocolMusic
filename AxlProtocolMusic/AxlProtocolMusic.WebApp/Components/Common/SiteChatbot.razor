@@ -262,6 +262,13 @@
             return;
         }
 
+        if (permitToken == "device-cookie-required")
+        {
+            messages.Add(new ChatMessage("assistant", "AI chat requires the device-ID cookie. Allow essential cookies in your browser and try again."));
+            await PersistStateAsync();
+            return;
+        }
+
         bool permitConsumed;
         try
         {

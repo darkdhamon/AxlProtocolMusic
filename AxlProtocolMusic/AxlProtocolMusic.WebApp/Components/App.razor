@@ -114,7 +114,11 @@
                     }
 
                     if (!response.ok) {
-                        return response.status === 403 ? "device-id-disabled" : null;
+                        if (response.status === 403) {
+                            return "device-id-disabled";
+                        }
+
+                        return response.status === 428 ? "device-cookie-required" : null;
                     }
 
                     var payload = await response.json();
