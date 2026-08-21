@@ -42,7 +42,7 @@ public sealed class AnalyticsController : Controller
             return Ok();
         }
 
-        var clientId = GetOrCreateVisitorId(HttpContext);
+        var clientId = await GetOrCreateVisitorIdAsync(HttpContext, cancellationToken);
 
         var metric = new PageVisitMetric
         {
@@ -80,7 +80,7 @@ public sealed class AnalyticsController : Controller
             return Ok();
         }
 
-        var clientId = GetOrCreateVisitorId(HttpContext);
+        var clientId = await GetOrCreateVisitorIdAsync(HttpContext, cancellationToken);
         var metric = new ExternalLinkClickMetric
         {
             SourcePagePath = request.SourcePagePath.Trim(),
@@ -97,12 +97,17 @@ public sealed class AnalyticsController : Controller
         return Ok();
     }
 
-    private string GetOrCreateVisitorId(HttpContext httpContext)
+    private async Task<string> GetOrCreateVisitorIdAsync(HttpContext httpContext, CancellationToken cancellationToken)
     {
         if (httpContext.Request.Cookies.TryGetValue(VisitorCookieName, out var existingCookie)
             && IsValidDeviceId(existingCookie))
         {
             return existingCookie;
+        }
+
+        if (Guid.TryParseExact(existingCookie, "N", out _))
+        {
+            await _analyticsService.DeleteVisitorDataAsync(existingCookie, cancellationToken);
         }
 
         var visitorId = _deviceIdProtector.Protect(Guid.NewGuid().ToString("N"));

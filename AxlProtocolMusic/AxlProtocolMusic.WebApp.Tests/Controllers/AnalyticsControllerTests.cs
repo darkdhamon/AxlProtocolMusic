@@ -150,6 +150,24 @@ public sealed class AnalyticsControllerTests
         Assert.That(setCookieHeader, Does.Contain("expires="));
     }
 
+    [Test]
+    public async Task RecordPageVisit_WhenLegacyVisitorCookieExists_RemovesLegacyDataBeforeRotation()
+    {
+        var analyticsService = new FakeAnalyticsService();
+        var controller = CreateController(analyticsService);
+        const string legacyDeviceId = "0123456789abcdef0123456789abcdef";
+        controller.Request.Headers.Cookie = $"axl_visitor_id={legacyDeviceId}";
+
+        var result = await controller.RecordPageVisit(
+            new PageVisitRequest { PagePath = "/privacy", DurationSeconds = 1 },
+            CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<OkResult>());
+        Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(new[] { legacyDeviceId }));
+        Assert.That(analyticsService.RecordedPageVisits.Single().ClientId, Is.Not.EqualTo(legacyDeviceId));
+        Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
+    }
+
     private static AnalyticsController CreateController(FakeAnalyticsService analyticsService, bool isHttps = false)
     {
         var httpContext = new DefaultHttpContext();
@@ -169,6 +187,7 @@ public sealed class AnalyticsControllerTests
         public List<PageVisitMetric> RecordedPageVisits { get; } = [];
 
         public List<ExternalLinkClickMetric> RecordedExternalClicks { get; } = [];
+        public List<string> DeletedVisitorIds { get; } = [];
 
         public CancellationToken LastPageVisitCancellationToken { get; private set; }
 
@@ -189,7 +208,10 @@ public sealed class AnalyticsControllerTests
         }
 
         public Task DeleteVisitorDataAsync(string clientId, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        {
+            DeletedVisitorIds.Add(clientId);
+            return Task.CompletedTask;
+        }
 
         public Task DeleteVisitorLocationDataAsync(string clientId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();

@@ -1,7 +1,10 @@
 using AxlProtocolMusic.WebApp.Controllers;
 using AxlProtocolMusic.WebApp.Models.Chatbot;
+using AxlProtocolMusic.WebApp.Models.Analytics;
+using AxlProtocolMusic.WebApp.Models.Privacy;
 using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -251,6 +254,21 @@ public sealed class ChatbotControllerTests
     }
 
     [Test]
+    public async Task AcquirePermit_WhenLegacyDeviceIdExists_RemovesLegacyAnalyticsBeforeRotation()
+    {
+        var analyticsService = new FakeAnalyticsService();
+        var controller = CreateController(new FakeSiteChatbotService(), analyticsService: analyticsService);
+        controller.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
+        const string legacyDeviceId = "0123456789abcdef0123456789abcdef";
+        controller.Request.Headers.Cookie = $"axl_visitor_id={legacyDeviceId}";
+
+        var result = await controller.AcquirePermit(CancellationToken.None);
+
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status428PreconditionRequired));
+        Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(new[] { legacyDeviceId }));
+    }
+
+    [Test]
     public async Task AcquirePermit_WhenDeviceIdCookieExists_PartitionsByThatDeviceId()
     {
         var limiter = new FakeChatbotRequestRateLimiter();
@@ -268,11 +286,13 @@ public sealed class ChatbotControllerTests
 
     private static ChatbotController CreateController(
         FakeSiteChatbotService chatbotService,
-        IChatbotRequestRateLimiter? requestRateLimiter = null)
+        IChatbotRequestRateLimiter? requestRateLimiter = null,
+        IAnalyticsService? analyticsService = null)
     {
         var controller = new ChatbotController(
             chatbotService,
             requestRateLimiter ?? new FakeChatbotRequestRateLimiter(),
+            analyticsService ?? new FakeAnalyticsService(),
             DataProtectionProvider)
         {
             ControllerContext = new ControllerContext
@@ -299,6 +319,21 @@ public sealed class ChatbotControllerTests
 
         public Task<bool> TryConsumePermitAsync(string permitToken, CancellationToken cancellationToken = default)
             => Task.FromResult(permitToken == "permit");
+    }
+
+    private sealed class FakeAnalyticsService : IAnalyticsService
+    {
+        public List<string> DeletedVisitorIds { get; } = [];
+        public Task RecordPageVisitAsync(PageVisitMetric metric, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task RecordExternalLinkClickAsync(ExternalLinkClickMetric metric, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DeleteVisitorDataAsync(string clientId, CancellationToken cancellationToken = default)
+        {
+            DeletedVisitorIds.Add(clientId);
+            return Task.CompletedTask;
+        }
+        public Task DeleteVisitorLocationDataAsync(string clientId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<AnalyticsDashboardSummary> GetDashboardSummaryAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<VisitorCollectedDataViewModel> GetVisitorCollectedDataAsync(string clientId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class FakeSiteChatbotService : ISiteChatbotService

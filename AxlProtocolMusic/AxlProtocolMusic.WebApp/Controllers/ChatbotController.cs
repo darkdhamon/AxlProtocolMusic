@@ -20,15 +20,18 @@ public sealed class ChatbotController : ControllerBase
 
     private readonly ISiteChatbotService _siteChatbotService;
     private readonly IChatbotRequestRateLimiter _requestRateLimiter;
+    private readonly IAnalyticsService _analyticsService;
     private readonly IDataProtector _deviceIdProtector;
 
     public ChatbotController(
         ISiteChatbotService siteChatbotService,
         IChatbotRequestRateLimiter requestRateLimiter,
+        IAnalyticsService analyticsService,
         IDataProtectionProvider dataProtectionProvider)
     {
         _siteChatbotService = siteChatbotService;
         _requestRateLimiter = requestRateLimiter;
+        _analyticsService = analyticsService;
         _deviceIdProtector = dataProtectionProvider.CreateProtector(DeviceIdProtectionPurpose);
     }
 
@@ -39,7 +42,7 @@ public sealed class ChatbotController : ControllerBase
         [FromBody] ChatbotMessageRequest request,
         CancellationToken cancellationToken)
     {
-        var deviceId = GetEstablishedDeviceId(out var trackingDisabled);
+        var (deviceId, trackingDisabled) = await GetEstablishedDeviceIdAsync(cancellationToken);
         if (deviceId is null)
         {
             return trackingDisabled
@@ -99,7 +102,7 @@ public sealed class ChatbotController : ControllerBase
             return BadRequest(new { error = "Same-origin request required." });
         }
 
-        var deviceId = GetEstablishedDeviceId(out var trackingDisabled);
+        var (deviceId, trackingDisabled) = await GetEstablishedDeviceIdAsync(cancellationToken);
         if (deviceId is null)
         {
             return trackingDisabled
@@ -117,19 +120,22 @@ public sealed class ChatbotController : ControllerBase
         return StatusCode(StatusCodes.Status429TooManyRequests);
     }
 
-    private string? GetEstablishedDeviceId(out bool trackingDisabled)
+    private async Task<(string? DeviceId, bool TrackingDisabled)> GetEstablishedDeviceIdAsync(CancellationToken cancellationToken)
     {
-        trackingDisabled = false;
         if (Request.Cookies.TryGetValue(MetricsPreferenceCookieName, out var preference)
             && string.Equals(preference, "disabled", StringComparison.OrdinalIgnoreCase))
         {
-            trackingDisabled = true;
-            return null;
+            return (null, true);
         }
 
         if (Request.Cookies.TryGetValue(VisitorCookieName, out var existing) && IsValidDeviceId(existing))
         {
-            return existing;
+            return (existing, false);
+        }
+
+        if (Guid.TryParseExact(existing, "N", out _))
+        {
+            await _analyticsService.DeleteVisitorDataAsync(existing, cancellationToken);
         }
 
         var deviceId = _deviceIdProtector.Protect(Guid.NewGuid().ToString("N"));
@@ -141,7 +147,7 @@ public sealed class ChatbotController : ControllerBase
             Secure = Request.IsHttps,
             Expires = DateTimeOffset.UtcNow.AddYears(2)
         });
-        return null;
+        return (null, false);
     }
 
     private bool IsValidDeviceId(string? deviceId)
