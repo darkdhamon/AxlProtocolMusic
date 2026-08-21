@@ -143,6 +143,7 @@ public sealed class ChatbotController : ControllerBase
         {
             HttpOnly = true,
             IsEssential = true,
+            Path = "/",
             SameSite = SameSiteMode.Lax,
             Secure = Request.IsHttps,
             Expires = DateTimeOffset.UtcNow.AddYears(2)

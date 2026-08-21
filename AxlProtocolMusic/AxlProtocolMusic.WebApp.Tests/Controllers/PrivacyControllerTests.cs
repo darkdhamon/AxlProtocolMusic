@@ -27,6 +27,7 @@ public sealed class PrivacyControllerTests
         Assert.That(
             controller.HttpContext.Response.Headers.SetCookie.ToString(),
             Does.Contain("axl_site_metrics=;"));
+        Assert.That(controller.HttpContext.Response.Headers.SetCookie.ToString(), Does.Contain("path=/"));
     }
 
     [Test]
@@ -50,6 +51,7 @@ public sealed class PrivacyControllerTests
         Assert.That(setCookieHeader, Does.Contain("axl_site_metrics=disabled"));
         Assert.That(setCookieHeader, Does.Contain("secure"));
         Assert.That(setCookieHeader, Does.Contain("axl_visitor_id=;"));
+        Assert.That(setCookieHeader, Does.Contain("path=/"));
     }
 
     [Test]

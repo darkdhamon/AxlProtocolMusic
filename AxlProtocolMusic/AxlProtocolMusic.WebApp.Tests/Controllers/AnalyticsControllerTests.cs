@@ -165,6 +165,7 @@ public sealed class AnalyticsControllerTests
         Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(new[] { legacyDeviceId }));
         Assert.That(analyticsService.RecordedPageVisits, Is.Empty);
         Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
+        Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("path=/"));
     }
 
     [Test]

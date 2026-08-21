@@ -22,7 +22,7 @@ public sealed class PrivacyController : Controller
     {
         if (request.AllowEssentialSiteMetrics)
         {
-            Response.Cookies.Delete(MetricsPreferenceCookieName);
+            Response.Cookies.Delete(MetricsPreferenceCookieName, new CookieOptions { Path = "/" });
             return Ok();
         }
 
@@ -39,12 +39,13 @@ public sealed class PrivacyController : Controller
             {
                 HttpOnly = false,
                 IsEssential = true,
+                Path = "/",
                 SameSite = SameSiteMode.Lax,
                 Secure = Request.IsHttps,
                 Expires = DateTimeOffset.UtcNow.AddYears(2)
             });
 
-        Response.Cookies.Delete(VisitorCookieName);
+        Response.Cookies.Delete(VisitorCookieName, new CookieOptions { Path = "/" });
         return Ok();
     }
 

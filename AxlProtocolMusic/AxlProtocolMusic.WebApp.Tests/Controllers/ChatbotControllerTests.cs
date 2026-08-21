@@ -208,6 +208,7 @@ public sealed class ChatbotControllerTests
         Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status428PreconditionRequired));
         Assert.That(limiter.IssuedDeviceIds, Is.Empty);
         Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
+        Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("path=/"));
     }
 
     [Test]

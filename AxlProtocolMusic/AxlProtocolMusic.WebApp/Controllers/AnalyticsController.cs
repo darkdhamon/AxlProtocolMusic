@@ -126,6 +126,7 @@ public sealed class AnalyticsController : Controller
             {
                 HttpOnly = true,
                 IsEssential = true,
+                Path = "/",
                 SameSite = SameSiteMode.Lax,
                 Secure = httpContext.Request.IsHttps,
                 Expires = DateTimeOffset.UtcNow.AddYears(2)
