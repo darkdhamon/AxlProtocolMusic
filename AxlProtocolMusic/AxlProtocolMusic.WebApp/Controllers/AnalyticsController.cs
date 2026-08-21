@@ -43,6 +43,10 @@ public sealed class AnalyticsController : Controller
         }
 
         var clientId = await GetOrCreateVisitorIdAsync(HttpContext, cancellationToken);
+        if (clientId is null)
+        {
+            return StatusCode(StatusCodes.Status428PreconditionRequired);
+        }
 
         var metric = new PageVisitMetric
         {
@@ -81,6 +85,10 @@ public sealed class AnalyticsController : Controller
         }
 
         var clientId = await GetOrCreateVisitorIdAsync(HttpContext, cancellationToken);
+        if (clientId is null)
+        {
+            return StatusCode(StatusCodes.Status428PreconditionRequired);
+        }
         var metric = new ExternalLinkClickMetric
         {
             SourcePagePath = request.SourcePagePath.Trim(),
@@ -97,7 +105,7 @@ public sealed class AnalyticsController : Controller
         return Ok();
     }
 
-    private async Task<string> GetOrCreateVisitorIdAsync(HttpContext httpContext, CancellationToken cancellationToken)
+    private async Task<string?> GetOrCreateVisitorIdAsync(HttpContext httpContext, CancellationToken cancellationToken)
     {
         if (httpContext.Request.Cookies.TryGetValue(VisitorCookieName, out var existingCookie)
             && IsValidDeviceId(existingCookie))
@@ -123,7 +131,7 @@ public sealed class AnalyticsController : Controller
                 Expires = DateTimeOffset.UtcNow.AddYears(2)
             });
 
-        return visitorId;
+        return null;
     }
 
     private bool IsValidDeviceId(string? deviceId)

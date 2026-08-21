@@ -15,7 +15,8 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter
     private static readonly TimeSpan PermitLifetime = TimeSpan.FromSeconds(10);
     private readonly IMongoCollection<BsonDocument> rateLimits;
     private readonly IMongoCollection<BsonDocument> permits;
-    private readonly Task indexInitialization;
+    private readonly SemaphoreSlim indexInitializationLock = new(1, 1);
+    private bool indexesInitialized;
 
     public ChatbotRequestRateLimiter(IOptions<MongoDbSettings> settings)
     {
@@ -28,7 +29,6 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter
         var database = new MongoClient(value.ConnectionString).GetDatabase(value.DatabaseName);
         rateLimits = database.GetCollection<BsonDocument>("ChatbotRateLimitState");
         permits = database.GetCollection<BsonDocument>("ChatbotPermit");
-        indexInitialization = EnsureIndexesAsync();
     }
 
     public async Task<string?> TryIssuePermitAsync(string deviceId, CancellationToken cancellationToken = default)
@@ -38,7 +38,7 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter
             return null;
         }
 
-        await indexInitialization.WaitAsync(cancellationToken);
+        await EnsureIndexesInitializedAsync(cancellationToken);
         var now = DateTime.UtcNow;
         var cutoff = now.Subtract(Window);
         var partitionId = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(deviceId)));
@@ -124,18 +124,39 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter
             return false;
         }
 
-        await indexInitialization.WaitAsync(cancellationToken);
+        await EnsureIndexesInitializedAsync(cancellationToken);
         var filter = Builders<BsonDocument>.Filter.And(
             Builders<BsonDocument>.Filter.Eq("_id", permitToken),
             Builders<BsonDocument>.Filter.Gte("expiresAt", DateTime.UtcNow));
         return await permits.FindOneAndDeleteAsync(filter, cancellationToken: cancellationToken) is not null;
     }
 
-    private async Task EnsureIndexesAsync()
+    private async Task EnsureIndexesInitializedAsync(CancellationToken cancellationToken)
     {
-        var ttl = new CreateIndexModel<BsonDocument>(
-            Builders<BsonDocument>.IndexKeys.Ascending("expiresAt"),
-            new CreateIndexOptions { ExpireAfter = TimeSpan.Zero });
-        await Task.WhenAll(rateLimits.Indexes.CreateOneAsync(ttl), permits.Indexes.CreateOneAsync(ttl));
+        if (indexesInitialized)
+        {
+            return;
+        }
+
+        await indexInitializationLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (indexesInitialized)
+            {
+                return;
+            }
+
+            var ttl = new CreateIndexModel<BsonDocument>(
+                Builders<BsonDocument>.IndexKeys.Ascending("expiresAt"),
+                new CreateIndexOptions { ExpireAfter = TimeSpan.Zero });
+            await Task.WhenAll(
+                rateLimits.Indexes.CreateOneAsync(ttl, cancellationToken: cancellationToken),
+                permits.Indexes.CreateOneAsync(ttl, cancellationToken: cancellationToken));
+            indexesInitialized = true;
+        }
+        finally
+        {
+            indexInitializationLock.Release();
+        }
     }
 }

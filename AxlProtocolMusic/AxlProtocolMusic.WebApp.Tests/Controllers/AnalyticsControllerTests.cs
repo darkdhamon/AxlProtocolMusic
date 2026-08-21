@@ -109,10 +109,14 @@ public sealed class AnalyticsControllerTests
     }
 
     [Test]
-    public async Task RecordExternalLinkClick_WhenRequestIsValid_CreatesVisitorCookieAndRecordsMetric()
+    public async Task RecordExternalLinkClick_WhenRequestIsValid_RecordsMetricForEstablishedVisitor()
     {
         var analyticsService = new FakeAnalyticsService();
         var controller = CreateController(analyticsService, isHttps: true);
+        var protectedDeviceId = DataProtectionProvider
+            .CreateProtector("AxlProtocolMusic.DeviceId.v1")
+            .Protect("0123456789abcdef0123456789abcdef");
+        controller.Request.Headers.Cookie = $"axl_visitor_id={protectedDeviceId}";
         using var cancellationTokenSource = new CancellationTokenSource();
 
         var result = await controller.RecordExternalLinkClick(
@@ -135,19 +139,13 @@ public sealed class AnalyticsControllerTests
         Assert.That(metric.DestinationUrl, Is.EqualTo("https://bandcamp.example/signals"));
         Assert.That(metric.LinkLabel, Is.EqualTo("Bandcamp"));
         Assert.That(metric.Region.Length, Is.EqualTo(120));
-        var unprotectedDeviceId = DataProtectionProvider
-            .CreateProtector("AxlProtocolMusic.DeviceId.v1")
-            .Unprotect(metric.ClientId);
-        Assert.That(Guid.TryParseExact(unprotectedDeviceId, "N", out _), Is.True);
+        Assert.That(metric.ClientId, Is.EqualTo(protectedDeviceId));
         Assert.That(metric.ApproximateLatitude, Is.Null);
         Assert.That(metric.ApproximateLongitude, Is.EqualTo(-97.7431));
         Assert.That(analyticsService.LastExternalClickCancellationToken, Is.EqualTo(cancellationTokenSource.Token));
 
         var setCookieHeader = controller.HttpContext.Response.Headers.SetCookie.ToString();
-        Assert.That(setCookieHeader, Does.Contain("axl_visitor_id="));
-        Assert.That(setCookieHeader, Does.Contain("httponly"));
-        Assert.That(setCookieHeader, Does.Contain("secure"));
-        Assert.That(setCookieHeader, Does.Contain("expires="));
+        Assert.That(setCookieHeader, Is.Empty);
     }
 
     [Test]
@@ -162,9 +160,25 @@ public sealed class AnalyticsControllerTests
             new PageVisitRequest { PagePath = "/privacy", DurationSeconds = 1 },
             CancellationToken.None);
 
-        Assert.That(result, Is.TypeOf<OkResult>());
+        Assert.That(result, Is.TypeOf<StatusCodeResult>());
+        Assert.That(((StatusCodeResult)result).StatusCode, Is.EqualTo(StatusCodes.Status428PreconditionRequired));
         Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(new[] { legacyDeviceId }));
-        Assert.That(analyticsService.RecordedPageVisits.Single().ClientId, Is.Not.EqualTo(legacyDeviceId));
+        Assert.That(analyticsService.RecordedPageVisits, Is.Empty);
+        Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
+    }
+
+    [Test]
+    public async Task RecordPageVisit_WhenVisitorCookieIsMissing_RequiresCookieRoundTripWithoutRecording()
+    {
+        var analyticsService = new FakeAnalyticsService();
+        var controller = CreateController(analyticsService);
+
+        var result = await controller.RecordPageVisit(
+            new PageVisitRequest { PagePath = "/", DurationSeconds = 1 },
+            CancellationToken.None);
+
+        Assert.That(((StatusCodeResult)result).StatusCode, Is.EqualTo(StatusCodes.Status428PreconditionRequired));
+        Assert.That(analyticsService.RecordedPageVisits, Is.Empty);
         Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
     }
 
