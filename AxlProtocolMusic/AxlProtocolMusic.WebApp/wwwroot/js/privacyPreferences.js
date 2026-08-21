@@ -1,6 +1,7 @@
 const storageKey = "axl-privacy-preferences";
 const metricsCookieName = "axl_site_metrics";
 const approximateLocationKey = "axl-approximate-location";
+const antiForgeryTokenElementId = "privacy-essential-metrics-anti-forgery-token";
 
 function getCookieValue(name) {
     const cookie = document.cookie
@@ -8,6 +9,11 @@ function getCookieValue(name) {
         .find(entry => entry.startsWith(`${name}=`));
 
     return cookie ? decodeURIComponent(cookie.split("=")[1]) : null;
+}
+
+function getRequestVerificationToken() {
+    const tokenInput = document.getElementById(antiForgeryTokenElementId);
+    return tokenInput && tokenInput.value ? tokenInput.value : "";
 }
 
 export function getPreferences() {
@@ -39,10 +45,15 @@ export function getPreferences() {
 
 export async function savePreferences(preferences) {
     const result = await syncApproximateLocationPreference(preferences);
+    const headers = { "Content-Type": "application/json" };
+    const antiForgeryToken = getRequestVerificationToken();
+    if (antiForgeryToken) {
+        headers.RequestVerificationToken = antiForgeryToken;
+    }
 
     await fetch("/privacy/essential-metrics", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
             allowEssentialSiteMetrics: !!preferences.allowEssentialSiteMetrics
         }),
