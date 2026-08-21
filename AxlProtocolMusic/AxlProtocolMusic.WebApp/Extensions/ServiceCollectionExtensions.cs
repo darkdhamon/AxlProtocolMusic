@@ -42,6 +42,7 @@ public static class ServiceCollectionExtensions
 
         services.AddHttpContextAccessor();
         services.AddSingleton<IChatbotActivationMonitor, ChatbotActivationMonitor>();
+        services.AddSingleton<IChatbotRequestRateLimiter, ChatbotRequestRateLimiter>();
         services.AddHostedService<ChatbotActivationPollingService>();
         services.AddSingleton<IMongoDbService, MongoDbService>();
         services.AddScoped(typeof(IRepository<>), typeof(MongoRepository<>));

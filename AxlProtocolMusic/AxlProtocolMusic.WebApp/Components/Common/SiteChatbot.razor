@@ -2,11 +2,12 @@
 @using AxlProtocolMusic.WebApp.Services.Interfaces
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
 @using System.Text.Json
-@using System.Threading.RateLimiting
 @implements IAsyncDisposable
 @inject IChatbotActivationMonitor ChatbotActivationMonitor
 @inject IChatbotBudgetService ChatbotBudgetService
 @inject IChatbotConversationLogService ChatbotConversationLogService
+@inject IChatbotRequestRateLimiter ChatbotRequestRateLimiter
+@inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JSRuntime
 @inject ISiteChatbotService SiteChatbotService
 
@@ -138,15 +139,7 @@
     private int? panelWidth;
     private int? panelHeight;
     private DotNetObjectReference<SiteChatbot>? dotNetReference;
-    private readonly SlidingWindowRateLimiter requestLimiter = new(new SlidingWindowRateLimiterOptions
-    {
-        PermitLimit = 5,
-        Window = TimeSpan.FromMinutes(1),
-        SegmentsPerWindow = 6,
-        AutoReplenishment = true,
-        QueueLimit = 0,
-        QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-    });
+    private string requestPartitionKey = "anonymous";
     private IDisposable? chatbotActivationSubscription;
     private bool hasInitializedPanelUi;
     private int lastRenderedMessageCount = -1;
@@ -154,6 +147,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        requestPartitionKey = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
         chatbotActivationSubscription = ChatbotActivationMonitor.Subscribe(HandleActivationChangedAsync);
         await RefreshBudgetVisualsAsync();
     }
@@ -244,6 +239,7 @@
                 Role = item.Role,
                 Content = item.Content
             })
+            .TakeLast(40)
             .ToList();
 
         messages.Add(new ChatMessage("user", message));
@@ -259,8 +255,7 @@
             return;
         }
 
-        using var rateLimitLease = requestLimiter.AttemptAcquire();
-        if (!rateLimitLease.IsAcquired)
+        if (!ChatbotRequestRateLimiter.TryAcquire(requestPartitionKey))
         {
             messages.Add(new ChatMessage("assistant", "Too many requests. Please wait before trying again."));
             await PersistStateAsync();
@@ -626,7 +621,6 @@
     {
         chatbotActivationSubscription?.Dispose();
         dotNetReference?.Dispose();
-        requestLimiter.Dispose();
         return ValueTask.CompletedTask;
     }
 
