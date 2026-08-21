@@ -29,6 +29,7 @@ public sealed class PrivacyControllerTests
             controller.HttpContext.Response.Headers.SetCookie.ToString(),
             Does.Contain("axl_site_metrics=;"));
         Assert.That(controller.HttpContext.Response.Headers.SetCookie.ToString(), Does.Contain("path=/"));
+        Assert.That(controller.HttpContext.Response.Headers.SetCookie.ToString(), Does.Contain("path=/privacy"));
     }
 
     [Test]

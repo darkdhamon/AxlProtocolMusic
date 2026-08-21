@@ -25,6 +25,7 @@ public sealed class PrivacyController : Controller
         if (request.AllowEssentialSiteMetrics)
         {
             Response.Cookies.Delete(MetricsPreferenceCookieName, new CookieOptions { Path = "/" });
+            Response.Cookies.Delete(MetricsPreferenceCookieName, new CookieOptions { Path = "/privacy" });
             return Ok();
         }
 
