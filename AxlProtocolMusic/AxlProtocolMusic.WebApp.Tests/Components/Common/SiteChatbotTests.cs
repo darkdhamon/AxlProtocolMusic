@@ -154,7 +154,7 @@ public sealed class SiteChatbotTests
     public void SiteChatbot_WhenPermitEndpointRejects_BlocksBeforeCallingService()
     {
         using var context = CreateContext(out _, out _, out var chatbotService, out _);
-        context.JSInterop.Setup<bool>("axlChatbotUi.acquirePermit").SetResult(false);
+        context.JSInterop.Setup<string?>("axlChatbotUi.acquirePermit").SetResult(null);
         var cut = context.Render<SiteChatbot>();
         cut.Find(".chatbot-launcher").Click();
 
@@ -275,7 +275,7 @@ public sealed class SiteChatbotTests
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.JSInterop.Setup<string>("axlChatbotStorage.getState").SetResult(string.Empty);
         context.JSInterop.Setup<string>("axlChatbotStorage.getTranscript").SetResult(string.Empty);
-        context.JSInterop.Setup<bool>("axlChatbotUi.acquirePermit").SetResult(true);
+        context.JSInterop.Setup<string?>("axlChatbotUi.acquirePermit").SetResult("test-permit");
 
         chatbotBudgetService = new FakeChatbotBudgetService
         {
@@ -293,9 +293,19 @@ public sealed class SiteChatbotTests
         context.Services.AddSingleton<IChatbotActivationMonitor>(activationMonitor);
         context.Services.AddSingleton<IChatbotConversationLogService>(chatbotConversationLogService);
         context.Services.AddSingleton<ISiteChatbotService>(chatbotService);
+        context.Services.AddSingleton<IChatbotRequestRateLimiter, FakeChatbotRequestRateLimiter>();
         context.Services.AddSingleton<MarkdownService>();
 
         return context;
+    }
+
+    private sealed class FakeChatbotRequestRateLimiter : IChatbotRequestRateLimiter
+    {
+        public bool TryAcquire(string partitionKey) => true;
+
+        public string? TryIssuePermit(string partitionKey) => "test-permit";
+
+        public bool TryConsumePermit(string permitToken) => permitToken == "test-permit";
     }
 
     private sealed class FakeChatbotConversationLogService : IChatbotConversationLogService

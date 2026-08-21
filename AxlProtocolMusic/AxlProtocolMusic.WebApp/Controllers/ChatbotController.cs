@@ -50,6 +50,11 @@ public sealed class ChatbotController : ControllerBase
             return BadRequest(new { error = $"Message too long. Maximum {MaxMessageLength} characters." });
         }
 
+        if (request.History is null)
+        {
+            return BadRequest(new { error = "History is required." });
+        }
+
         if (request.History.Count > MaxHistoryLength)
         {
             return BadRequest(new { error = $"History too long. Maximum {MaxHistoryLength} entries." });
@@ -73,10 +78,16 @@ public sealed class ChatbotController : ControllerBase
     [IgnoreAntiforgeryToken]
     public IActionResult AcquirePermit()
     {
-        var partitionKey = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
-        if (_requestRateLimiter.TryAcquire(partitionKey))
+        if (!string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.Ordinal))
         {
-            return NoContent();
+            return BadRequest(new { error = "Same-origin request required." });
+        }
+
+        var partitionKey = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+        var permitToken = _requestRateLimiter.TryIssuePermit(partitionKey);
+        if (permitToken is not null)
+        {
+            return Ok(new { permitToken });
         }
 
         Response.Headers.RetryAfter = "60";

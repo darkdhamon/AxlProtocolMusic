@@ -126,6 +126,21 @@ public sealed class ChatbotControllerTests
     }
 
     [Test]
+    public async Task PostMessage_WhenHistoryCollectionIsNull_ReturnsBadRequestAndDoesNotCallService()
+    {
+        var chatbotService = new FakeSiteChatbotService();
+        var controller = CreateController(chatbotService);
+
+        var result = await controller.PostMessage(
+            new ChatbotMessageRequest { Message = "Hello", History = null! },
+            CancellationToken.None);
+
+        var badRequestResult = result.Result as BadRequestObjectResult;
+        Assert.That(badRequestResult?.Value?.ToString(), Does.Contain("History is required"));
+        Assert.That(chatbotService.CallCount, Is.Zero);
+    }
+
+    [Test]
     public async Task PostMessage_WhenMessageIsValid_ForwardsArgumentsAndReturnsOk()
     {
         var chatbotService = new FakeSiteChatbotService
@@ -179,10 +194,11 @@ public sealed class ChatbotControllerTests
         var chatbotService = new FakeSiteChatbotService();
         var limiter = new ChatbotRequestRateLimiter();
         var controller = CreateController(chatbotService, limiter);
+        controller.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
 
         for (var requestNumber = 1; requestNumber <= 5; requestNumber++)
         {
-            Assert.That(controller.AcquirePermit(), Is.TypeOf<NoContentResult>());
+            Assert.That(controller.AcquirePermit(), Is.TypeOf<OkObjectResult>());
         }
 
         var result = await controller.PostMessage(
@@ -192,6 +208,29 @@ public sealed class ChatbotControllerTests
         var statusResult = result.Result as ObjectResult;
         Assert.That(statusResult?.StatusCode, Is.EqualTo(StatusCodes.Status429TooManyRequests));
         Assert.That(chatbotService.CallCount, Is.Zero);
+    }
+
+    [Test]
+    public void AcquirePermit_WhenSameOriginHeaderIsMissing_ReturnsBadRequestWithoutSpendingPermit()
+    {
+        var chatbotService = new FakeSiteChatbotService();
+        var limiter = new ChatbotRequestRateLimiter();
+        var controller = CreateController(chatbotService, limiter);
+
+        Assert.That(controller.AcquirePermit(), Is.TypeOf<BadRequestObjectResult>());
+        Assert.That(limiter.TryAcquire("anonymous"), Is.True);
+    }
+
+    [Test]
+    public void ChatbotRequestRateLimiter_IssuedPermitCanOnlyBeConsumedOnce()
+    {
+        using var limiter = new ChatbotRequestRateLimiter();
+
+        var permitToken = limiter.TryIssuePermit("192.0.2.10");
+
+        Assert.That(permitToken, Is.Not.Null.And.Not.Empty);
+        Assert.That(limiter.TryConsumePermit(permitToken!), Is.True);
+        Assert.That(limiter.TryConsumePermit(permitToken!), Is.False);
     }
 
     private static ChatbotController CreateController(

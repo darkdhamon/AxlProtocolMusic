@@ -6,6 +6,7 @@
 @inject IChatbotActivationMonitor ChatbotActivationMonitor
 @inject IChatbotBudgetService ChatbotBudgetService
 @inject IChatbotConversationLogService ChatbotConversationLogService
+@inject IChatbotRequestRateLimiter ChatbotRequestRateLimiter
 @inject IJSRuntime JSRuntime
 @inject ISiteChatbotService SiteChatbotService
 
@@ -242,7 +243,8 @@
 
         var currentPage = await GetCurrentPageContextAsync();
 
-        if (!await JSRuntime.InvokeAsync<bool>("axlChatbotUi.acquirePermit"))
+        var permitToken = await JSRuntime.InvokeAsync<string?>("axlChatbotUi.acquirePermit");
+        if (permitToken is null || !ChatbotRequestRateLimiter.TryConsumePermit(permitToken))
         {
             messages.Add(new ChatMessage("assistant", "Too many requests. Please wait before trying again."));
             await PersistStateAsync();

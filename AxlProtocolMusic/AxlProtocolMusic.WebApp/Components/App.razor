@@ -105,10 +105,16 @@
                 acquirePermit: async function () {
                     var response = await fetch("/api/chatbot/permit", {
                         method: "POST",
-                        credentials: "same-origin"
+                        credentials: "same-origin",
+                        headers: { "X-Requested-With": "XMLHttpRequest" }
                     });
 
-                    return response.ok;
+                    if (!response.ok) {
+                        return null;
+                    }
+
+                    var payload = await response.json();
+                    return payload.permitToken || null;
                 },
                 initializePanel: function (rootSelector, panelSelector, handleSelector, dotNetRef) {
                     var root = document.querySelector(rootSelector);
