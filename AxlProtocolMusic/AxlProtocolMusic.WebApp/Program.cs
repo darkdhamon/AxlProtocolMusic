@@ -106,7 +106,6 @@ catch (Exception ex)
             """);
     });
 }
-
 app.Run();
 
 void ConfigureDevelopmentDataProtection(WebApplicationBuilder webApplicationBuilder)
