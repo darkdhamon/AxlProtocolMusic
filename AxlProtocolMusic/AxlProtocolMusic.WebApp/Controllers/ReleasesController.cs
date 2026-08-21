@@ -4,6 +4,7 @@ using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Logging;
 
 namespace AxlProtocolMusic.WebApp.Controllers;
 
@@ -13,13 +14,16 @@ public sealed class ReleasesController : Controller
 {
     private readonly IReleaseService _releaseService;
     private readonly IImageStorageService _imageStorageService;
+    private readonly ILogger<ReleasesController> _logger;
 
     public ReleasesController(
         IReleaseService releaseService,
-        IImageStorageService imageStorageService)
+        IImageStorageService imageStorageService,
+        ILogger<ReleasesController> logger)
     {
         _releaseService = releaseService;
         _imageStorageService = imageStorageService;
+        _logger = logger;
     }
 
     [Authorize(Roles = "Admin")]
@@ -28,6 +32,7 @@ public sealed class ReleasesController : Controller
     public async Task<IActionResult> Create([FromForm] ReleaseUpdateRequest request)
     {
         string? uploadedCoverImagePath = null;
+        var previousCoverImageUrl = request.CoverImageUrl;
 
         if (!ModelState.IsValid)
         {
@@ -53,10 +58,8 @@ public sealed class ReleasesController : Controller
         var result = await _releaseService.CreateReleaseAsync(request);
         if (!result.Succeeded)
         {
-            if (!string.IsNullOrWhiteSpace(uploadedCoverImagePath))
-            {
-                await _imageStorageService.DeleteAsync(uploadedCoverImagePath);
-            }
+            await TryDeleteUploadedImageAsync(uploadedCoverImagePath);
+            request.CoverImageUrl = previousCoverImageUrl;
 
             return RedirectToCreate(request, result.ErrorMessage);
         }
@@ -102,10 +105,7 @@ public sealed class ReleasesController : Controller
         var result = await _releaseService.UpdateReleaseAsync(request);
         if (!result.Succeeded)
         {
-            if (!string.IsNullOrWhiteSpace(uploadedCoverImagePath))
-            {
-                await _imageStorageService.DeleteAsync(uploadedCoverImagePath);
-            }
+            await TryDeleteUploadedImageAsync(uploadedCoverImagePath);
 
             return RedirectToDetails(request.OriginalSlug, result.ErrorMessage);
         }
@@ -119,6 +119,26 @@ public sealed class ReleasesController : Controller
         }
 
         return Redirect($"/releases/{Uri.EscapeDataString(result.Slug)}?success=Release%20details%20updated.");
+    }
+
+    private async Task TryDeleteUploadedImageAsync(string? storagePath)
+    {
+        if (string.IsNullOrWhiteSpace(storagePath))
+        {
+            return;
+        }
+
+        try
+        {
+            await _imageStorageService.DeleteAsync(storagePath);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Could not delete uploaded release image {StoragePath} after the release operation failed.",
+                storagePath);
+        }
     }
 
     private RedirectResult RedirectToDetails(string slug, string errorMessage)
