@@ -276,11 +276,14 @@ public sealed class AboutAxlProtocolTests
         {
             Assert.That(cut.Markup, Does.Contain("Edit About Page"));
             Assert.That(cut.Markup, Does.Not.Contain("Saving changes..."));
+            Assert.That(cut.Find("div[role='status']").TextContent, Is.Empty);
         });
 
         cut.FindAll("button")
             .Single(button => button.TextContent.Contains("Add Point", StringComparison.Ordinal))
             .Click();
+
+        Assert.That(SpinWait.SpinUntil(() => service.UpdateCallCount >= 1, TimeSpan.FromSeconds(3)), Is.True);
 
         cut.WaitForAssertion(() =>
         {
@@ -290,7 +293,6 @@ public sealed class AboutAxlProtocolTests
             Assert.That(statusRegion.GetAttribute("aria-atomic"), Is.EqualTo("true"));
         }, timeout: TimeSpan.FromSeconds(3));
 
-        Assert.That(SpinWait.SpinUntil(() => service.UpdateCallCount >= 1, TimeSpan.FromSeconds(3)), Is.True);
         updateCompletion.SetResult();
 
         cut.WaitForAssertion(() =>
