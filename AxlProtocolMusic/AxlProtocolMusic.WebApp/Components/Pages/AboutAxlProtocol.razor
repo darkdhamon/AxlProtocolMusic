@@ -387,8 +387,11 @@ else
             await AboutPageService.UpdateAsync(editableContent);
             content = Clone(editableContent);
             lastSavedVersion = version;
-            statusMessage = "All changes saved.";
-            await InvokeAsync(StateHasChanged);
+            if (version == Interlocked.Read(ref autosaveVersion))
+            {
+                statusMessage = "All changes saved.";
+                await InvokeAsync(StateHasChanged);
+            }
         }
         catch (OperationCanceledException)
         {
