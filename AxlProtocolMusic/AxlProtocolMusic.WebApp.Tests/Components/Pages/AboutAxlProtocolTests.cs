@@ -253,6 +253,7 @@ public sealed class AboutAxlProtocolTests
 
         var service = new FakeAboutPageService
         {
+            UpdateCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously),
             Content = new AboutPageContent
             {
                 HeroLead = "Lead",
@@ -282,21 +283,22 @@ public sealed class AboutAxlProtocolTests
 
         cut.WaitForAssertion(() =>
         {
-            var statusAlert = cut.Find("div.alert.alert-success[role='alert']");
-            Assert.That(statusAlert.TextContent, Does.Contain("Saving changes..."));
-            Assert.That(statusAlert.GetAttribute("aria-live"), Is.EqualTo("polite"));
+            var statusRegion = cut.Find("div[role='status']");
+            Assert.That(cut.Markup, Does.Contain("Saving changes..."));
+            Assert.That(statusRegion.GetAttribute("aria-live"), Is.EqualTo("polite"));
+            Assert.That(statusRegion.GetAttribute("aria-atomic"), Is.EqualTo("true"));
         }, timeout: TimeSpan.FromSeconds(3));
 
         Assert.That(SpinWait.SpinUntil(() => service.UpdateCallCount >= 1, TimeSpan.FromSeconds(3)), Is.True);
+        service.UpdateCompletion.SetResult();
 
         cut.WaitForAssertion(() =>
         {
             Assert.That(cut.Markup, Does.Contain("All changes saved."));
         }, timeout: TimeSpan.FromSeconds(4));
 
-        var finalStatus = cut.Find("div.alert.alert-success[role='alert']");
-        Assert.That(finalStatus.TextContent, Does.Contain("All changes saved."));
-        Assert.That(finalStatus.TextContent, Does.Not.Contain("Saving changes..."));
+        Assert.That(cut.Markup, Does.Contain("All changes saved."));
+        Assert.That(cut.Markup, Does.Not.Contain("Saving changes..."));
     }
 
     private sealed class FakeAboutPageService : IAboutPageService
@@ -308,6 +310,8 @@ public sealed class AboutAxlProtocolTests
         public AboutPageContent? LastUpdatedContent { get; private set; }
 
         public Exception? UpdateException { get; set; }
+
+        public TaskCompletionSource? UpdateCompletion { get; set; }
 
         public Task<AboutPageContent> GetAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(Content);
@@ -338,7 +342,7 @@ public sealed class AboutAxlProtocolTests
                 throw UpdateException;
             }
 
-            return Task.CompletedTask;
+            return UpdateCompletion?.Task ?? Task.CompletedTask;
         }
 
         public Task SeedAsync(CancellationToken cancellationToken = default)
