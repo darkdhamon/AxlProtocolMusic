@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using AxlProtocolMusic.WebApp.Controllers;
 using AxlProtocolMusic.WebApp.Models.Analytics;
+using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using Microsoft.AspNetCore.DataProtection;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +13,7 @@ namespace AxlProtocolMusic.WebApp.Tests.Controllers;
 [TestFixture]
 public sealed class AnalyticsControllerTests
 {
+    private static readonly IDataProtectionProvider DataProtectionProvider = new EphemeralDataProtectionProvider();
     [Test]
     public async Task RecordPageVisit_WhenRequestIsInvalid_ReturnsBadRequest()
     {
@@ -53,7 +56,10 @@ public sealed class AnalyticsControllerTests
     {
         var analyticsService = new FakeAnalyticsService();
         var controller = CreateController(analyticsService, isHttps: true);
-        controller.HttpContext.Request.Headers.Cookie = "axl_visitor_id=visitor-123";
+        var protectedDeviceId = DataProtectionProvider
+            .CreateProtector("AxlProtocolMusic.DeviceId.v1")
+            .Protect("0123456789abcdef0123456789abcdef");
+        controller.HttpContext.Request.Headers.Cookie = $"axl_visitor_id={protectedDeviceId}";
         controller.HttpContext.Request.Headers["CF-IPCountry"] = "US";
         using var cancellationTokenSource = new CancellationTokenSource();
 
@@ -76,7 +82,7 @@ public sealed class AnalyticsControllerTests
         Assert.That(metric.PagePath, Is.EqualTo("/news"));
         Assert.That(metric.PageTitle, Is.EqualTo("Latest News"));
         Assert.That(metric.DurationSeconds, Is.EqualTo(15.5));
-        Assert.That(metric.ClientId, Is.EqualTo("visitor-123"));
+        Assert.That(metric.ClientId, Is.EqualTo("0123456789abcdef0123456789abcdef"));
         Assert.That(metric.Region, Is.EqualTo("US"));
         Assert.That(metric.ApproximateLatitude, Is.EqualTo(40.7128));
         Assert.That(metric.ApproximateLongitude, Is.Null);
@@ -104,10 +110,14 @@ public sealed class AnalyticsControllerTests
     }
 
     [Test]
-    public async Task RecordExternalLinkClick_WhenRequestIsValid_CreatesVisitorCookieAndRecordsMetric()
+    public async Task RecordExternalLinkClick_WhenRequestIsValid_RecordsMetricForEstablishedVisitor()
     {
         var analyticsService = new FakeAnalyticsService();
         var controller = CreateController(analyticsService, isHttps: true);
+        var protectedDeviceId = DataProtectionProvider
+            .CreateProtector("AxlProtocolMusic.DeviceId.v1")
+            .Protect("0123456789abcdef0123456789abcdef");
+        controller.Request.Headers.Cookie = $"axl_visitor_id={protectedDeviceId}";
         using var cancellationTokenSource = new CancellationTokenSource();
 
         var result = await controller.RecordExternalLinkClick(
@@ -130,15 +140,47 @@ public sealed class AnalyticsControllerTests
         Assert.That(metric.DestinationUrl, Is.EqualTo("https://bandcamp.example/signals"));
         Assert.That(metric.LinkLabel, Is.EqualTo("Bandcamp"));
         Assert.That(metric.Region.Length, Is.EqualTo(120));
-        Assert.That(metric.ClientId, Has.Length.EqualTo(32));
+        Assert.That(metric.ClientId, Is.EqualTo("0123456789abcdef0123456789abcdef"));
         Assert.That(metric.ApproximateLatitude, Is.Null);
         Assert.That(metric.ApproximateLongitude, Is.EqualTo(-97.7431));
         Assert.That(analyticsService.LastExternalClickCancellationToken, Is.EqualTo(cancellationTokenSource.Token));
 
         var setCookieHeader = controller.HttpContext.Response.Headers.SetCookie.ToString();
-        Assert.That(setCookieHeader, Does.Contain("axl_visitor_id="));
-        Assert.That(setCookieHeader, Does.Contain("httponly"));
-        Assert.That(setCookieHeader, Does.Contain("secure"));
+        Assert.That(setCookieHeader, Is.Empty);
+    }
+
+    [Test]
+    public async Task RecordPageVisit_WhenLegacyVisitorCookieExists_ProtectsItAndPreservesCanonicalAnalyticsId()
+    {
+        var analyticsService = new FakeAnalyticsService();
+        var controller = CreateController(analyticsService);
+        const string legacyDeviceId = "0123456789abcdef0123456789abcdef";
+        controller.Request.Headers.Cookie = $"axl_visitor_id={legacyDeviceId}";
+
+        var result = await controller.RecordPageVisit(
+            new PageVisitRequest { PagePath = "/privacy", DurationSeconds = 1 },
+            CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<OkResult>());
+        Assert.That(analyticsService.DeletedVisitorIds, Is.Empty);
+        Assert.That(analyticsService.RecordedPageVisits.Single().ClientId, Is.EqualTo(legacyDeviceId));
+        Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
+        Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("path=/"));
+    }
+
+    [Test]
+    public async Task RecordPageVisit_WhenVisitorCookieIsMissing_RecordsFirstEventUnderNewCanonicalId()
+    {
+        var analyticsService = new FakeAnalyticsService();
+        var controller = CreateController(analyticsService);
+
+        var result = await controller.RecordPageVisit(
+            new PageVisitRequest { PagePath = "/", DurationSeconds = 1 },
+            CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<OkResult>());
+        Assert.That(Guid.TryParseExact(analyticsService.RecordedPageVisits.Single().ClientId, "N", out _), Is.True);
+        Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
     }
 
     private static AnalyticsController CreateController(FakeAnalyticsService analyticsService, bool isHttps = false)
@@ -146,7 +188,7 @@ public sealed class AnalyticsControllerTests
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Scheme = isHttps ? "https" : "http";
 
-        return new AnalyticsController(analyticsService)
+        return new AnalyticsController(analyticsService, new DeviceIdService(DataProtectionProvider))
         {
             ControllerContext = new ControllerContext
             {
@@ -160,6 +202,7 @@ public sealed class AnalyticsControllerTests
         public List<PageVisitMetric> RecordedPageVisits { get; } = [];
 
         public List<ExternalLinkClickMetric> RecordedExternalClicks { get; } = [];
+        public List<string> DeletedVisitorIds { get; } = [];
 
         public CancellationToken LastPageVisitCancellationToken { get; private set; }
 
@@ -180,7 +223,10 @@ public sealed class AnalyticsControllerTests
         }
 
         public Task DeleteVisitorDataAsync(string clientId, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
+        {
+            DeletedVisitorIds.Add(clientId);
+            return Task.CompletedTask;
+        }
 
         public Task DeleteVisitorLocationDataAsync(string clientId, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();

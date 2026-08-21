@@ -106,7 +106,6 @@ catch (Exception ex)
             """);
     });
 }
-
 app.Run();
 
 void ConfigureDevelopmentDataProtection(WebApplicationBuilder webApplicationBuilder)
@@ -123,3 +122,4 @@ void ConfigureDevelopmentDataProtection(WebApplicationBuilder webApplicationBuil
         .AddDataProtection()
         .PersistKeysToFileSystem(new DirectoryInfo(keysDirectory));
 }
+

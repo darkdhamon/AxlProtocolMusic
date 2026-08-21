@@ -102,6 +102,28 @@
             };
 
             window.axlChatbotUi = {
+                acquirePermit: async function () {
+                    var send = () => fetch("/api/chatbot/permit", {
+                            method: "POST",
+                            credentials: "same-origin",
+                            headers: { "X-Requested-With": "XMLHttpRequest" }
+                        });
+                    var response = await send();
+                    if (response.status === 428) {
+                        response = await send();
+                    }
+
+                    if (!response.ok) {
+                        if (response.status === 403) {
+                            return "device-id-disabled";
+                        }
+
+                        return response.status === 428 ? "device-cookie-required" : null;
+                    }
+
+                    var payload = await response.json();
+                    return payload.permitToken || null;
+                },
                 initializePanel: function (rootSelector, panelSelector, handleSelector, dotNetRef) {
                     var root = document.querySelector(rootSelector);
                     var panel = document.querySelector(panelSelector);

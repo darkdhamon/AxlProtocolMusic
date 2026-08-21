@@ -10,10 +10,12 @@ public sealed class PrivacyController : Controller
     private const string VisitorCookieName = "axl_visitor_id";
     private const string MetricsPreferenceCookieName = "axl_site_metrics";
     private readonly IAnalyticsService _analyticsService;
+    private readonly IDeviceIdService _deviceIdService;
 
-    public PrivacyController(IAnalyticsService analyticsService)
+    public PrivacyController(IAnalyticsService analyticsService, IDeviceIdService deviceIdService)
     {
         _analyticsService = analyticsService;
+        _deviceIdService = deviceIdService;
     }
 
     [HttpPost("essential-metrics")]
@@ -22,12 +24,12 @@ public sealed class PrivacyController : Controller
     {
         if (request.AllowEssentialSiteMetrics)
         {
-            Response.Cookies.Delete(MetricsPreferenceCookieName);
+            Response.Cookies.Delete(MetricsPreferenceCookieName, new CookieOptions { Path = "/" });
+            Response.Cookies.Delete(MetricsPreferenceCookieName, new CookieOptions { Path = "/privacy" });
             return Ok();
         }
 
-        if (Request.Cookies.TryGetValue(VisitorCookieName, out var visitorId)
-            && !string.IsNullOrWhiteSpace(visitorId))
+        if (TryResolveVisitorId(out var visitorId))
         {
             await _analyticsService.DeleteVisitorDataAsync(visitorId, cancellationToken);
         }
@@ -39,12 +41,13 @@ public sealed class PrivacyController : Controller
             {
                 HttpOnly = false,
                 IsEssential = true,
+                Path = "/",
                 SameSite = SameSiteMode.Lax,
                 Secure = Request.IsHttps,
-                Expires = DateTimeOffset.UtcNow.AddYears(1)
+                Expires = DateTimeOffset.UtcNow.AddYears(2)
             });
 
-        Response.Cookies.Delete(VisitorCookieName);
+        Response.Cookies.Delete(VisitorCookieName, new CookieOptions { Path = "/" });
         return Ok();
     }
 
@@ -52,13 +55,24 @@ public sealed class PrivacyController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteMyData(CancellationToken cancellationToken)
     {
-        if (Request.Cookies.TryGetValue(VisitorCookieName, out var visitorId)
-            && !string.IsNullOrWhiteSpace(visitorId))
+        if (TryResolveVisitorId(out var visitorId))
         {
             await _analyticsService.DeleteVisitorDataAsync(visitorId, cancellationToken);
         }
 
         return Redirect("/privacy/collected-data?deleted=true");
+    }
+
+    private bool TryResolveVisitorId(out string visitorId)
+    {
+        Request.Cookies.TryGetValue(VisitorCookieName, out var cookieValue);
+        if (_deviceIdService.TryResolve(cookieValue, out visitorId))
+        {
+            return true;
+        }
+
+        visitorId = Guid.TryParseExact(cookieValue, "N", out _) ? cookieValue : string.Empty;
+        return visitorId.Length > 0;
     }
 
     public sealed class EssentialMetricsPreferenceRequest
