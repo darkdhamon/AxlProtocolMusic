@@ -151,6 +151,26 @@ public sealed class SiteChatbotTests
     }
 
     [Test]
+    public void SiteChatbot_WhenSixMessagesAreSentRapidly_BlocksSixthBeforeCallingService()
+    {
+        using var context = CreateContext(out _, out _, out var chatbotService, out _);
+        var cut = context.Render<SiteChatbot>();
+        cut.Find(".chatbot-launcher").Click();
+
+        for (var requestNumber = 1; requestNumber <= 6; requestNumber++)
+        {
+            cut.Find("#chatbot-input").Input($"Question {requestNumber}");
+            cut.Find("button.btn.btn-primary").Click();
+            var expectedCalls = Math.Min(requestNumber, 5);
+            cut.WaitForAssertion(() => Assert.That(chatbotService.Calls, Has.Count.EqualTo(expectedCalls)));
+        }
+
+        cut.WaitForAssertion(() =>
+            Assert.That(cut.Markup, Does.Contain("Too many requests. Please wait before trying again.")));
+        Assert.That(chatbotService.Calls, Has.Count.EqualTo(5));
+    }
+
+    [Test]
     public void SiteChatbot_ResetClearsMessagesAndPersistsState()
     {
         using var context = CreateContext(out _, out _, out var chatbotService, out _);

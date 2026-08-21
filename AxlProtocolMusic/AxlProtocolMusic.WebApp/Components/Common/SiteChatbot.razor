@@ -2,6 +2,7 @@
 @using AxlProtocolMusic.WebApp.Services.Interfaces
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
 @using System.Text.Json
+@using System.Threading.RateLimiting
 @implements IAsyncDisposable
 @inject IChatbotActivationMonitor ChatbotActivationMonitor
 @inject IChatbotBudgetService ChatbotBudgetService
@@ -137,6 +138,15 @@
     private int? panelWidth;
     private int? panelHeight;
     private DotNetObjectReference<SiteChatbot>? dotNetReference;
+    private readonly SlidingWindowRateLimiter requestLimiter = new(new SlidingWindowRateLimiterOptions
+    {
+        PermitLimit = 5,
+        Window = TimeSpan.FromMinutes(1),
+        SegmentsPerWindow = 6,
+        AutoReplenishment = true,
+        QueueLimit = 0,
+        QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+    });
     private IDisposable? chatbotActivationSubscription;
     private bool hasInitializedPanelUi;
     private int lastRenderedMessageCount = -1;
@@ -245,6 +255,14 @@
         {
             RegisterAssistantNo();
             await RecordLocalRefusalAsync(message, currentPage);
+            await PersistStateAsync();
+            return;
+        }
+
+        using var rateLimitLease = requestLimiter.AttemptAcquire();
+        if (!rateLimitLease.IsAcquired)
+        {
+            messages.Add(new ChatMessage("assistant", "Too many requests. Please wait before trying again."));
             await PersistStateAsync();
             return;
         }
@@ -608,6 +626,7 @@
     {
         chatbotActivationSubscription?.Dispose();
         dotNetReference?.Dispose();
+        requestLimiter.Dispose();
         return ValueTask.CompletedTask;
     }
 

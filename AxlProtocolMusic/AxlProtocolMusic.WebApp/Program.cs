@@ -26,21 +26,23 @@ builder.Services.AddApplicationAuthentication(builder.Configuration);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.OnRejected = async context =>
+    options.OnRejected = async (context, cancellationToken) =>
     {
         context.HttpContext.Response.Headers["Retry-After"] = "60";
         context.HttpContext.Response.ContentType = "application/json";
         await context.HttpContext.Response.WriteAsJsonAsync(
-            new { error = "Too many requests. Please wait before trying again." });
+            new { error = "Too many requests. Please wait before trying again." },
+            cancellationToken);
     };
 
     options.AddPolicy("chatbot-abuse", httpContext =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            GetIpAddressPartition(httpContext.Connection.RemoteIpAddress, httpContext),
-            _ => new FixedWindowRateLimiterOptions
+        RateLimitPartition.GetSlidingWindowLimiter(
+            GetIpAddressPartition(httpContext.Connection.RemoteIpAddress),
+            _ => new SlidingWindowRateLimiterOptions
             {
                 PermitLimit = 5,
                 Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 6,
                 AutoReplenishment = true,
                 QueueLimit = 0,
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst
@@ -150,13 +152,7 @@ void ConfigureDevelopmentDataProtection(WebApplicationBuilder webApplicationBuil
         .PersistKeysToFileSystem(new DirectoryInfo(keysDirectory));
 }
 
-static string GetIpAddressPartition(IPAddress? remoteIpAddress, HttpContext httpContext)
+static string GetIpAddressPartition(IPAddress? remoteIpAddress)
 {
-    var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].ToString();
-    if (!string.IsNullOrWhiteSpace(forwardedFor))
-    {
-        return forwardedFor.Split(',')[0].Trim();
-    }
-
     return remoteIpAddress?.ToString() ?? "anonymous";
 }

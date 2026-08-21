@@ -10,6 +10,8 @@ namespace AxlProtocolMusic.WebApp.Services;
 
 public sealed class SiteChatbotService : ISiteChatbotService
 {
+    private const int MaxRequestHistoryCount = 40;
+    private const int MaxRequestMessageLength = 1000;
     private const int MaxHistoryMessageCount = 6;
     private readonly HttpClient _httpClient;
     private readonly IChatbotBudgetService _chatbotBudgetService;
@@ -44,6 +46,16 @@ public sealed class SiteChatbotService : ISiteChatbotService
         if (string.IsNullOrWhiteSpace(normalizedMessage))
         {
             throw new InvalidOperationException("A message is required.");
+        }
+
+        if (message is { Length: > MaxRequestMessageLength })
+        {
+            throw new InvalidOperationException($"Message too long. Maximum {MaxRequestMessageLength} characters.");
+        }
+
+        if (history?.Count > MaxRequestHistoryCount)
+        {
+            throw new InvalidOperationException($"History too long. Maximum {MaxRequestHistoryCount} entries.");
         }
 
         if (string.IsNullOrWhiteSpace(_openAiSettings.ApiKey))
