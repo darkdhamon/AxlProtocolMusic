@@ -6,6 +6,7 @@ using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.ComponentModel.DataAnnotations;
 
 namespace AxlProtocolMusic.WebApp.Tests.Controllers;
@@ -198,13 +199,149 @@ public sealed class ReleasesControllerTests
             Is.EqualTo("/releases/updated-slug?success=Release%20details%20updated."));
     }
 
+    [Test]
+    public async Task Create_WhenCreateFailsAfterImageSave_DeletesUploadedImageAndRedirectsToCreate()
+    {
+        var releaseService = new FakeReleaseService
+        {
+            CreateResult = new ReleaseCreateResult
+            {
+                Succeeded = false,
+                ErrorMessage = "Could not save release."
+            }
+        };
+
+        var imageStorageService = new FakeImageStorageService
+        {
+            SaveResult = new ImageSaveResult
+            {
+                Url = "/images/releases/cover.png",
+                StoragePath = "images/releases/cover.png"
+            }
+        };
+
+        var controller = CreateController(releaseService, imageStorageService);
+        var request = CreateValidRequest();
+        request.CoverImageUrl = "/images/releases/original-cover.png";
+        request.CoverImageFile = CreateFormFile();
+
+        var result = await controller.Create(request);
+
+        Assert.That(imageStorageService.DeletedPaths, Is.EqualTo(new[] { "images/releases/cover.png" }));
+        Assert.That(imageStorageService.SavedFiles, Has.Count.EqualTo(1));
+
+        var redirectResult = result as RedirectResult;
+        Assert.That(redirectResult, Is.Not.Null);
+        Assert.That(
+            redirectResult!.Url,
+            Does.StartWith("/releases/new?"));
+        Assert.That(redirectResult!.Url, Does.Contain("error=Could%20not%20save%20release."));
+        Assert.That(redirectResult.Url, Does.Contain("coverImageUrl=%2Fimages%2Freleases%2Foriginal-cover.png"));
+        Assert.That(redirectResult.Url, Does.Not.Contain("coverImageUrl=%2Fimages%2Freleases%2Fcover.png"));
+    }
+
+    [Test]
+    public async Task Create_WhenRollbackDeleteFails_RedirectsWithOriginalFailure()
+    {
+        var releaseService = new FakeReleaseService
+        {
+            CreateResult = new ReleaseCreateResult { Succeeded = false, ErrorMessage = "Slug already exists." }
+        };
+        var imageStorageService = new FakeImageStorageService
+        {
+            SaveResult = new ImageSaveResult
+            {
+                Url = "/images/releases/cover.png",
+                StoragePath = "images/releases/cover.png"
+            },
+            DeleteException = new IOException("Storage unavailable.")
+        };
+        var request = CreateValidRequest();
+        request.CoverImageFile = CreateFormFile();
+
+        var result = await CreateController(releaseService, imageStorageService).Create(request);
+
+        Assert.That(result, Is.TypeOf<RedirectResult>());
+        Assert.That(((RedirectResult)result).Url, Does.Contain("error=Slug%20already%20exists."));
+        Assert.That(((RedirectResult)result).Url, Does.Not.Contain("coverImageUrl="));
+    }
+
+    [Test]
+    public async Task Update_WhenUpdateFailsAfterImageSave_DeletesUploadedImageAndRedirectsToDetails()
+    {
+        var releaseService = new FakeReleaseService
+        {
+            UpdateResult = new ReleaseUpdateResult
+            {
+                Succeeded = false,
+                ErrorMessage = "Could not update release."
+            }
+        };
+
+        var imageStorageService = new FakeImageStorageService
+        {
+            SaveResult = new ImageSaveResult
+            {
+                Url = "/images/releases/new-cover.png",
+                StoragePath = "images/releases/new-cover.png"
+            }
+        };
+
+        var controller = CreateController(releaseService, imageStorageService);
+        var request = CreateValidRequest();
+        request.OriginalSlug = "original-slug";
+        request.CoverImageUrl = "/images/releases/old-cover.png";
+        request.CoverImageFile = CreateFormFile();
+
+        var result = await controller.Update(request);
+
+        Assert.That(imageStorageService.DeletedPaths, Is.EqualTo(new[] { "images/releases/new-cover.png" }));
+        Assert.That(releaseService.LastUpdateRequest, Is.Not.Null);
+        Assert.That(releaseService.LastUpdateRequest!.CoverImageUrl, Is.EqualTo("/images/releases/new-cover.png"));
+
+        var redirectResult = result as RedirectResult;
+        Assert.That(redirectResult, Is.Not.Null);
+        Assert.That(
+            redirectResult!.Url,
+            Is.EqualTo("/releases/original-slug?error=Could%20not%20update%20release."));
+    }
+
+    [Test]
+    public async Task Update_WhenRollbackDeleteFails_RedirectsWithOriginalFailure()
+    {
+        var releaseService = new FakeReleaseService
+        {
+            UpdateResult = new ReleaseUpdateResult { Succeeded = false, ErrorMessage = "Slug already exists." }
+        };
+        var imageStorageService = new FakeImageStorageService
+        {
+            SaveResult = new ImageSaveResult
+            {
+                Url = "/images/releases/new-cover.png",
+                StoragePath = "images/releases/new-cover.png"
+            },
+            DeleteException = new IOException("Storage unavailable.")
+        };
+        var request = CreateValidRequest();
+        request.OriginalSlug = "original-slug";
+        request.CoverImageFile = CreateFormFile();
+
+        var result = await CreateController(releaseService, imageStorageService).Update(request);
+
+        Assert.That(result, Is.TypeOf<RedirectResult>());
+        Assert.That(
+            ((RedirectResult)result).Url,
+            Is.EqualTo("/releases/original-slug?error=Slug%20already%20exists."));
+    }
+
     private static ReleasesController CreateController(
         FakeReleaseService? releaseService = null,
         FakeImageStorageService? imageStorageService = null)
     {
         return new ReleasesController(
             releaseService ?? new FakeReleaseService(),
-            imageStorageService ?? new FakeImageStorageService())
+            imageStorageService ?? new FakeImageStorageService(),
+            NullLogger<ReleasesController>.Instance)
         {
             ControllerContext = new ControllerContext
             {
@@ -307,9 +444,16 @@ public sealed class ReleasesControllerTests
 
         public List<IFormFile> SavedFiles { get; } = [];
 
+        public Exception? DeleteException { get; set; }
+
         public Task DeleteAsync(string storagePath, CancellationToken cancellationToken = default)
         {
             DeletedPaths.Add(storagePath);
+            if (DeleteException is not null)
+            {
+                return Task.FromException(DeleteException);
+            }
+
             return Task.CompletedTask;
         }
 
