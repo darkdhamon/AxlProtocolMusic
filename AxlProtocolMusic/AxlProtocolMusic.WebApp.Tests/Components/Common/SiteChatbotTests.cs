@@ -167,6 +167,22 @@ public sealed class SiteChatbotTests
     }
 
     [Test]
+    public void SiteChatbot_WhenPermitConsumptionFails_ShowsRecoverableError()
+    {
+        using var context = CreateContext(out _, out _, out var chatbotService, out _);
+        var limiter = (FakeChatbotRequestRateLimiter)context.Services.GetRequiredService<IChatbotRequestRateLimiter>();
+        limiter.ThrowOnConsume = true;
+        var cut = context.Render<SiteChatbot>();
+        cut.Find(".chatbot-launcher").Click();
+        cut.Find("#chatbot-input").Input("Question");
+
+        cut.Find("button.btn.btn-primary").Click();
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("request limit check is temporarily unavailable")));
+        Assert.That(chatbotService.Calls, Is.Empty);
+    }
+
+    [Test]
     public void SiteChatbot_ResetClearsMessagesAndPersistsState()
     {
         using var context = CreateContext(out _, out _, out var chatbotService, out _);
@@ -301,11 +317,15 @@ public sealed class SiteChatbotTests
 
     private sealed class FakeChatbotRequestRateLimiter : IChatbotRequestRateLimiter
     {
+        public bool ThrowOnConsume { get; set; }
+
         public Task<string?> TryIssuePermitAsync(string deviceId, CancellationToken cancellationToken = default)
             => Task.FromResult<string?>("test-permit");
 
         public Task<bool> TryConsumePermitAsync(string permitToken, CancellationToken cancellationToken = default)
-            => Task.FromResult(permitToken == "test-permit");
+            => ThrowOnConsume
+                ? Task.FromException<bool>(new InvalidOperationException("Mongo unavailable"))
+                : Task.FromResult(permitToken == "test-permit");
     }
 
     private sealed class FakeChatbotConversationLogService : IChatbotConversationLogService

@@ -33,10 +33,12 @@ public sealed class ChatbotController : ControllerBase
         [FromBody] ChatbotMessageRequest request,
         CancellationToken cancellationToken)
     {
-        var deviceId = GetOrCreateDeviceId();
+        var deviceId = GetEstablishedDeviceId(out var trackingDisabled);
         if (deviceId is null)
         {
-            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Device-ID tracking is required to use AI chat." });
+            return trackingDisabled
+                ? StatusCode(StatusCodes.Status403Forbidden, new { error = "Device-ID tracking is required to use AI chat." })
+                : StatusCode(StatusCodes.Status428PreconditionRequired, new { error = "Retry after the device-ID cookie is established." });
         }
 
         var permitToken = await _requestRateLimiter.TryIssuePermitAsync(deviceId, cancellationToken);
@@ -91,10 +93,12 @@ public sealed class ChatbotController : ControllerBase
             return BadRequest(new { error = "Same-origin request required." });
         }
 
-        var deviceId = GetOrCreateDeviceId();
+        var deviceId = GetEstablishedDeviceId(out var trackingDisabled);
         if (deviceId is null)
         {
-            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Device-ID tracking is required to use AI chat." });
+            return trackingDisabled
+                ? StatusCode(StatusCodes.Status403Forbidden, new { error = "Device-ID tracking is required to use AI chat." })
+                : StatusCode(StatusCodes.Status428PreconditionRequired, new { error = "Retry after the device-ID cookie is established." });
         }
 
         var permitToken = await _requestRateLimiter.TryIssuePermitAsync(deviceId, cancellationToken);
@@ -107,11 +111,13 @@ public sealed class ChatbotController : ControllerBase
         return StatusCode(StatusCodes.Status429TooManyRequests);
     }
 
-    private string? GetOrCreateDeviceId()
+    private string? GetEstablishedDeviceId(out bool trackingDisabled)
     {
+        trackingDisabled = false;
         if (Request.Cookies.TryGetValue(MetricsPreferenceCookieName, out var preference)
             && string.Equals(preference, "disabled", StringComparison.OrdinalIgnoreCase))
         {
+            trackingDisabled = true;
             return null;
         }
 
@@ -129,6 +135,6 @@ public sealed class ChatbotController : ControllerBase
             Secure = Request.IsHttps,
             Expires = DateTimeOffset.UtcNow.AddYears(1)
         });
-        return deviceId;
+        return null;
     }
 }

@@ -103,11 +103,15 @@
 
             window.axlChatbotUi = {
                 acquirePermit: async function () {
-                    var response = await fetch("/api/chatbot/permit", {
-                        method: "POST",
-                        credentials: "same-origin",
-                        headers: { "X-Requested-With": "XMLHttpRequest" }
-                    });
+                    var send = () => fetch("/api/chatbot/permit", {
+                            method: "POST",
+                            credentials: "same-origin",
+                            headers: { "X-Requested-With": "XMLHttpRequest" }
+                        });
+                    var response = await send();
+                    if (response.status === 428) {
+                        response = await send();
+                    }
 
                     if (!response.ok) {
                         return response.status === 403 ? "device-id-disabled" : null;

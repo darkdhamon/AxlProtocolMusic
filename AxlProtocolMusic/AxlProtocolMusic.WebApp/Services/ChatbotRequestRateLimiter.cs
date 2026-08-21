@@ -12,6 +12,7 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter
 {
     private const int PermitLimit = 5;
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan PermitLifetime = TimeSpan.FromSeconds(10);
     private readonly IMongoCollection<BsonDocument> rateLimits;
     private readonly IMongoCollection<BsonDocument> permits;
     private readonly Task indexInitialization;
@@ -78,7 +79,7 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter
         await permits.InsertOneAsync(new BsonDocument
         {
             { "_id", permitToken },
-            { "expiresAt", now.Add(Window) }
+            { "expiresAt", now.Add(PermitLifetime) }
         }, cancellationToken: cancellationToken);
         return permitToken;
     }

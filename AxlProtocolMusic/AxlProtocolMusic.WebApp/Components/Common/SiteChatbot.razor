@@ -262,7 +262,20 @@
             return;
         }
 
-        if (permitToken is null || !await ChatbotRequestRateLimiter.TryConsumePermitAsync(permitToken))
+        bool permitConsumed;
+        try
+        {
+            permitConsumed = permitToken is not null
+                && await ChatbotRequestRateLimiter.TryConsumePermitAsync(permitToken);
+        }
+        catch (Exception)
+        {
+            messages.Add(new ChatMessage("assistant", "The request limit check is temporarily unavailable. Please try again."));
+            await PersistStateAsync();
+            return;
+        }
+
+        if (!permitConsumed)
         {
             messages.Add(new ChatMessage("assistant", "Too many requests. Please wait before trying again."));
             await PersistStateAsync();

@@ -189,17 +189,19 @@ public sealed class ChatbotControllerTests
     }
 
     [Test]
-    public async Task AcquirePermit_WhenDeviceIdTrackingIsDefaultEnabled_CreatesDeviceIdAndReturnsPermit()
+    public async Task AcquirePermit_WhenDeviceIdTrackingIsDefaultEnabled_RequiresCookieRoundTripBeforePermit()
     {
         var chatbotService = new FakeSiteChatbotService();
         var limiter = new FakeChatbotRequestRateLimiter();
         var controller = CreateController(chatbotService, limiter);
+        controller.Request.Headers.Cookie = string.Empty;
         controller.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
 
         var result = await controller.AcquirePermit(CancellationToken.None);
 
-        Assert.That(result, Is.TypeOf<OkObjectResult>());
-        Assert.That(limiter.IssuedDeviceIds, Has.Count.EqualTo(1));
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status428PreconditionRequired));
+        Assert.That(limiter.IssuedDeviceIds, Is.Empty);
         Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
     }
 
@@ -248,13 +250,15 @@ public sealed class ChatbotControllerTests
         FakeSiteChatbotService chatbotService,
         IChatbotRequestRateLimiter? requestRateLimiter = null)
     {
-        return new ChatbotController(chatbotService, requestRateLimiter ?? new FakeChatbotRequestRateLimiter())
+        var controller = new ChatbotController(chatbotService, requestRateLimiter ?? new FakeChatbotRequestRateLimiter())
         {
             ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext()
             }
         };
+        controller.Request.Headers.Cookie = "axl_visitor_id=test-device";
+        return controller;
     }
 
     private sealed class FakeChatbotRequestRateLimiter : IChatbotRequestRateLimiter
