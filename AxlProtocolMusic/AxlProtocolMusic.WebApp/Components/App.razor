@@ -110,7 +110,7 @@
                     });
 
                     if (!response.ok) {
-                        return null;
+                        return response.status === 403 ? "device-id-disabled" : null;
                     }
 
                     var payload = await response.json();

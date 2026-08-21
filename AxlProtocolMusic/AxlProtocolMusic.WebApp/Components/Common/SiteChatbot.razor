@@ -255,7 +255,14 @@
             return;
         }
 
-        if (permitToken is null || !ChatbotRequestRateLimiter.TryConsumePermit(permitToken))
+        if (permitToken == "device-id-disabled")
+        {
+            messages.Add(new ChatMessage("assistant", "AI chat requires device-ID tracking. Enable Device ID And Essential Site Analytics in Privacy Settings to continue."));
+            await PersistStateAsync();
+            return;
+        }
+
+        if (permitToken is null || !await ChatbotRequestRateLimiter.TryConsumePermitAsync(permitToken))
         {
             messages.Add(new ChatMessage("assistant", "Too many requests. Please wait before trying again."));
             await PersistStateAsync();

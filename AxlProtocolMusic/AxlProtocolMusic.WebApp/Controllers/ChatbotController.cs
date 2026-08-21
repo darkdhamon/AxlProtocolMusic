@@ -9,6 +9,8 @@ namespace AxlProtocolMusic.WebApp.Controllers;
 [Route("api/chatbot")]
 public sealed class ChatbotController : ControllerBase
 {
+    private const string VisitorCookieName = "axl_visitor_id";
+    private const string MetricsPreferenceCookieName = "axl_site_metrics";
     private const int MaxMessageLength = 1000;
     private const int MaxHistoryLength = 40;
     private const int MaxHistoryMessageLength = 800;
@@ -31,8 +33,14 @@ public sealed class ChatbotController : ControllerBase
         [FromBody] ChatbotMessageRequest request,
         CancellationToken cancellationToken)
     {
-        var partitionKey = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
-        if (!_requestRateLimiter.TryAcquire(partitionKey))
+        var deviceId = GetOrCreateDeviceId();
+        if (deviceId is null)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Device-ID tracking is required to use AI chat." });
+        }
+
+        var permitToken = await _requestRateLimiter.TryIssuePermitAsync(deviceId, cancellationToken);
+        if (permitToken is null || !await _requestRateLimiter.TryConsumePermitAsync(permitToken, cancellationToken))
         {
             Response.Headers.RetryAfter = "60";
             return StatusCode(
@@ -76,15 +84,20 @@ public sealed class ChatbotController : ControllerBase
 
     [HttpPost("permit")]
     [IgnoreAntiforgeryToken]
-    public IActionResult AcquirePermit()
+    public async Task<IActionResult> AcquirePermit(CancellationToken cancellationToken)
     {
         if (!string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.Ordinal))
         {
             return BadRequest(new { error = "Same-origin request required." });
         }
 
-        var partitionKey = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
-        var permitToken = _requestRateLimiter.TryIssuePermit(partitionKey);
+        var deviceId = GetOrCreateDeviceId();
+        if (deviceId is null)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Device-ID tracking is required to use AI chat." });
+        }
+
+        var permitToken = await _requestRateLimiter.TryIssuePermitAsync(deviceId, cancellationToken);
         if (permitToken is not null)
         {
             return Ok(new { permitToken });
@@ -92,5 +105,30 @@ public sealed class ChatbotController : ControllerBase
 
         Response.Headers.RetryAfter = "60";
         return StatusCode(StatusCodes.Status429TooManyRequests);
+    }
+
+    private string? GetOrCreateDeviceId()
+    {
+        if (Request.Cookies.TryGetValue(MetricsPreferenceCookieName, out var preference)
+            && string.Equals(preference, "disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (Request.Cookies.TryGetValue(VisitorCookieName, out var existing) && !string.IsNullOrWhiteSpace(existing))
+        {
+            return existing;
+        }
+
+        var deviceId = Guid.NewGuid().ToString("N");
+        Response.Cookies.Append(VisitorCookieName, deviceId, new CookieOptions
+        {
+            HttpOnly = true,
+            IsEssential = true,
+            SameSite = SameSiteMode.Lax,
+            Secure = Request.IsHttps,
+            Expires = DateTimeOffset.UtcNow.AddYears(1)
+        });
+        return deviceId;
     }
 }

@@ -1,78 +1,131 @@
-using System.Collections.Concurrent;
-using System.Threading.RateLimiting;
+using System.Security.Cryptography;
+using System.Text;
+using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using Microsoft.Extensions.Options;
+using MongoDB.Bson;
+using MongoDB.Driver;
 
 namespace AxlProtocolMusic.WebApp.Services;
 
-public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter, IDisposable
+public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter
 {
-    private static readonly TimeSpan PermitLifetime = TimeSpan.FromMinutes(1);
-    private readonly ConcurrentDictionary<string, DateTimeOffset> _pendingPermits = new();
-    private readonly Timer _permitCleanupTimer;
-    private readonly PartitionedRateLimiter<string> _limiter =
-        PartitionedRateLimiter.Create<string, string>(partitionKey =>
-            RateLimitPartition.GetSlidingWindowLimiter(
-                partitionKey,
-                _ => new SlidingWindowRateLimiterOptions
-                {
-                    PermitLimit = 5,
-                    Window = TimeSpan.FromMinutes(1),
-                    SegmentsPerWindow = 6,
-                    AutoReplenishment = true,
-                    QueueLimit = 0,
-                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst
-                }));
+    private const int PermitLimit = 5;
+    private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
+    private readonly IMongoCollection<BsonDocument> rateLimits;
+    private readonly IMongoCollection<BsonDocument> permits;
+    private readonly Task indexInitialization;
 
-    public ChatbotRequestRateLimiter()
+    public ChatbotRequestRateLimiter(IOptions<MongoDbSettings> settings)
     {
-        _permitCleanupTimer = new Timer(
-            _ => RemoveExpiredPermits(),
-            null,
-            PermitLifetime,
-            PermitLifetime);
+        var value = settings.Value;
+        if (string.IsNullOrWhiteSpace(value.ConnectionString) || string.IsNullOrWhiteSpace(value.DatabaseName))
+        {
+            throw new InvalidOperationException("MongoDb settings must be configured for chatbot rate limiting.");
+        }
+
+        var database = new MongoClient(value.ConnectionString).GetDatabase(value.DatabaseName);
+        rateLimits = database.GetCollection<BsonDocument>("ChatbotRateLimitState");
+        permits = database.GetCollection<BsonDocument>("ChatbotPermit");
+        indexInitialization = EnsureIndexesAsync();
     }
 
-    public bool TryAcquire(string partitionKey)
+    public async Task<string?> TryIssuePermitAsync(string deviceId, CancellationToken cancellationToken = default)
     {
-        using var lease = _limiter.AttemptAcquire(partitionKey);
-        return lease.IsAcquired;
-    }
-
-    public string? TryIssuePermit(string partitionKey)
-    {
-        if (!TryAcquire(partitionKey))
+        if (string.IsNullOrWhiteSpace(deviceId))
         {
             return null;
         }
 
-        var now = DateTimeOffset.UtcNow;
+        await indexInitialization.WaitAsync(cancellationToken);
+        var now = DateTime.UtcNow;
+        var cutoff = now.Subtract(Window);
+        var partitionId = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(deviceId)));
+        var (filter, updateStage) = BuildAtomicRateLimitOperation(partitionId, cutoff, now);
+        var update = new PipelineUpdateDefinition<BsonDocument>(new[] { updateStage });
+
+        var admitted = await rateLimits.FindOneAndUpdateAsync(
+            filter,
+            update,
+            new FindOneAndUpdateOptions<BsonDocument> { ReturnDocument = ReturnDocument.After },
+            cancellationToken);
+        if (admitted is null)
+        {
+            try
+            {
+                await rateLimits.InsertOneAsync(new BsonDocument
+                {
+                    { "_id", partitionId },
+                    { "requests", new BsonArray { now } },
+                    { "expiresAt", now.Add(Window).Add(Window) }
+                }, cancellationToken: cancellationToken);
+            }
+            catch (MongoWriteException exception) when (exception.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+            {
+                admitted = await rateLimits.FindOneAndUpdateAsync(
+                    filter,
+                    update,
+                    new FindOneAndUpdateOptions<BsonDocument> { ReturnDocument = ReturnDocument.After },
+                    cancellationToken);
+                if (admitted is null)
+                {
+                    return null;
+                }
+            }
+        }
+
         var permitToken = Guid.NewGuid().ToString("N");
-        _pendingPermits[permitToken] = now.Add(PermitLifetime);
+        await permits.InsertOneAsync(new BsonDocument
+        {
+            { "_id", permitToken },
+            { "expiresAt", now.Add(Window) }
+        }, cancellationToken: cancellationToken);
         return permitToken;
     }
 
-    public bool TryConsumePermit(string permitToken)
+    internal static (BsonDocument Filter, BsonDocument UpdateStage) BuildAtomicRateLimitOperation(
+        string partitionId,
+        DateTime cutoff,
+        DateTime now)
     {
-        return !string.IsNullOrWhiteSpace(permitToken)
-            && _pendingPermits.TryRemove(permitToken, out var expiresAt)
-            && expiresAt >= DateTimeOffset.UtcNow;
-    }
-
-    public void Dispose()
-    {
-        _permitCleanupTimer.Dispose();
-        _limiter.Dispose();
-    }
-
-    private void RemoveExpiredPermits()
-    {
-        var now = DateTimeOffset.UtcNow;
-        foreach (var pendingPermit in _pendingPermits)
+        var activeRequests = new BsonDocument("$filter", new BsonDocument
         {
-            if (pendingPermit.Value < now)
+            { "input", new BsonDocument("$ifNull", new BsonArray { "$requests", new BsonArray() }) },
+            { "as", "request" },
+            { "cond", new BsonDocument("$gte", new BsonArray { "$$request", cutoff }) }
+        });
+        var filter = new BsonDocument
+        {
+            { "_id", partitionId },
+            { "$expr", new BsonDocument("$lt", new BsonArray { new BsonDocument("$size", activeRequests), PermitLimit }) }
+        };
+        var updateStage = new BsonDocument("$set", new BsonDocument
             {
-                _pendingPermits.TryRemove(pendingPermit.Key, out _);
-            }
+                { "requests", new BsonDocument("$concatArrays", new BsonArray { activeRequests, new BsonArray { now } }) },
+                { "expiresAt", now.Add(Window).Add(Window) }
+            });
+        return (filter, updateStage);
+    }
+
+    public async Task<bool> TryConsumePermitAsync(string permitToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(permitToken))
+        {
+            return false;
         }
+
+        await indexInitialization.WaitAsync(cancellationToken);
+        var filter = Builders<BsonDocument>.Filter.And(
+            Builders<BsonDocument>.Filter.Eq("_id", permitToken),
+            Builders<BsonDocument>.Filter.Gte("expiresAt", DateTime.UtcNow));
+        return await permits.FindOneAndDeleteAsync(filter, cancellationToken: cancellationToken) is not null;
+    }
+
+    private async Task EnsureIndexesAsync()
+    {
+        var ttl = new CreateIndexModel<BsonDocument>(
+            Builders<BsonDocument>.IndexKeys.Ascending("expiresAt"),
+            new CreateIndexOptions { ExpireAfter = TimeSpan.Zero });
+        await Task.WhenAll(rateLimits.Indexes.CreateOneAsync(ttl), permits.Indexes.CreateOneAsync(ttl));
     }
 }

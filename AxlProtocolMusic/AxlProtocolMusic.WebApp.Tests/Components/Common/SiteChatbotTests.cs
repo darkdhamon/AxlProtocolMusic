@@ -301,11 +301,11 @@ public sealed class SiteChatbotTests
 
     private sealed class FakeChatbotRequestRateLimiter : IChatbotRequestRateLimiter
     {
-        public bool TryAcquire(string partitionKey) => true;
+        public Task<string?> TryIssuePermitAsync(string deviceId, CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>("test-permit");
 
-        public string? TryIssuePermit(string partitionKey) => "test-permit";
-
-        public bool TryConsumePermit(string permitToken) => permitToken == "test-permit";
+        public Task<bool> TryConsumePermitAsync(string permitToken, CancellationToken cancellationToken = default)
+            => Task.FromResult(permitToken == "test-permit");
     }
 
     private sealed class FakeChatbotConversationLogService : IChatbotConversationLogService

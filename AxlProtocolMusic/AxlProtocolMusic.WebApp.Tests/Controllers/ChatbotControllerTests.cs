@@ -189,61 +189,86 @@ public sealed class ChatbotControllerTests
     }
 
     [Test]
-    public async Task AcquirePermit_WhenPoolIsExhausted_BlocksPostMessageForSameAddress()
+    public async Task AcquirePermit_WhenDeviceIdTrackingIsDefaultEnabled_CreatesDeviceIdAndReturnsPermit()
     {
         var chatbotService = new FakeSiteChatbotService();
-        var limiter = new ChatbotRequestRateLimiter();
+        var limiter = new FakeChatbotRequestRateLimiter();
         var controller = CreateController(chatbotService, limiter);
         controller.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
 
-        for (var requestNumber = 1; requestNumber <= 5; requestNumber++)
-        {
-            Assert.That(controller.AcquirePermit(), Is.TypeOf<OkObjectResult>());
-        }
+        var result = await controller.AcquirePermit(CancellationToken.None);
 
-        var result = await controller.PostMessage(
-            new ChatbotMessageRequest { Message = "One more", History = [] },
-            CancellationToken.None);
-
-        var statusResult = result.Result as ObjectResult;
-        Assert.That(statusResult?.StatusCode, Is.EqualTo(StatusCodes.Status429TooManyRequests));
-        Assert.That(chatbotService.CallCount, Is.Zero);
+        Assert.That(result, Is.TypeOf<OkObjectResult>());
+        Assert.That(limiter.IssuedDeviceIds, Has.Count.EqualTo(1));
+        Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
     }
 
     [Test]
-    public void AcquirePermit_WhenSameOriginHeaderIsMissing_ReturnsBadRequestWithoutSpendingPermit()
+    public async Task AcquirePermit_WhenSameOriginHeaderIsMissing_ReturnsBadRequestWithoutSpendingPermit()
     {
         var chatbotService = new FakeSiteChatbotService();
-        var limiter = new ChatbotRequestRateLimiter();
+        var limiter = new FakeChatbotRequestRateLimiter();
         var controller = CreateController(chatbotService, limiter);
 
-        Assert.That(controller.AcquirePermit(), Is.TypeOf<BadRequestObjectResult>());
-        Assert.That(limiter.TryAcquire("anonymous"), Is.True);
+        Assert.That(await controller.AcquirePermit(CancellationToken.None), Is.TypeOf<BadRequestObjectResult>());
+        Assert.That(limiter.IssuedDeviceIds, Is.Empty);
     }
 
     [Test]
-    public void ChatbotRequestRateLimiter_IssuedPermitCanOnlyBeConsumedOnce()
+    public async Task AcquirePermit_WhenDeviceIdTrackingIsDisabled_ReturnsForbidden()
     {
-        using var limiter = new ChatbotRequestRateLimiter();
+        var limiter = new FakeChatbotRequestRateLimiter();
+        var controller = CreateController(new FakeSiteChatbotService(), limiter);
+        controller.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
+        controller.Request.Headers.Cookie = "axl_site_metrics=disabled";
 
-        var permitToken = limiter.TryIssuePermit("192.0.2.10");
+        var result = await controller.AcquirePermit(CancellationToken.None);
 
-        Assert.That(permitToken, Is.Not.Null.And.Not.Empty);
-        Assert.That(limiter.TryConsumePermit(permitToken!), Is.True);
-        Assert.That(limiter.TryConsumePermit(permitToken!), Is.False);
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status403Forbidden));
+        Assert.That(limiter.IssuedDeviceIds, Is.Empty);
+    }
+
+    [Test]
+    public async Task AcquirePermit_WhenDeviceIdCookieExists_PartitionsByThatDeviceId()
+    {
+        var limiter = new FakeChatbotRequestRateLimiter();
+        var controller = CreateController(new FakeSiteChatbotService(), limiter);
+        controller.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
+        controller.Request.Headers.Cookie = "axl_visitor_id=device-123";
+
+        var result = await controller.AcquirePermit(CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<OkObjectResult>());
+        Assert.That(limiter.IssuedDeviceIds, Is.EqualTo(new[] { "device-123" }));
+        Assert.That(controller.Response.Headers.SetCookie.ToString(), Is.Empty);
     }
 
     private static ChatbotController CreateController(
         FakeSiteChatbotService chatbotService,
         IChatbotRequestRateLimiter? requestRateLimiter = null)
     {
-        return new ChatbotController(chatbotService, requestRateLimiter ?? new ChatbotRequestRateLimiter())
+        return new ChatbotController(chatbotService, requestRateLimiter ?? new FakeChatbotRequestRateLimiter())
         {
             ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext()
             }
         };
+    }
+
+    private sealed class FakeChatbotRequestRateLimiter : IChatbotRequestRateLimiter
+    {
+        public List<string> IssuedDeviceIds { get; } = [];
+
+        public Task<string?> TryIssuePermitAsync(string deviceId, CancellationToken cancellationToken = default)
+        {
+            IssuedDeviceIds.Add(deviceId);
+            return Task.FromResult<string?>("permit");
+        }
+
+        public Task<bool> TryConsumePermitAsync(string permitToken, CancellationToken cancellationToken = default)
+            => Task.FromResult(permitToken == "permit");
     }
 
     private sealed class FakeSiteChatbotService : ISiteChatbotService

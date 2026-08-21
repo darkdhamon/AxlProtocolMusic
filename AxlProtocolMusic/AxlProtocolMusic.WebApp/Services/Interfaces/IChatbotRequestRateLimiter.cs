@@ -2,9 +2,7 @@ namespace AxlProtocolMusic.WebApp.Services.Interfaces;
 
 public interface IChatbotRequestRateLimiter
 {
-    bool TryAcquire(string partitionKey);
+    Task<string?> TryIssuePermitAsync(string deviceId, CancellationToken cancellationToken = default);
 
-    string? TryIssuePermit(string partitionKey);
-
-    bool TryConsumePermit(string permitToken);
+    Task<bool> TryConsumePermitAsync(string permitToken, CancellationToken cancellationToken = default);
 }

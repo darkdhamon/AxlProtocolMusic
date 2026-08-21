@@ -40,7 +40,10 @@ public sealed class PrivacyPageTests
         cut.WaitForAssertion(() =>
         {
             Assert.That(cut.Markup, Does.Contain("Your Data And This Site"));
-            Assert.That(cut.Markup, Does.Contain("Turning this off will stop future essential analytics for this browser"));
+            Assert.That(cut.Markup, Does.Contain("Device ID And Essential Site Analytics"));
+            Assert.That(cut.Markup, Does.Contain("AI chat will be unavailable until you enable it again"));
+            Assert.That(cut.Markup, Does.Contain("enabled by default"));
+            Assert.That(cut.Markup, Does.Contain("does not use browser fingerprinting"));
             Assert.That(cut.Markup, Does.Contain("local storage"));
             Assert.That(cut.Markup, Does.Contain("current page path, page title, and a bounded excerpt of visible page content"));
             Assert.That(cut.Markup, Does.Contain("even after logout"));
@@ -58,7 +61,7 @@ public sealed class PrivacyPageTests
     }
 
     [Test]
-    public void Privacy_WhenVisitorThresholdIsLow_DisablesEssentialMetricsToggle()
+    public void Privacy_WhenVisitorCountIsLow_KeepsDeviceIdSettingUserControllable()
     {
         using var context = new BunitContext();
         context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService
@@ -73,13 +76,8 @@ public sealed class PrivacyPageTests
 
         var cut = context.Render<Privacy>();
 
-        cut.WaitForAssertion(() =>
-        {
-            Assert.That(cut.Markup, Does.Contain("Current unique visitors: 42."));
-        });
-
         var essentialToggle = cut.FindAll("input[type='checkbox']").First();
-        Assert.That(essentialToggle.HasAttribute("disabled"), Is.True);
+        Assert.That(essentialToggle.HasAttribute("disabled"), Is.False);
     }
 
     [Test]
