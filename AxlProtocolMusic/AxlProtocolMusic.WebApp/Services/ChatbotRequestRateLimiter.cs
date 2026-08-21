@@ -8,6 +8,7 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter, IDis
 {
     private static readonly TimeSpan PermitLifetime = TimeSpan.FromMinutes(1);
     private readonly ConcurrentDictionary<string, DateTimeOffset> _pendingPermits = new();
+    private readonly Timer _permitCleanupTimer;
     private readonly PartitionedRateLimiter<string> _limiter =
         PartitionedRateLimiter.Create<string, string>(partitionKey =>
             RateLimitPartition.GetSlidingWindowLimiter(
@@ -21,6 +22,15 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter, IDis
                     QueueLimit = 0,
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst
                 }));
+
+    public ChatbotRequestRateLimiter()
+    {
+        _permitCleanupTimer = new Timer(
+            _ => RemoveExpiredPermits(),
+            null,
+            PermitLifetime,
+            PermitLifetime);
+    }
 
     public bool TryAcquire(string partitionKey)
     {
@@ -36,14 +46,6 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter, IDis
         }
 
         var now = DateTimeOffset.UtcNow;
-        foreach (var pendingPermit in _pendingPermits)
-        {
-            if (pendingPermit.Value < now)
-            {
-                _pendingPermits.TryRemove(pendingPermit.Key, out _);
-            }
-        }
-
         var permitToken = Guid.NewGuid().ToString("N");
         _pendingPermits[permitToken] = now.Add(PermitLifetime);
         return permitToken;
@@ -58,6 +60,19 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter, IDis
 
     public void Dispose()
     {
+        _permitCleanupTimer.Dispose();
         _limiter.Dispose();
+    }
+
+    private void RemoveExpiredPermits()
+    {
+        var now = DateTimeOffset.UtcNow;
+        foreach (var pendingPermit in _pendingPermits)
+        {
+            if (pendingPermit.Value < now)
+            {
+                _pendingPermits.TryRemove(pendingPermit.Key, out _);
+            }
+        }
     }
 }

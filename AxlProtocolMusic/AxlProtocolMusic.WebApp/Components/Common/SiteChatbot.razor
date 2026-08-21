@@ -243,7 +243,18 @@
 
         var currentPage = await GetCurrentPageContextAsync();
 
-        var permitToken = await JSRuntime.InvokeAsync<string?>("axlChatbotUi.acquirePermit");
+        string? permitToken;
+        try
+        {
+            permitToken = await JSRuntime.InvokeAsync<string?>("axlChatbotUi.acquirePermit");
+        }
+        catch (Exception)
+        {
+            messages.Add(new ChatMessage("assistant", "The request limit check is temporarily unavailable. Please try again."));
+            await PersistStateAsync();
+            return;
+        }
+
         if (permitToken is null || !ChatbotRequestRateLimiter.TryConsumePermit(permitToken))
         {
             messages.Add(new ChatMessage("assistant", "Too many requests. Please wait before trying again."));
