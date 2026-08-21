@@ -101,7 +101,27 @@ public sealed class ChatbotControllerTests
 
         var badRequestResult = result.Result as BadRequestObjectResult;
         Assert.That(badRequestResult, Is.Not.Null);
-        Assert.That(badRequestResult!.Value?.ToString(), Does.Contain("History entry too long"));
+        Assert.That(badRequestResult!.Value?.ToString(), Does.Contain("History entry invalid or too long"));
+        Assert.That(chatbotService.CallCount, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task PostMessage_WhenHistoryContainsNullEntry_ReturnsBadRequestAndDoesNotCallService()
+    {
+        var chatbotService = new FakeSiteChatbotService();
+        var controller = CreateController(chatbotService);
+
+        var result = await controller.PostMessage(
+            new ChatbotMessageRequest
+            {
+                Message = "Hello",
+                History = [null!]
+            },
+            CancellationToken.None);
+
+        var badRequestResult = result.Result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult!.Value?.ToString(), Does.Contain("History entry invalid or too long"));
         Assert.That(chatbotService.CallCount, Is.EqualTo(0));
     }
 
@@ -153,9 +173,32 @@ public sealed class ChatbotControllerTests
         Assert.That(result.Value, Is.Null);
     }
 
-    private static ChatbotController CreateController(FakeSiteChatbotService chatbotService)
+    [Test]
+    public async Task AcquirePermit_WhenPoolIsExhausted_BlocksPostMessageForSameAddress()
     {
-        return new ChatbotController(chatbotService, new ChatbotRequestRateLimiter())
+        var chatbotService = new FakeSiteChatbotService();
+        var limiter = new ChatbotRequestRateLimiter();
+        var controller = CreateController(chatbotService, limiter);
+
+        for (var requestNumber = 1; requestNumber <= 5; requestNumber++)
+        {
+            Assert.That(controller.AcquirePermit(), Is.TypeOf<NoContentResult>());
+        }
+
+        var result = await controller.PostMessage(
+            new ChatbotMessageRequest { Message = "One more", History = [] },
+            CancellationToken.None);
+
+        var statusResult = result.Result as ObjectResult;
+        Assert.That(statusResult?.StatusCode, Is.EqualTo(StatusCodes.Status429TooManyRequests));
+        Assert.That(chatbotService.CallCount, Is.Zero);
+    }
+
+    private static ChatbotController CreateController(
+        FakeSiteChatbotService chatbotService,
+        IChatbotRequestRateLimiter? requestRateLimiter = null)
+    {
+        return new ChatbotController(chatbotService, requestRateLimiter ?? new ChatbotRequestRateLimiter())
         {
             ControllerContext = new ControllerContext
             {

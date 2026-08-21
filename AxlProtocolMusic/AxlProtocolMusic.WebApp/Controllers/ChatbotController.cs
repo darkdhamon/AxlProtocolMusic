@@ -55,9 +55,9 @@ public sealed class ChatbotController : ControllerBase
             return BadRequest(new { error = $"History too long. Maximum {MaxHistoryLength} entries." });
         }
 
-        if (request.History.Any(item => item.Content?.Length > MaxHistoryMessageLength))
+        if (request.History.Any(item => item is null || item.Content?.Length > MaxHistoryMessageLength))
         {
-            return BadRequest(new { error = $"History entry too long. Maximum {MaxHistoryMessageLength} characters." });
+            return BadRequest(new { error = $"History entry invalid or too long. Maximum {MaxHistoryMessageLength} characters." });
         }
 
         var response = await _siteChatbotService.GenerateReplyAsync(
@@ -67,5 +67,19 @@ public sealed class ChatbotController : ControllerBase
             cancellationToken);
 
         return Ok(response);
+    }
+
+    [HttpPost("permit")]
+    [IgnoreAntiforgeryToken]
+    public IActionResult AcquirePermit()
+    {
+        var partitionKey = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+        if (_requestRateLimiter.TryAcquire(partitionKey))
+        {
+            return NoContent();
+        }
+
+        Response.Headers.RetryAfter = "60";
+        return StatusCode(StatusCodes.Status429TooManyRequests);
     }
 }

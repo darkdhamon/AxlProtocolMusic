@@ -6,8 +6,6 @@
 @inject IChatbotActivationMonitor ChatbotActivationMonitor
 @inject IChatbotBudgetService ChatbotBudgetService
 @inject IChatbotConversationLogService ChatbotConversationLogService
-@inject IChatbotRequestRateLimiter ChatbotRequestRateLimiter
-@inject IHttpContextAccessor HttpContextAccessor
 @inject IJSRuntime JSRuntime
 @inject ISiteChatbotService SiteChatbotService
 
@@ -139,7 +137,6 @@
     private int? panelWidth;
     private int? panelHeight;
     private DotNetObjectReference<SiteChatbot>? dotNetReference;
-    private string requestPartitionKey = "anonymous";
     private IDisposable? chatbotActivationSubscription;
     private bool hasInitializedPanelUi;
     private int lastRenderedMessageCount = -1;
@@ -147,8 +144,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        requestPartitionKey = HttpContextAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString()
-            ?? "anonymous";
         chatbotActivationSubscription = ChatbotActivationMonitor.Subscribe(HandleActivationChangedAsync);
         await RefreshBudgetVisualsAsync();
     }
@@ -247,7 +242,7 @@
 
         var currentPage = await GetCurrentPageContextAsync();
 
-        if (!ChatbotRequestRateLimiter.TryAcquire(requestPartitionKey))
+        if (!await JSRuntime.InvokeAsync<bool>("axlChatbotUi.acquirePermit"))
         {
             messages.Add(new ChatMessage("assistant", "Too many requests. Please wait before trying again."));
             await PersistStateAsync();

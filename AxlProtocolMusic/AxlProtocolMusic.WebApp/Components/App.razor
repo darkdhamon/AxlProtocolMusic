@@ -102,6 +102,14 @@
             };
 
             window.axlChatbotUi = {
+                acquirePermit: async function () {
+                    var response = await fetch("/api/chatbot/permit", {
+                        method: "POST",
+                        credentials: "same-origin"
+                    });
+
+                    return response.ok;
+                },
                 initializePanel: function (rootSelector, panelSelector, handleSelector, dotNetRef) {
                     var root = document.querySelector(rootSelector);
                     var panel = document.querySelector(panelSelector);

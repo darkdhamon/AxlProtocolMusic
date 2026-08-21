@@ -6,8 +6,6 @@ using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Bunit;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.AspNetCore.Http;
-using System.Net;
 
 namespace AxlProtocolMusic.WebApp.Tests.Components.Common;
 
@@ -153,47 +151,19 @@ public sealed class SiteChatbotTests
     }
 
     [Test]
-    public void SiteChatbot_WhenSixMessagesAreSentRapidly_BlocksSixthBeforeCallingService()
+    public void SiteChatbot_WhenPermitEndpointRejects_BlocksBeforeCallingService()
     {
         using var context = CreateContext(out _, out _, out var chatbotService, out _);
+        context.JSInterop.Setup<bool>("axlChatbotUi.acquirePermit").SetResult(false);
         var cut = context.Render<SiteChatbot>();
         cut.Find(".chatbot-launcher").Click();
 
-        for (var requestNumber = 1; requestNumber <= 6; requestNumber++)
-        {
-            cut.Find("#chatbot-input").Input($"Question {requestNumber}");
-            cut.Find("button.btn.btn-primary").Click();
-            var expectedCalls = Math.Min(requestNumber, 5);
-            cut.WaitForAssertion(() => Assert.That(chatbotService.Calls, Has.Count.EqualTo(expectedCalls)));
-        }
+        cut.Find("#chatbot-input").Input("Question");
+        cut.Find("button.btn.btn-primary").Click();
 
         cut.WaitForAssertion(() =>
             Assert.That(cut.Markup, Does.Contain("Too many requests. Please wait before trying again.")));
-        Assert.That(chatbotService.Calls, Has.Count.EqualTo(5));
-    }
-
-    [Test]
-    public void SiteChatbot_WhenNewCircuitUsesSameAddress_SharesRequestLimit()
-    {
-        using var context = CreateContext(out _, out _, out var chatbotService, out _);
-        var firstCircuit = context.Render<SiteChatbot>();
-        firstCircuit.Find(".chatbot-launcher").Click();
-
-        for (var requestNumber = 1; requestNumber <= 5; requestNumber++)
-        {
-            firstCircuit.Find("#chatbot-input").Input($"Question {requestNumber}");
-            firstCircuit.Find("button.btn.btn-primary").Click();
-        }
-
-        firstCircuit.Dispose();
-        var secondCircuit = context.Render<SiteChatbot>();
-        secondCircuit.Find(".chatbot-launcher").Click();
-        secondCircuit.Find("#chatbot-input").Input("Question after refresh");
-        secondCircuit.Find("button.btn.btn-primary").Click();
-
-        secondCircuit.WaitForAssertion(() =>
-            Assert.That(secondCircuit.Markup, Does.Contain("Too many requests. Please wait before trying again.")));
-        Assert.That(chatbotService.Calls, Has.Count.EqualTo(5));
+        Assert.That(chatbotService.Calls, Is.Empty);
     }
 
     [Test]
@@ -305,6 +275,7 @@ public sealed class SiteChatbotTests
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.JSInterop.Setup<string>("axlChatbotStorage.getState").SetResult(string.Empty);
         context.JSInterop.Setup<string>("axlChatbotStorage.getTranscript").SetResult(string.Empty);
+        context.JSInterop.Setup<bool>("axlChatbotUi.acquirePermit").SetResult(true);
 
         chatbotBudgetService = new FakeChatbotBudgetService
         {
@@ -322,14 +293,6 @@ public sealed class SiteChatbotTests
         context.Services.AddSingleton<IChatbotActivationMonitor>(activationMonitor);
         context.Services.AddSingleton<IChatbotConversationLogService>(chatbotConversationLogService);
         context.Services.AddSingleton<ISiteChatbotService>(chatbotService);
-        context.Services.AddSingleton<IChatbotRequestRateLimiter, ChatbotRequestRateLimiter>();
-        context.Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                Connection = { RemoteIpAddress = IPAddress.Parse("192.0.2.10") }
-            }
-        });
         context.Services.AddSingleton<MarkdownService>();
 
         return context;
