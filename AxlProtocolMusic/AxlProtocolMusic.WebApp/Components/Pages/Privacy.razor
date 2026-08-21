@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject IAnalyticsService AnalyticsService
 @inject IPrivacyPreferencesService PrivacyPreferencesService
+@inject IDeviceIdService DeviceIdService
 @inject IHttpContextAccessor HttpContextAccessor
 @* Reminder: whenever this privacy page content changes, update the LastUpdated date below. *@
 
@@ -347,8 +348,8 @@ else
         }
         else if (previousValue && !preferences.ShareApproximateLocation)
         {
-            var visitorId = HttpContextAccessor.HttpContext?.Request.Cookies[VisitorCookieName];
-            if (!string.IsNullOrWhiteSpace(visitorId))
+            var visitorCookie = HttpContextAccessor.HttpContext?.Request.Cookies[VisitorCookieName];
+            if (TryResolveVisitorId(visitorCookie, out var visitorId))
             {
                 await AnalyticsService.DeleteVisitorLocationDataAsync(visitorId);
             }
@@ -440,8 +441,8 @@ else
                 var result = await PrivacyPreferencesService.SyncApproximateLocationPreferenceAsync(preferences);
                 preferences = result.Preferences;
 
-                var visitorId = HttpContextAccessor.HttpContext?.Request.Cookies[VisitorCookieName];
-                if (!string.IsNullOrWhiteSpace(visitorId))
+                var visitorCookie = HttpContextAccessor.HttpContext?.Request.Cookies[VisitorCookieName];
+                if (TryResolveVisitorId(visitorCookie, out var visitorId))
                 {
                     await AnalyticsService.DeleteVisitorLocationDataAsync(visitorId);
                 }
@@ -459,6 +460,17 @@ else
         }
 
         HidePreferenceConfirmModal();
+    }
+
+    private bool TryResolveVisitorId(string? cookieValue, out string visitorId)
+    {
+        if (DeviceIdService.TryResolve(cookieValue, out visitorId))
+        {
+            return true;
+        }
+
+        visitorId = Guid.TryParseExact(cookieValue, "N", out _) ? cookieValue! : string.Empty;
+        return visitorId.Length > 0;
     }
 
     private static bool GetCheckboxValue(ChangeEventArgs args)

@@ -1,4 +1,5 @@
 using AxlProtocolMusic.WebApp.Controllers;
+using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.AspNetCore.Http;
@@ -35,7 +36,7 @@ public sealed class PrivacyControllerTests
     {
         var analyticsService = new FakeAnalyticsService();
         var controller = CreateController(analyticsService, isHttps: true);
-        controller.HttpContext.Request.Headers.Cookie = "axl_visitor_id=visitor-123";
+        controller.HttpContext.Request.Headers.Cookie = "axl_visitor_id=0123456789abcdef0123456789abcdef";
 
         var result = await controller.SetEssentialMetricsPreference(
             new PrivacyController.EssentialMetricsPreferenceRequest
@@ -45,7 +46,7 @@ public sealed class PrivacyControllerTests
             CancellationToken.None);
 
         Assert.That(result, Is.InstanceOf<OkResult>());
-        Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(new[] { "visitor-123" }));
+        Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(new[] { "0123456789abcdef0123456789abcdef" }));
 
         var setCookieHeader = controller.HttpContext.Response.Headers.SetCookie.ToString();
         Assert.That(setCookieHeader, Does.Contain("axl_site_metrics=disabled"));
@@ -59,11 +60,11 @@ public sealed class PrivacyControllerTests
     {
         var analyticsService = new FakeAnalyticsService();
         var controller = CreateController(analyticsService);
-        controller.HttpContext.Request.Headers.Cookie = "axl_visitor_id=visitor-456";
+        controller.HttpContext.Request.Headers.Cookie = "axl_visitor_id=fedcba9876543210fedcba9876543210";
 
         var result = await controller.DeleteMyData(CancellationToken.None);
 
-        Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(new[] { "visitor-456" }));
+        Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(new[] { "fedcba9876543210fedcba9876543210" }));
 
         var redirectResult = result as RedirectResult;
         Assert.That(redirectResult, Is.Not.Null);
@@ -75,7 +76,9 @@ public sealed class PrivacyControllerTests
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Scheme = isHttps ? "https" : "http";
 
-        return new PrivacyController(analyticsService)
+        return new PrivacyController(
+            analyticsService,
+            new DeviceIdService(new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider()))
         {
             ControllerContext = new ControllerContext
             {

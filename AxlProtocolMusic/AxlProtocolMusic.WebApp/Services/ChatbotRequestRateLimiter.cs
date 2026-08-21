@@ -58,20 +58,6 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter
                 .AnyAsync(cancellationToken);
             if (partitionExists)
             {
-                return null;
-            }
-
-            try
-            {
-                await rateLimits.InsertOneAsync(new BsonDocument
-                {
-                    { "_id", partitionId },
-                    { "requests", new BsonArray { now } },
-                    { "expiresAt", now.Add(Window).Add(Window) }
-                }, cancellationToken: cancellationToken);
-            }
-            catch (MongoWriteException exception) when (exception.WriteError?.Category == ServerErrorCategory.DuplicateKey)
-            {
                 admitted = await rateLimits.FindOneAndUpdateAsync(
                     filter,
                     update,
@@ -80,6 +66,30 @@ public sealed class ChatbotRequestRateLimiter : IChatbotRequestRateLimiter
                 if (admitted is null)
                 {
                     return null;
+                }
+            }
+            else
+            {
+                try
+                {
+                    await rateLimits.InsertOneAsync(new BsonDocument
+                    {
+                        { "_id", partitionId },
+                        { "requests", new BsonArray { now } },
+                        { "expiresAt", now.Add(Window).Add(Window) }
+                    }, cancellationToken: cancellationToken);
+                }
+                catch (MongoWriteException exception) when (exception.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+                {
+                    admitted = await rateLimits.FindOneAndUpdateAsync(
+                        filter,
+                        update,
+                        new FindOneAndUpdateOptions<BsonDocument> { ReturnDocument = ReturnDocument.After },
+                        cancellationToken);
+                    if (admitted is null)
+                    {
+                        return null;
+                    }
                 }
             }
         }

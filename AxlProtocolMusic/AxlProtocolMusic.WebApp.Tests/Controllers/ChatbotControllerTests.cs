@@ -255,7 +255,7 @@ public sealed class ChatbotControllerTests
     }
 
     [Test]
-    public async Task AcquirePermit_WhenLegacyDeviceIdExists_RemovesLegacyAnalyticsBeforeRotation()
+    public async Task AcquirePermit_WhenLegacyDeviceIdExists_ProtectsItWithoutScanningAnalytics()
     {
         var analyticsService = new FakeAnalyticsService();
         var controller = CreateController(new FakeSiteChatbotService(), analyticsService: analyticsService);
@@ -266,7 +266,7 @@ public sealed class ChatbotControllerTests
         var result = await controller.AcquirePermit(CancellationToken.None);
 
         Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status428PreconditionRequired));
-        Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(new[] { legacyDeviceId }));
+        Assert.That(analyticsService.DeletedVisitorIds, Is.Empty);
     }
 
     [Test]
@@ -281,7 +281,7 @@ public sealed class ChatbotControllerTests
         var result = await controller.AcquirePermit(CancellationToken.None);
 
         Assert.That(result, Is.TypeOf<OkObjectResult>());
-        Assert.That(limiter.IssuedDeviceIds, Is.EqualTo(new[] { protectedDeviceId }));
+        Assert.That(limiter.IssuedDeviceIds, Is.EqualTo(new[] { "0123456789abcdef0123456789abcdef" }));
         Assert.That(controller.Response.Headers.SetCookie.ToString(), Is.Empty);
     }
 
@@ -293,8 +293,7 @@ public sealed class ChatbotControllerTests
         var controller = new ChatbotController(
             chatbotService,
             requestRateLimiter ?? new FakeChatbotRequestRateLimiter(),
-            analyticsService ?? new FakeAnalyticsService(),
-            DataProtectionProvider)
+            new DeviceIdService(DataProtectionProvider))
         {
             ControllerContext = new ControllerContext
             {

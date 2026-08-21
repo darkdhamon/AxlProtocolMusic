@@ -1,7 +1,5 @@
-using System.Security.Cryptography;
 using AxlProtocolMusic.WebApp.Models.Analytics;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AxlProtocolMusic.WebApp.Controllers;
@@ -13,14 +11,13 @@ public sealed class AnalyticsController : Controller
     private const string VisitorCookieName = "axl_visitor_id";
     private const string MetricsPreferenceCookieName = "axl_site_metrics";
     private const string AdminVisitorCookieName = "axl_admin_visitor";
-    private const string DeviceIdProtectionPurpose = "AxlProtocolMusic.DeviceId.v1";
     private readonly IAnalyticsService _analyticsService;
-    private readonly IDataProtector _deviceIdProtector;
+    private readonly IDeviceIdService _deviceIdService;
 
-    public AnalyticsController(IAnalyticsService analyticsService, IDataProtectionProvider dataProtectionProvider)
+    public AnalyticsController(IAnalyticsService analyticsService, IDeviceIdService deviceIdService)
     {
         _analyticsService = analyticsService;
-        _deviceIdProtector = dataProtectionProvider.CreateProtector(DeviceIdProtectionPurpose);
+        _deviceIdService = deviceIdService;
     }
 
     [HttpPost("page-visit")]
@@ -42,11 +39,7 @@ public sealed class AnalyticsController : Controller
             return Ok();
         }
 
-        var clientId = await GetOrCreateVisitorIdAsync(HttpContext, cancellationToken);
-        if (clientId is null)
-        {
-            return StatusCode(StatusCodes.Status428PreconditionRequired);
-        }
+        var clientId = GetOrCreateVisitorId(HttpContext);
 
         var metric = new PageVisitMetric
         {
@@ -84,11 +77,7 @@ public sealed class AnalyticsController : Controller
             return Ok();
         }
 
-        var clientId = await GetOrCreateVisitorIdAsync(HttpContext, cancellationToken);
-        if (clientId is null)
-        {
-            return StatusCode(StatusCodes.Status428PreconditionRequired);
-        }
+        var clientId = GetOrCreateVisitorId(HttpContext);
         var metric = new ExternalLinkClickMetric
         {
             SourcePagePath = request.SourcePagePath.Trim(),
@@ -105,23 +94,21 @@ public sealed class AnalyticsController : Controller
         return Ok();
     }
 
-    private async Task<string?> GetOrCreateVisitorIdAsync(HttpContext httpContext, CancellationToken cancellationToken)
+    private string GetOrCreateVisitorId(HttpContext httpContext)
     {
         if (httpContext.Request.Cookies.TryGetValue(VisitorCookieName, out var existingCookie)
-            && IsValidDeviceId(existingCookie))
+            && _deviceIdService.TryResolve(existingCookie, out var canonicalDeviceId))
         {
-            return existingCookie;
+            return canonicalDeviceId;
         }
 
-        if (Guid.TryParseExact(existingCookie, "N", out _))
-        {
-            await _analyticsService.DeleteVisitorDataAsync(existingCookie, cancellationToken);
-        }
-
-        var visitorId = _deviceIdProtector.Protect(Guid.NewGuid().ToString("N"));
+        var canonicalVisitorId = Guid.TryParseExact(existingCookie, "N", out _)
+            ? existingCookie
+            : Guid.NewGuid().ToString("N");
+        var protectedVisitorId = _deviceIdService.Protect(canonicalVisitorId);
         httpContext.Response.Cookies.Append(
             VisitorCookieName,
-            visitorId,
+            protectedVisitorId,
             new CookieOptions
             {
                 HttpOnly = true,
@@ -132,24 +119,7 @@ public sealed class AnalyticsController : Controller
                 Expires = DateTimeOffset.UtcNow.AddYears(2)
             });
 
-        return null;
-    }
-
-    private bool IsValidDeviceId(string? deviceId)
-    {
-        if (string.IsNullOrWhiteSpace(deviceId))
-        {
-            return false;
-        }
-
-        try
-        {
-            return Guid.TryParseExact(_deviceIdProtector.Unprotect(deviceId), "N", out _);
-        }
-        catch (CryptographicException)
-        {
-            return false;
-        }
+        return canonicalVisitorId;
     }
 
     private static string ResolveRegion(HttpContext httpContext, string? approximateLocation)

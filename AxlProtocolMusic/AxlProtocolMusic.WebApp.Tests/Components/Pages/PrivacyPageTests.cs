@@ -15,7 +15,7 @@ public sealed class PrivacyPageTests
     [Test]
     public void Privacy_RendersCurrentPreferencesAndVisitorCount()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService
         {
             Summary = new AnalyticsDashboardSummary { UniqueVisitors = 1250 }
@@ -66,7 +66,7 @@ public sealed class PrivacyPageTests
     [Test]
     public void Privacy_WhenVisitorCountIsLow_KeepsDeviceIdSettingUserControllable()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService
         {
             Summary = new AnalyticsDashboardSummary { UniqueVisitors = 42 }
@@ -86,7 +86,7 @@ public sealed class PrivacyPageTests
     [Test]
     public void Privacy_WhenApproximateLocationIsTurnedOff_OpensConfirmationModal()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var analyticsService = new FakeAnalyticsService
         {
             Summary = new AnalyticsDashboardSummary { UniqueVisitors = 1250 }
@@ -130,7 +130,7 @@ public sealed class PrivacyPageTests
     [Test]
     public void Privacy_WhenApproximateLocationDisableIsConfirmed_DeletesStoredLocationDataAndPersists()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var analyticsService = new FakeAnalyticsService
         {
             Summary = new AnalyticsDashboardSummary { UniqueVisitors = 1250 }
@@ -152,7 +152,7 @@ public sealed class PrivacyPageTests
             }
         };
         var httpContext = new DefaultHttpContext();
-        httpContext.Request.Headers.Cookie = "axl_visitor_id=visitor-123";
+        httpContext.Request.Headers.Cookie = "axl_visitor_id=0123456789abcdef0123456789abcdef";
 
         context.Services.AddSingleton<IAnalyticsService>(analyticsService);
         context.Services.AddSingleton<IPrivacyPreferencesService>(privacyService);
@@ -180,13 +180,13 @@ public sealed class PrivacyPageTests
         Assert.That(privacyService.SyncApproximateLocationCallCount, Is.EqualTo(1));
         Assert.That(privacyService.SaveCallCount, Is.EqualTo(1));
         Assert.That(privacyService.LastSavedPreferences!.ShareApproximateLocation, Is.False);
-        Assert.That(analyticsService.DeletedLocationVisitorIds, Is.EqualTo(["visitor-123"]));
+        Assert.That(analyticsService.DeletedLocationVisitorIds, Is.EqualTo(["0123456789abcdef0123456789abcdef"]));
     }
 
     [Test]
     public void Privacy_WhenApproximateLocationEnableHitsPermissionDenied_ShowsStatusWithoutDeletingData()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var analyticsService = new FakeAnalyticsService
         {
             Summary = new AnalyticsDashboardSummary { UniqueVisitors = 1250 }
@@ -247,7 +247,7 @@ public sealed class PrivacyPageTests
     [Test]
     public void Privacy_WhenEssentialMetricsIsTurnedOff_OpensConfirmationModal()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService
         {
             Summary = new AnalyticsDashboardSummary { UniqueVisitors = 1250 }
@@ -284,7 +284,7 @@ public sealed class PrivacyPageTests
     [Test]
     public void Privacy_WhenEnhancedEngagementIsEnabled_PersistsPreference()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         var privacyService = new FakePrivacyPreferencesService
         {
             Preferences = new PrivacyPreferences()
@@ -321,7 +321,7 @@ public sealed class PrivacyPageTests
     [Test]
     public void Privacy_WhenPersonalizationIsTurnedOff_OpensConfirmationModal()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService
         {
             Summary = new AnalyticsDashboardSummary { UniqueVisitors = 1250 }
@@ -426,5 +426,13 @@ public sealed class PrivacyPageTests
                 AllowPersonalizationMetrics = preferences.AllowPersonalizationMetrics
             };
         }
+    }
+
+    private static BunitContext CreateContext()
+    {
+        var context = new BunitContext();
+        context.Services.AddSingleton<IDeviceIdService>(new AxlProtocolMusic.WebApp.Services.DeviceIdService(
+            new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider()));
+        return context;
     }
 }

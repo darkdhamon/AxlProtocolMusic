@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using AxlProtocolMusic.WebApp.Controllers;
 using AxlProtocolMusic.WebApp.Models.Analytics;
+using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using Microsoft.AspNetCore.DataProtection;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
@@ -81,7 +82,7 @@ public sealed class AnalyticsControllerTests
         Assert.That(metric.PagePath, Is.EqualTo("/news"));
         Assert.That(metric.PageTitle, Is.EqualTo("Latest News"));
         Assert.That(metric.DurationSeconds, Is.EqualTo(15.5));
-        Assert.That(metric.ClientId, Is.EqualTo(protectedDeviceId));
+        Assert.That(metric.ClientId, Is.EqualTo("0123456789abcdef0123456789abcdef"));
         Assert.That(metric.Region, Is.EqualTo("US"));
         Assert.That(metric.ApproximateLatitude, Is.EqualTo(40.7128));
         Assert.That(metric.ApproximateLongitude, Is.Null);
@@ -139,7 +140,7 @@ public sealed class AnalyticsControllerTests
         Assert.That(metric.DestinationUrl, Is.EqualTo("https://bandcamp.example/signals"));
         Assert.That(metric.LinkLabel, Is.EqualTo("Bandcamp"));
         Assert.That(metric.Region.Length, Is.EqualTo(120));
-        Assert.That(metric.ClientId, Is.EqualTo(protectedDeviceId));
+        Assert.That(metric.ClientId, Is.EqualTo("0123456789abcdef0123456789abcdef"));
         Assert.That(metric.ApproximateLatitude, Is.Null);
         Assert.That(metric.ApproximateLongitude, Is.EqualTo(-97.7431));
         Assert.That(analyticsService.LastExternalClickCancellationToken, Is.EqualTo(cancellationTokenSource.Token));
@@ -149,7 +150,7 @@ public sealed class AnalyticsControllerTests
     }
 
     [Test]
-    public async Task RecordPageVisit_WhenLegacyVisitorCookieExists_RemovesLegacyDataBeforeRotation()
+    public async Task RecordPageVisit_WhenLegacyVisitorCookieExists_ProtectsItAndPreservesCanonicalAnalyticsId()
     {
         var analyticsService = new FakeAnalyticsService();
         var controller = CreateController(analyticsService);
@@ -160,16 +161,15 @@ public sealed class AnalyticsControllerTests
             new PageVisitRequest { PagePath = "/privacy", DurationSeconds = 1 },
             CancellationToken.None);
 
-        Assert.That(result, Is.TypeOf<StatusCodeResult>());
-        Assert.That(((StatusCodeResult)result).StatusCode, Is.EqualTo(StatusCodes.Status428PreconditionRequired));
-        Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(new[] { legacyDeviceId }));
-        Assert.That(analyticsService.RecordedPageVisits, Is.Empty);
+        Assert.That(result, Is.TypeOf<OkResult>());
+        Assert.That(analyticsService.DeletedVisitorIds, Is.Empty);
+        Assert.That(analyticsService.RecordedPageVisits.Single().ClientId, Is.EqualTo(legacyDeviceId));
         Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
         Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("path=/"));
     }
 
     [Test]
-    public async Task RecordPageVisit_WhenVisitorCookieIsMissing_RequiresCookieRoundTripWithoutRecording()
+    public async Task RecordPageVisit_WhenVisitorCookieIsMissing_RecordsFirstEventUnderNewCanonicalId()
     {
         var analyticsService = new FakeAnalyticsService();
         var controller = CreateController(analyticsService);
@@ -178,8 +178,8 @@ public sealed class AnalyticsControllerTests
             new PageVisitRequest { PagePath = "/", DurationSeconds = 1 },
             CancellationToken.None);
 
-        Assert.That(((StatusCodeResult)result).StatusCode, Is.EqualTo(StatusCodes.Status428PreconditionRequired));
-        Assert.That(analyticsService.RecordedPageVisits, Is.Empty);
+        Assert.That(result, Is.TypeOf<OkResult>());
+        Assert.That(Guid.TryParseExact(analyticsService.RecordedPageVisits.Single().ClientId, "N", out _), Is.True);
         Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
     }
 
@@ -188,7 +188,7 @@ public sealed class AnalyticsControllerTests
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Scheme = isHttps ? "https" : "http";
 
-        return new AnalyticsController(analyticsService, DataProtectionProvider)
+        return new AnalyticsController(analyticsService, new DeviceIdService(DataProtectionProvider))
         {
             ControllerContext = new ControllerContext
             {

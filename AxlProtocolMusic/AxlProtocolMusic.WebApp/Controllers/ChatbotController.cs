@@ -1,7 +1,5 @@
-using System.Security.Cryptography;
 using AxlProtocolMusic.WebApp.Models.Chatbot;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AxlProtocolMusic.WebApp.Controllers;
@@ -13,26 +11,22 @@ public sealed class ChatbotController : ControllerBase
 {
     private const string VisitorCookieName = "axl_visitor_id";
     private const string MetricsPreferenceCookieName = "axl_site_metrics";
-    private const string DeviceIdProtectionPurpose = "AxlProtocolMusic.DeviceId.v1";
     private const int MaxMessageLength = 1000;
     private const int MaxHistoryLength = 40;
     private const int MaxHistoryMessageLength = 800;
 
     private readonly ISiteChatbotService _siteChatbotService;
     private readonly IChatbotRequestRateLimiter _requestRateLimiter;
-    private readonly IAnalyticsService _analyticsService;
-    private readonly IDataProtector _deviceIdProtector;
+    private readonly IDeviceIdService _deviceIdService;
 
     public ChatbotController(
         ISiteChatbotService siteChatbotService,
         IChatbotRequestRateLimiter requestRateLimiter,
-        IAnalyticsService analyticsService,
-        IDataProtectionProvider dataProtectionProvider)
+        IDeviceIdService deviceIdService)
     {
         _siteChatbotService = siteChatbotService;
         _requestRateLimiter = requestRateLimiter;
-        _analyticsService = analyticsService;
-        _deviceIdProtector = dataProtectionProvider.CreateProtector(DeviceIdProtectionPurpose);
+        _deviceIdService = deviceIdService;
     }
 
     [HttpPost("message")]
@@ -42,7 +36,7 @@ public sealed class ChatbotController : ControllerBase
         [FromBody] ChatbotMessageRequest request,
         CancellationToken cancellationToken)
     {
-        var (deviceId, trackingDisabled) = await GetEstablishedDeviceIdAsync(cancellationToken);
+        var (deviceId, trackingDisabled) = GetEstablishedDeviceId();
         if (deviceId is null)
         {
             return trackingDisabled
@@ -102,7 +96,7 @@ public sealed class ChatbotController : ControllerBase
             return BadRequest(new { error = "Same-origin request required." });
         }
 
-        var (deviceId, trackingDisabled) = await GetEstablishedDeviceIdAsync(cancellationToken);
+        var (deviceId, trackingDisabled) = GetEstablishedDeviceId();
         if (deviceId is null)
         {
             return trackingDisabled
@@ -120,7 +114,7 @@ public sealed class ChatbotController : ControllerBase
         return StatusCode(StatusCodes.Status429TooManyRequests);
     }
 
-    private async Task<(string? DeviceId, bool TrackingDisabled)> GetEstablishedDeviceIdAsync(CancellationToken cancellationToken)
+    private (string? DeviceId, bool TrackingDisabled) GetEstablishedDeviceId()
     {
         if (Request.Cookies.TryGetValue(MetricsPreferenceCookieName, out var preference)
             && string.Equals(preference, "disabled", StringComparison.OrdinalIgnoreCase))
@@ -128,17 +122,16 @@ public sealed class ChatbotController : ControllerBase
             return (null, true);
         }
 
-        if (Request.Cookies.TryGetValue(VisitorCookieName, out var existing) && IsValidDeviceId(existing))
+        if (Request.Cookies.TryGetValue(VisitorCookieName, out var existing)
+            && _deviceIdService.TryResolve(existing, out var canonicalDeviceId))
         {
-            return (existing, false);
+            return (canonicalDeviceId, false);
         }
 
-        if (Guid.TryParseExact(existing, "N", out _))
-        {
-            await _analyticsService.DeleteVisitorDataAsync(existing, cancellationToken);
-        }
-
-        var deviceId = _deviceIdProtector.Protect(Guid.NewGuid().ToString("N"));
+        var canonicalVisitorId = Guid.TryParseExact(existing, "N", out _)
+            ? existing
+            : Guid.NewGuid().ToString("N");
+        var deviceId = _deviceIdService.Protect(canonicalVisitorId);
         Response.Cookies.Append(VisitorCookieName, deviceId, new CookieOptions
         {
             HttpOnly = true,
@@ -151,20 +144,4 @@ public sealed class ChatbotController : ControllerBase
         return (null, false);
     }
 
-    private bool IsValidDeviceId(string? deviceId)
-    {
-        if (string.IsNullOrWhiteSpace(deviceId))
-        {
-            return false;
-        }
-
-        try
-        {
-            return Guid.TryParseExact(_deviceIdProtector.Unprotect(deviceId), "N", out _);
-        }
-        catch (CryptographicException)
-        {
-            return false;
-        }
-    }
 }

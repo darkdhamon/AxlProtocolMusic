@@ -41,6 +41,7 @@ public static class ServiceCollectionExtensions
             configuration.GetSection(OpenAiChatSettings.SectionName));
 
         services.AddHttpContextAccessor();
+        services.AddSingleton<IDeviceIdService, DeviceIdService>();
         services.AddSingleton<IChatbotActivationMonitor, ChatbotActivationMonitor>();
         services.AddSingleton<IChatbotRequestRateLimiter, ChatbotRequestRateLimiter>();
         services.AddHostedService<ChatbotActivationPollingService>();
