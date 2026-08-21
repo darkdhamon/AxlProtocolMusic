@@ -177,7 +177,7 @@ else
 
                         @if (!string.IsNullOrWhiteSpace(errorMessage))
                         {
-                            <div class="alert alert-danger" role="alert" aria-live="assertive" aria-atomic="true">@errorMessage</div>
+                            <div class="alert alert-danger" role="alert" aria-atomic="true">@errorMessage</div>
                         }
 
                         @if (!string.IsNullOrWhiteSpace(statusMessage))
@@ -388,6 +388,7 @@ else
             content = Clone(editableContent);
             lastSavedVersion = version;
             statusMessage = "All changes saved.";
+            await InvokeAsync(StateHasChanged);
         }
         catch (OperationCanceledException)
         {

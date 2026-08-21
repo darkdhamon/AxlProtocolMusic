@@ -239,7 +239,8 @@ public sealed class AboutAxlProtocolTests
 
         var errorAlert = cut.Find("div.alert.alert-danger[role='alert']");
         Assert.That(errorAlert.TextContent, Does.Contain("Save failed."));
-        Assert.That(errorAlert.GetAttribute("aria-live"), Is.EqualTo("assertive"));
+        Assert.That(errorAlert.HasAttribute("aria-live"), Is.False);
+        Assert.That(errorAlert.GetAttribute("aria-atomic"), Is.EqualTo("true"));
     }
 
     [Test]
@@ -287,7 +288,6 @@ public sealed class AboutAxlProtocolTests
         }, timeout: TimeSpan.FromSeconds(3));
 
         Assert.That(SpinWait.SpinUntil(() => service.UpdateCallCount >= 1, TimeSpan.FromSeconds(3)), Is.True);
-        cut.Render();
 
         cut.WaitForAssertion(() =>
         {
