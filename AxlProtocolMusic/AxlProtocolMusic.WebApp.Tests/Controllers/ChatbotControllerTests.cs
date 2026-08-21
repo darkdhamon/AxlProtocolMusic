@@ -2,6 +2,7 @@ using AxlProtocolMusic.WebApp.Controllers;
 using AxlProtocolMusic.WebApp.Models.Chatbot;
 using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,6 +11,7 @@ namespace AxlProtocolMusic.WebApp.Tests.Controllers;
 [TestFixture]
 public sealed class ChatbotControllerTests
 {
+    private static readonly IDataProtectionProvider DataProtectionProvider = new EphemeralDataProtectionProvider();
     [Test]
     public async Task PostMessage_WhenMessageIsBlank_ReturnsBadRequestAndDoesNotCallService()
     {
@@ -232,17 +234,35 @@ public sealed class ChatbotControllerTests
     }
 
     [Test]
+    public async Task AcquirePermit_WhenDeviceIdCookieIsForged_ReplacesItAndRequiresCookieRoundTrip()
+    {
+        var limiter = new FakeChatbotRequestRateLimiter();
+        var controller = CreateController(new FakeSiteChatbotService(), limiter);
+        controller.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
+        controller.Request.Headers.Cookie = "axl_visitor_id=attacker-chosen-device-id";
+
+        var result = await controller.AcquirePermit(CancellationToken.None);
+
+        Assert.That(result, Is.TypeOf<ObjectResult>());
+        Assert.That(((ObjectResult)result).StatusCode, Is.EqualTo(StatusCodes.Status428PreconditionRequired));
+        Assert.That(limiter.IssuedDeviceIds, Is.Empty);
+        Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Contain("axl_visitor_id="));
+        Assert.That(controller.Response.Headers.SetCookie.ToString(), Does.Not.Contain("attacker-chosen-device-id"));
+    }
+
+    [Test]
     public async Task AcquirePermit_WhenDeviceIdCookieExists_PartitionsByThatDeviceId()
     {
         var limiter = new FakeChatbotRequestRateLimiter();
         var controller = CreateController(new FakeSiteChatbotService(), limiter);
         controller.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
-        controller.Request.Headers.Cookie = "axl_visitor_id=device-123";
+        var protectedDeviceId = ProtectDeviceId("0123456789abcdef0123456789abcdef");
+        controller.Request.Headers.Cookie = $"axl_visitor_id={protectedDeviceId}";
 
         var result = await controller.AcquirePermit(CancellationToken.None);
 
         Assert.That(result, Is.TypeOf<OkObjectResult>());
-        Assert.That(limiter.IssuedDeviceIds, Is.EqualTo(new[] { "device-123" }));
+        Assert.That(limiter.IssuedDeviceIds, Is.EqualTo(new[] { protectedDeviceId }));
         Assert.That(controller.Response.Headers.SetCookie.ToString(), Is.Empty);
     }
 
@@ -250,16 +270,22 @@ public sealed class ChatbotControllerTests
         FakeSiteChatbotService chatbotService,
         IChatbotRequestRateLimiter? requestRateLimiter = null)
     {
-        var controller = new ChatbotController(chatbotService, requestRateLimiter ?? new FakeChatbotRequestRateLimiter())
+        var controller = new ChatbotController(
+            chatbotService,
+            requestRateLimiter ?? new FakeChatbotRequestRateLimiter(),
+            DataProtectionProvider)
         {
             ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext()
             }
         };
-        controller.Request.Headers.Cookie = "axl_visitor_id=test-device";
+        controller.Request.Headers.Cookie = $"axl_visitor_id={ProtectDeviceId("fedcba9876543210fedcba9876543210")}";
         return controller;
     }
+
+    private static string ProtectDeviceId(string deviceId)
+        => DataProtectionProvider.CreateProtector("AxlProtocolMusic.DeviceId.v1").Protect(deviceId);
 
     private sealed class FakeChatbotRequestRateLimiter : IChatbotRequestRateLimiter
     {

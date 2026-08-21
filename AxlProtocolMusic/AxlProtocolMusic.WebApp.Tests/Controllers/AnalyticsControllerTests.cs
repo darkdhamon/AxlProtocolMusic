@@ -2,6 +2,7 @@ using System.Security.Claims;
 using AxlProtocolMusic.WebApp.Controllers;
 using AxlProtocolMusic.WebApp.Models.Analytics;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using Microsoft.AspNetCore.DataProtection;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +12,7 @@ namespace AxlProtocolMusic.WebApp.Tests.Controllers;
 [TestFixture]
 public sealed class AnalyticsControllerTests
 {
+    private static readonly IDataProtectionProvider DataProtectionProvider = new EphemeralDataProtectionProvider();
     [Test]
     public async Task RecordPageVisit_WhenRequestIsInvalid_ReturnsBadRequest()
     {
@@ -53,7 +55,10 @@ public sealed class AnalyticsControllerTests
     {
         var analyticsService = new FakeAnalyticsService();
         var controller = CreateController(analyticsService, isHttps: true);
-        controller.HttpContext.Request.Headers.Cookie = "axl_visitor_id=visitor-123";
+        var protectedDeviceId = DataProtectionProvider
+            .CreateProtector("AxlProtocolMusic.DeviceId.v1")
+            .Protect("0123456789abcdef0123456789abcdef");
+        controller.HttpContext.Request.Headers.Cookie = $"axl_visitor_id={protectedDeviceId}";
         controller.HttpContext.Request.Headers["CF-IPCountry"] = "US";
         using var cancellationTokenSource = new CancellationTokenSource();
 
@@ -76,7 +81,7 @@ public sealed class AnalyticsControllerTests
         Assert.That(metric.PagePath, Is.EqualTo("/news"));
         Assert.That(metric.PageTitle, Is.EqualTo("Latest News"));
         Assert.That(metric.DurationSeconds, Is.EqualTo(15.5));
-        Assert.That(metric.ClientId, Is.EqualTo("visitor-123"));
+        Assert.That(metric.ClientId, Is.EqualTo(protectedDeviceId));
         Assert.That(metric.Region, Is.EqualTo("US"));
         Assert.That(metric.ApproximateLatitude, Is.EqualTo(40.7128));
         Assert.That(metric.ApproximateLongitude, Is.Null);
@@ -130,7 +135,10 @@ public sealed class AnalyticsControllerTests
         Assert.That(metric.DestinationUrl, Is.EqualTo("https://bandcamp.example/signals"));
         Assert.That(metric.LinkLabel, Is.EqualTo("Bandcamp"));
         Assert.That(metric.Region.Length, Is.EqualTo(120));
-        Assert.That(metric.ClientId, Has.Length.EqualTo(32));
+        var unprotectedDeviceId = DataProtectionProvider
+            .CreateProtector("AxlProtocolMusic.DeviceId.v1")
+            .Unprotect(metric.ClientId);
+        Assert.That(Guid.TryParseExact(unprotectedDeviceId, "N", out _), Is.True);
         Assert.That(metric.ApproximateLatitude, Is.Null);
         Assert.That(metric.ApproximateLongitude, Is.EqualTo(-97.7431));
         Assert.That(analyticsService.LastExternalClickCancellationToken, Is.EqualTo(cancellationTokenSource.Token));
@@ -139,6 +147,7 @@ public sealed class AnalyticsControllerTests
         Assert.That(setCookieHeader, Does.Contain("axl_visitor_id="));
         Assert.That(setCookieHeader, Does.Contain("httponly"));
         Assert.That(setCookieHeader, Does.Contain("secure"));
+        Assert.That(setCookieHeader, Does.Contain("expires="));
     }
 
     private static AnalyticsController CreateController(FakeAnalyticsService analyticsService, bool isHttps = false)
@@ -146,7 +155,7 @@ public sealed class AnalyticsControllerTests
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Scheme = isHttps ? "https" : "http";
 
-        return new AnalyticsController(analyticsService)
+        return new AnalyticsController(analyticsService, DataProtectionProvider)
         {
             ControllerContext = new ControllerContext
             {

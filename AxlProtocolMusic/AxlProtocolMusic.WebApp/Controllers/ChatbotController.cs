@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using AxlProtocolMusic.WebApp.Models.Chatbot;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AxlProtocolMusic.WebApp.Controllers;
@@ -11,19 +13,23 @@ public sealed class ChatbotController : ControllerBase
 {
     private const string VisitorCookieName = "axl_visitor_id";
     private const string MetricsPreferenceCookieName = "axl_site_metrics";
+    private const string DeviceIdProtectionPurpose = "AxlProtocolMusic.DeviceId.v1";
     private const int MaxMessageLength = 1000;
     private const int MaxHistoryLength = 40;
     private const int MaxHistoryMessageLength = 800;
 
     private readonly ISiteChatbotService _siteChatbotService;
     private readonly IChatbotRequestRateLimiter _requestRateLimiter;
+    private readonly IDataProtector _deviceIdProtector;
 
     public ChatbotController(
         ISiteChatbotService siteChatbotService,
-        IChatbotRequestRateLimiter requestRateLimiter)
+        IChatbotRequestRateLimiter requestRateLimiter,
+        IDataProtectionProvider dataProtectionProvider)
     {
         _siteChatbotService = siteChatbotService;
         _requestRateLimiter = requestRateLimiter;
+        _deviceIdProtector = dataProtectionProvider.CreateProtector(DeviceIdProtectionPurpose);
     }
 
     [HttpPost("message")]
@@ -121,20 +127,37 @@ public sealed class ChatbotController : ControllerBase
             return null;
         }
 
-        if (Request.Cookies.TryGetValue(VisitorCookieName, out var existing) && !string.IsNullOrWhiteSpace(existing))
+        if (Request.Cookies.TryGetValue(VisitorCookieName, out var existing) && IsValidDeviceId(existing))
         {
             return existing;
         }
 
-        var deviceId = Guid.NewGuid().ToString("N");
+        var deviceId = _deviceIdProtector.Protect(Guid.NewGuid().ToString("N"));
         Response.Cookies.Append(VisitorCookieName, deviceId, new CookieOptions
         {
             HttpOnly = true,
             IsEssential = true,
             SameSite = SameSiteMode.Lax,
             Secure = Request.IsHttps,
-            Expires = DateTimeOffset.UtcNow.AddYears(1)
+            Expires = DateTimeOffset.UtcNow.AddYears(2)
         });
         return null;
+    }
+
+    private bool IsValidDeviceId(string? deviceId)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            return false;
+        }
+
+        try
+        {
+            return Guid.TryParseExact(_deviceIdProtector.Unprotect(deviceId), "N", out _);
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
     }
 }

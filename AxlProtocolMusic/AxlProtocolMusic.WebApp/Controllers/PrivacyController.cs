@@ -41,7 +41,7 @@ public sealed class PrivacyController : Controller
                 IsEssential = true,
                 SameSite = SameSiteMode.Lax,
                 Secure = Request.IsHttps,
-                Expires = DateTimeOffset.UtcNow.AddYears(1)
+                Expires = DateTimeOffset.UtcNow.AddYears(2)
             });
 
         Response.Cookies.Delete(VisitorCookieName);

@@ -44,6 +44,9 @@ public sealed class PrivacyPageTests
             Assert.That(cut.Markup, Does.Contain("AI chat will be unavailable until you enable it again"));
             Assert.That(cut.Markup, Does.Contain("enabled by default"));
             Assert.That(cut.Markup, Does.Contain("does not use browser fingerprinting"));
+            Assert.That(cut.Markup, Does.Contain("retained for up to two years"));
+            Assert.That(cut.Markup, Does.Contain("does not use IP addresses or fingerprinting"));
+            Assert.That(cut.Markup, Does.Contain("per-device AI-chat limit starts with that new identifier"));
             Assert.That(cut.Markup, Does.Contain("local storage"));
             Assert.That(cut.Markup, Does.Contain("current page path, page title, and a bounded excerpt of visible page content"));
             Assert.That(cut.Markup, Does.Contain("even after logout"));

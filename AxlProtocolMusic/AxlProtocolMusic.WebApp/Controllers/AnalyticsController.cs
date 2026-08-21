@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using AxlProtocolMusic.WebApp.Models.Analytics;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AxlProtocolMusic.WebApp.Controllers;
@@ -11,11 +13,14 @@ public sealed class AnalyticsController : Controller
     private const string VisitorCookieName = "axl_visitor_id";
     private const string MetricsPreferenceCookieName = "axl_site_metrics";
     private const string AdminVisitorCookieName = "axl_admin_visitor";
+    private const string DeviceIdProtectionPurpose = "AxlProtocolMusic.DeviceId.v1";
     private readonly IAnalyticsService _analyticsService;
+    private readonly IDataProtector _deviceIdProtector;
 
-    public AnalyticsController(IAnalyticsService analyticsService)
+    public AnalyticsController(IAnalyticsService analyticsService, IDataProtectionProvider dataProtectionProvider)
     {
         _analyticsService = analyticsService;
+        _deviceIdProtector = dataProtectionProvider.CreateProtector(DeviceIdProtectionPurpose);
     }
 
     [HttpPost("page-visit")]
@@ -92,15 +97,15 @@ public sealed class AnalyticsController : Controller
         return Ok();
     }
 
-    private static string GetOrCreateVisitorId(HttpContext httpContext)
+    private string GetOrCreateVisitorId(HttpContext httpContext)
     {
         if (httpContext.Request.Cookies.TryGetValue(VisitorCookieName, out var existingCookie)
-            && !string.IsNullOrWhiteSpace(existingCookie))
+            && IsValidDeviceId(existingCookie))
         {
             return existingCookie;
         }
 
-        var visitorId = Guid.NewGuid().ToString("N");
+        var visitorId = _deviceIdProtector.Protect(Guid.NewGuid().ToString("N"));
         httpContext.Response.Cookies.Append(
             VisitorCookieName,
             visitorId,
@@ -110,10 +115,27 @@ public sealed class AnalyticsController : Controller
                 IsEssential = true,
                 SameSite = SameSiteMode.Lax,
                 Secure = httpContext.Request.IsHttps,
-                Expires = DateTimeOffset.UtcNow.AddYears(1)
+                Expires = DateTimeOffset.UtcNow.AddYears(2)
             });
 
         return visitorId;
+    }
+
+    private bool IsValidDeviceId(string? deviceId)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            return false;
+        }
+
+        try
+        {
+            return Guid.TryParseExact(_deviceIdProtector.Unprotect(deviceId), "N", out _);
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
     }
 
     private static string ResolveRegion(HttpContext httpContext, string? approximateLocation)
