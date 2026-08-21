@@ -1,5 +1,6 @@
 using AxlProtocolMusic.WebApp.Controllers;
 using AxlProtocolMusic.WebApp.Models.Chatbot;
+using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -82,6 +83,29 @@ public sealed class ChatbotControllerTests
     }
 
     [Test]
+    public async Task PostMessage_WhenHistoryEntryIsTooLong_ReturnsBadRequestAndDoesNotCallService()
+    {
+        var chatbotService = new FakeSiteChatbotService();
+        var controller = CreateController(chatbotService);
+
+        var result = await controller.PostMessage(
+            new ChatbotMessageRequest
+            {
+                Message = "What changed?",
+                History =
+                [
+                    new ChatbotConversationMessage { Role = "user", Content = new string('x', 801) }
+                ]
+            },
+            CancellationToken.None);
+
+        var badRequestResult = result.Result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult!.Value?.ToString(), Does.Contain("History entry too long"));
+        Assert.That(chatbotService.CallCount, Is.EqualTo(0));
+    }
+
+    [Test]
     public async Task PostMessage_WhenMessageIsValid_ForwardsArgumentsAndReturnsOk()
     {
         var chatbotService = new FakeSiteChatbotService
@@ -131,7 +155,7 @@ public sealed class ChatbotControllerTests
 
     private static ChatbotController CreateController(FakeSiteChatbotService chatbotService)
     {
-        return new ChatbotController(chatbotService)
+        return new ChatbotController(chatbotService, new ChatbotRequestRateLimiter())
         {
             ControllerContext = new ControllerContext
             {

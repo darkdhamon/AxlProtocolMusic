@@ -247,17 +247,17 @@
 
         var currentPage = await GetCurrentPageContextAsync();
 
-        if (ShouldRefuseLocally(message))
+        if (!ChatbotRequestRateLimiter.TryAcquire(requestPartitionKey))
         {
-            RegisterAssistantNo();
-            await RecordLocalRefusalAsync(message, currentPage);
+            messages.Add(new ChatMessage("assistant", "Too many requests. Please wait before trying again."));
             await PersistStateAsync();
             return;
         }
 
-        if (!ChatbotRequestRateLimiter.TryAcquire(requestPartitionKey))
+        if (ShouldRefuseLocally(message))
         {
-            messages.Add(new ChatMessage("assistant", "Too many requests. Please wait before trying again."));
+            RegisterAssistantNo();
+            await RecordLocalRefusalAsync(message, currentPage);
             await PersistStateAsync();
             return;
         }
