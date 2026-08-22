@@ -447,8 +447,9 @@ public sealed class ReleaseService : IReleaseService
 
     private async Task<List<Release>> GetPublishedReleasesAsync(CancellationToken cancellationToken)
     {
+        var now = DateTimeOffset.UtcNow;
         return (await _releaseRepository.GetAllAsync(cancellationToken))
-            .Where(release => release.IsPublished)
+            .Where(release => release.IsPublished && release.ReleaseDateUtc <= now)
             .OrderByDescending(release => release.ReleaseDateUtc)
             .ToList();
     }
