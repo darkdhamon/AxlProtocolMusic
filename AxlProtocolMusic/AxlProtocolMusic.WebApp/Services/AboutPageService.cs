@@ -110,36 +110,6 @@ public sealed class AboutPageService : IAboutPageService
         };
     }
 
-    private static AboutSocialLink? NormalizeSocialLink(AboutSocialLink link)
-    {
-        var platform = link.Platform.Trim();
-        var url = link.Url.Trim();
-
-        if (string.IsNullOrWhiteSpace(platform) || string.IsNullOrWhiteSpace(url))
-        {
-            return null;
-        }
-
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
-            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-        {
-            return null;
-        }
-
-        return new AboutSocialLink
-        {
-            Platform = platform,
-            Url = url
-        };
-    }
-
-    private static BsonDocument CloneExtraElements(BsonDocument? extraElements)
-    {
-        return extraElements is null
-            ? new BsonDocument()
-            : extraElements.DeepClone().AsBsonDocument;
-    }
-
     private static AboutPageContent CreateDefaultContent()
     {
         return new AboutPageContent
