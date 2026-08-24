@@ -6,6 +6,7 @@
 @inject IChatbotActivationMonitor ChatbotActivationMonitor
 @inject IChatbotBudgetService ChatbotBudgetService
 @inject IChatbotConversationLogService ChatbotConversationLogService
+@inject IChatbotRequestRateLimiter ChatbotRequestRateLimiter
 @inject IJSRuntime JSRuntime
 @inject ISiteChatbotService SiteChatbotService
 
@@ -228,12 +229,18 @@
             return;
         }
 
+        isBusy = true;
+
+        try
+        {
+
         var history = messages
             .Select(item => new ChatbotConversationMessage
             {
                 Role = item.Role,
                 Content = item.Content
             })
+            .TakeLast(40)
             .ToList();
 
         messages.Add(new ChatMessage("user", message));
@@ -241,15 +248,65 @@
 
         var currentPage = await GetCurrentPageContextAsync();
 
+        string? permitToken;
+        try
+        {
+            permitToken = await JSRuntime.InvokeAsync<string?>("axlChatbotUi.acquirePermit");
+        }
+        catch (Exception)
+        {
+            messages.Add(new ChatMessage("assistant", "The request limit check is temporarily unavailable. Please try again."));
+            await PersistStateAsync();
+            isBusy = false;
+            return;
+        }
+
+        if (permitToken == "device-id-disabled")
+        {
+            messages.Add(new ChatMessage("assistant", "AI chat requires device-ID tracking. Enable Device ID And Essential Site Analytics in Privacy Settings to continue."));
+            await PersistStateAsync();
+            isBusy = false;
+            return;
+        }
+
+        if (permitToken == "device-cookie-required")
+        {
+            messages.Add(new ChatMessage("assistant", "AI chat requires the device-ID cookie. Allow essential cookies in your browser and try again."));
+            await PersistStateAsync();
+            isBusy = false;
+            return;
+        }
+
+        bool permitConsumed;
+        try
+        {
+            permitConsumed = permitToken is not null
+                && await ChatbotRequestRateLimiter.TryConsumePermitAsync(permitToken);
+        }
+        catch (Exception)
+        {
+            messages.Add(new ChatMessage("assistant", "The request limit check is temporarily unavailable. Please try again."));
+            await PersistStateAsync();
+            isBusy = false;
+            return;
+        }
+
+        if (!permitConsumed)
+        {
+            messages.Add(new ChatMessage("assistant", "Too many requests. Please wait before trying again."));
+            await PersistStateAsync();
+            isBusy = false;
+            return;
+        }
+
         if (ShouldRefuseLocally(message))
         {
             RegisterAssistantNo();
             await RecordLocalRefusalAsync(message, currentPage);
             await PersistStateAsync();
+            isBusy = false;
             return;
         }
-
-        isBusy = true;
 
         try
         {
@@ -273,6 +330,11 @@
             messages.Add(new ChatMessage("assistant", $"The site assistant hit an error: {exception.Message}"));
             consecutiveNoCount = 0;
             await PersistStateAsync();
+        }
+        finally
+        {
+            isBusy = false;
+        }
         }
         finally
         {

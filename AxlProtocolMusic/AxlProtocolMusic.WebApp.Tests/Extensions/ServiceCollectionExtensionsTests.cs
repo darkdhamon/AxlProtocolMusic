@@ -41,6 +41,7 @@ public sealed class ServiceCollectionExtensionsTests
 
         Assert.That(returnedServices, Is.SameAs(services));
         AssertSingleton<IMongoDbService, MongoDbService>(services);
+        AssertSingleton<IChatbotRequestRateLimiter, ChatbotRequestRateLimiter>(services);
         AssertScopedOpenGeneric(services, typeof(IRepository<>), typeof(MongoRepository<>));
         AssertScoped<IAboutPageService, AboutPageService>(services);
         AssertScoped<IAnalyticsService, AnalyticsService>(services);

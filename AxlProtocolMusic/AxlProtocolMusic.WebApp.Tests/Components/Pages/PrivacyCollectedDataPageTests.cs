@@ -15,7 +15,7 @@ public sealed class PrivacyCollectedDataPageTests
     [Test]
     public void PrivacyCollectedData_WhenVisitorCookieIsMissing_RendersEmptyState()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService());
         context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         context.Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor
@@ -36,7 +36,7 @@ public sealed class PrivacyCollectedDataPageTests
     [Test]
     public void PrivacyCollectedData_WhenVisitorDataExists_RendersGroupedDetailsAndNotices()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService
         {
             VisitorData = new VisitorCollectedDataViewModel
@@ -75,7 +75,7 @@ public sealed class PrivacyCollectedDataPageTests
         context.JSInterop.Mode = JSRuntimeMode.Loose;
 
         var httpContext = new DefaultHttpContext();
-        httpContext.Request.Headers.Cookie = "axl_visitor_id=visitor-123; axl_site_metrics=disabled; axl_admin_visitor=true";
+        httpContext.Request.Headers.Cookie = "axl_visitor_id=0123456789abcdef0123456789abcdef; axl_site_metrics=disabled; axl_admin_visitor=true";
         context.Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor
         {
             HttpContext = httpContext
@@ -101,7 +101,7 @@ public sealed class PrivacyCollectedDataPageTests
     [Test]
     public void PrivacyCollectedData_WhenHttpContextIsMissing_RendersDefaultEmptyState()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService());
         context.Services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
         context.Services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor());
@@ -120,7 +120,7 @@ public sealed class PrivacyCollectedDataPageTests
     [Test]
     public void PrivacyCollectedData_WhenVisitorHasIdentifierButNoStoredDetails_ShowsNoDataMessagesAndDeleteModalCanClose()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService
         {
             VisitorData = new VisitorCollectedDataViewModel
@@ -167,7 +167,7 @@ public sealed class PrivacyCollectedDataPageTests
     [Test]
     public void PrivacyCollectedData_WhenManyRegionsAndLinksExist_RendersNormalizedLabelsAndDestinationFallbacks()
     {
-        using var context = new BunitContext();
+        using var context = CreateContext();
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.Services.AddSingleton<IAnalyticsService>(new FakeAnalyticsService
         {
@@ -297,5 +297,13 @@ public sealed class PrivacyCollectedDataPageTests
             ApproximateLatitude = 30.2672,
             ApproximateLongitude = -97.7431
         };
+    }
+
+    private static BunitContext CreateContext()
+    {
+        var context = new BunitContext();
+        context.Services.AddSingleton<IDeviceIdService>(new AxlProtocolMusic.WebApp.Services.DeviceIdService(
+            new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider()));
+        return context;
     }
 }

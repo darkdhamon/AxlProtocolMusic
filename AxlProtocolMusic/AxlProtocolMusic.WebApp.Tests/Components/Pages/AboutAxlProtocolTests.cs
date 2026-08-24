@@ -1,10 +1,12 @@
 using AxlProtocolMusic.WebApp.Components.Pages;
+using AxlProtocolMusic.WebApp.Configuration;
 using AxlProtocolMusic.WebApp.Models.Content;
 using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using Bunit;
 using Bunit.TestDoubles;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace AxlProtocolMusic.WebApp.Tests.Components.Pages;
 
@@ -234,6 +236,122 @@ public sealed class AboutAxlProtocolTests
         {
             Assert.That(cut.Markup, Does.Contain("Save failed."));
         }, timeout: TimeSpan.FromSeconds(3));
+
+        var errorAlert = cut.Find("div.alert.alert-danger[role='alert']");
+        Assert.That(errorAlert.TextContent, Does.Contain("Save failed."));
+        Assert.That(errorAlert.HasAttribute("aria-live"), Is.False);
+        Assert.That(errorAlert.GetAttribute("aria-atomic"), Is.EqualTo("true"));
+    }
+
+    [Test]
+    public void AboutAxlProtocol_WhenAutosaveStarts_TransitionsThroughSavingAndSavedMessages()
+    {
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+
+        var updateCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var service = new FakeAboutPageService
+        {
+            Content = new AboutPageContent
+            {
+                HeroLead = "Lead",
+                HeroBody = "Body",
+                FocusPoints = ["Existing focus point"]
+            }
+        };
+        service.UpdateCompletions.Enqueue(updateCompletion);
+
+        context.Services.AddSingleton<IAboutPageService>(service);
+        context.Services.AddSingleton<MarkdownService>();
+        context.Services.AddSingleton<IOptions<EditorSettings>>(Options.Create(new EditorSettings
+        {
+            AutosaveDelayMilliseconds = 25
+        }));
+
+        var cut = context.Render<AboutAxlProtocol>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit About Page"));
+            Assert.That(cut.Markup, Does.Not.Contain("Saving changes..."));
+            Assert.That(cut.Find("div[role='status']").TextContent, Is.Empty);
+        });
+
+        cut.FindAll("button")
+            .Single(button => button.TextContent.Contains("Add Point", StringComparison.Ordinal))
+            .Click();
+
+        Assert.That(SpinWait.SpinUntil(() => service.UpdateCallCount >= 1, TimeSpan.FromSeconds(3)), Is.True);
+
+        cut.WaitForAssertion(() =>
+        {
+            var statusRegion = cut.Find("div[role='status']");
+            Assert.That(cut.Markup, Does.Contain("Saving changes..."));
+            Assert.That(statusRegion.GetAttribute("aria-live"), Is.EqualTo("polite"));
+            Assert.That(statusRegion.GetAttribute("aria-atomic"), Is.EqualTo("true"));
+        }, timeout: TimeSpan.FromSeconds(3));
+
+        updateCompletion.SetResult();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("All changes saved."));
+        }, timeout: TimeSpan.FromSeconds(4));
+
+        Assert.That(cut.Markup, Does.Contain("All changes saved."));
+        Assert.That(cut.Markup, Does.Not.Contain("Saving changes..."));
+    }
+
+    [Test]
+    public void AboutAxlProtocol_WhenNewerAutosaveIsPending_DoesNotPublishStaleSavedStatus()
+    {
+        using var context = new BunitContext();
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+
+        var firstUpdateCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondUpdateCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var service = new FakeAboutPageService
+        {
+            Content = new AboutPageContent
+            {
+                HeroLead = "Lead",
+                HeroBody = "Body",
+                FocusPoints = ["Existing focus point"]
+            }
+        };
+        service.UpdateCompletions.Enqueue(firstUpdateCompletion);
+        service.UpdateCompletions.Enqueue(secondUpdateCompletion);
+
+        context.Services.AddSingleton<IAboutPageService>(service);
+        context.Services.AddSingleton<MarkdownService>();
+        context.Services.AddSingleton<IOptions<EditorSettings>>(Options.Create(new EditorSettings
+        {
+            AutosaveDelayMilliseconds = 25
+        }));
+
+        var cut = context.Render<AboutAxlProtocol>();
+        var addPointButton = cut.FindAll("button")
+            .Single(button => button.TextContent.Contains("Add Point", StringComparison.Ordinal));
+
+        addPointButton.Click();
+        Assert.That(SpinWait.SpinUntil(() => service.UpdateCallCount >= 1, TimeSpan.FromSeconds(3)), Is.True);
+
+        addPointButton.Click();
+        firstUpdateCompletion.SetResult();
+
+        Assert.That(SpinWait.SpinUntil(() => service.UpdateCallCount >= 2, TimeSpan.FromSeconds(3)), Is.True);
+        Assert.That(cut.Markup, Does.Contain("Saving changes..."));
+        Assert.That(cut.Markup, Does.Not.Contain("All changes saved."));
+
+        secondUpdateCompletion.SetResult();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("All changes saved."));
+        }, timeout: TimeSpan.FromSeconds(3));
     }
 
     private sealed class FakeAboutPageService : IAboutPageService
@@ -245,6 +363,8 @@ public sealed class AboutAxlProtocolTests
         public AboutPageContent? LastUpdatedContent { get; private set; }
 
         public Exception? UpdateException { get; set; }
+
+        public Queue<TaskCompletionSource> UpdateCompletions { get; } = new();
 
         public Task<AboutPageContent> GetAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(Content);
@@ -275,7 +395,9 @@ public sealed class AboutAxlProtocolTests
                 throw UpdateException;
             }
 
-            return Task.CompletedTask;
+            return UpdateCompletions.Count > 0
+                ? UpdateCompletions.Dequeue().Task
+                : Task.CompletedTask;
         }
 
         public Task SeedAsync(CancellationToken cancellationToken = default)

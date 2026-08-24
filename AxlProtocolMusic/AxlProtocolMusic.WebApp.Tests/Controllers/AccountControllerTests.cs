@@ -5,6 +5,7 @@ using AxlProtocolMusic.WebApp.Models.Authentication;
 using AxlProtocolMusic.WebApp.Models.Analytics;
 using AxlProtocolMusic.WebApp.Models.Identity;
 using AxlProtocolMusic.WebApp.Services.Development;
+using AxlProtocolMusic.WebApp.Services;
 using AxlProtocolMusic.WebApp.Services.Interfaces;
 using AxlProtocolMusic.WebApp.Services.ServiceModels;
 using Microsoft.AspNetCore.Http;
@@ -21,6 +22,7 @@ namespace AxlProtocolMusic.WebApp.Tests.Controllers;
 [TestFixture]
 public sealed class AccountControllerTests
 {
+    private static readonly DeviceIdService DeviceIdService = new(new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider());
     [Test]
     public async Task Login_WhenModelStateIsInvalid_RedirectsToLoginWithValidationMessage()
     {
@@ -83,7 +85,7 @@ public sealed class AccountControllerTests
             .ReturnsAsync(Microsoft.AspNetCore.Identity.SignInResult.Success);
 
         var controller = CreateController(signInManager, userManager, analyticsService, bootstrapPassword: "secret-password", isHttps: true);
-        controller.HttpContext.Request.Headers.Cookie = "axl_visitor_id=visitor-123";
+        controller.HttpContext.Request.Headers.Cookie = $"axl_visitor_id={DeviceIdService.Protect("0123456789abcdef0123456789abcdef")}";
 
         var result = await controller.Login(new LoginRequest
         {
@@ -96,7 +98,7 @@ public sealed class AccountControllerTests
         var redirect = result as LocalRedirectResult;
         Assert.That(redirect, Is.Not.Null);
         Assert.That(redirect!.Url, Is.EqualTo("/account/edit?forcePasswordChange=true"));
-        Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(["visitor-123"]));
+        Assert.That(analyticsService.DeletedVisitorIds, Is.EqualTo(["0123456789abcdef0123456789abcdef"]));
 
         var setCookieHeader = controller.HttpContext.Response.Headers.SetCookie.ToString();
         Assert.That(setCookieHeader, Does.Contain("axl_admin_visitor=true"));
@@ -374,7 +376,8 @@ public sealed class AccountControllerTests
             Options.Create(new AdminBootstrapSettings { Password = bootstrapPassword }),
             new FakeHostEnvironment(isDevelopment),
             CreateDevelopmentResetService(),
-            analyticsService)
+            analyticsService,
+            DeviceIdService)
         {
             ControllerContext = new ControllerContext
             {
