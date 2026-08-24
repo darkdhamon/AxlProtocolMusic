@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using AxlProtocolMusic.WebApp.Services.ServiceModels
 @inject IAnalyticsService AnalyticsService
+@inject IDeviceIdService DeviceIdService
 @inject IHttpContextAccessor HttpContextAccessor
 
 <PageTitle>Collected Data</PageTitle>
@@ -287,7 +288,10 @@
             return;
         }
 
-        httpContext.Request.Cookies.TryGetValue(VisitorCookieName, out var visitorId);
+        httpContext.Request.Cookies.TryGetValue(VisitorCookieName, out var visitorCookie);
+        var visitorId = DeviceIdService.TryResolve(visitorCookie, out var canonicalDeviceId)
+            ? canonicalDeviceId
+            : Guid.TryParseExact(visitorCookie, "N", out _) ? visitorCookie : string.Empty;
         var metricsDisabled = httpContext.Request.Cookies.TryGetValue(MetricsPreferenceCookieName, out var metricsValue)
             && string.Equals(metricsValue, "disabled", StringComparison.OrdinalIgnoreCase);
         var isAdminExcluded = httpContext.Request.Cookies.TryGetValue(AdminVisitorCookieName, out var adminValue)

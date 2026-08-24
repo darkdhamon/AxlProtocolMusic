@@ -112,6 +112,38 @@ public sealed class SiteChatbotTests
     }
 
     [Test]
+    public void SiteChatbot_WhenPermitEndpointRejects_BlocksBeforeCallingService()
+    {
+        using var context = CreateContext(out _, out _, out var chatbotService, out _);
+        context.JSInterop.Setup<string?>("axlChatbotUi.acquirePermit").SetResult(null);
+        var cut = context.Render<SiteChatbot>();
+        cut.Find(".chatbot-launcher").Click();
+
+        cut.Find("#chatbot-input").Input("Question");
+        cut.Find("button.btn.btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+            Assert.That(cut.Markup, Does.Contain("Too many requests. Please wait before trying again.")));
+        Assert.That(chatbotService.Calls, Is.Empty);
+    }
+
+    [Test]
+    public void SiteChatbot_WhenPermitConsumptionFails_ShowsRecoverableError()
+    {
+        using var context = CreateContext(out _, out _, out var chatbotService, out _);
+        var limiter = (FakeChatbotRequestRateLimiter)context.Services.GetRequiredService<IChatbotRequestRateLimiter>();
+        limiter.ThrowOnConsume = true;
+        var cut = context.Render<SiteChatbot>();
+        cut.Find(".chatbot-launcher").Click();
+        cut.Find("#chatbot-input").Input("Question");
+
+        cut.Find("button.btn.btn-primary").Click();
+
+        cut.WaitForAssertion(() => Assert.That(cut.Markup, Does.Contain("request limit check is temporarily unavailable")));
+        Assert.That(chatbotService.Calls, Is.Empty);
+    }
+
+    [Test]
     public void SiteChatbot_ResetClearsMessagesAndPersistsState()
     {
         using var context = CreateContext(out _, out _, out var chatbotService, out _);
@@ -220,6 +252,7 @@ public sealed class SiteChatbotTests
         context.JSInterop.Mode = JSRuntimeMode.Loose;
         context.JSInterop.Setup<string>("axlChatbotStorage.getState").SetResult(string.Empty);
         context.JSInterop.Setup<string>("axlChatbotStorage.getTranscript").SetResult(string.Empty);
+        context.JSInterop.Setup<string?>("axlChatbotUi.acquirePermit").SetResult("test-permit");
 
         chatbotBudgetService = new FakeChatbotBudgetService
         {
@@ -237,9 +270,23 @@ public sealed class SiteChatbotTests
         context.Services.AddSingleton<IChatbotActivationMonitor>(activationMonitor);
         context.Services.AddSingleton<IChatbotConversationLogService>(chatbotConversationLogService);
         context.Services.AddSingleton<ISiteChatbotService>(chatbotService);
+        context.Services.AddSingleton<IChatbotRequestRateLimiter, FakeChatbotRequestRateLimiter>();
         context.Services.AddSingleton<MarkdownService>();
 
         return context;
+    }
+
+    private sealed class FakeChatbotRequestRateLimiter : IChatbotRequestRateLimiter
+    {
+        public bool ThrowOnConsume { get; set; }
+
+        public Task<string?> TryIssuePermitAsync(string deviceId, CancellationToken cancellationToken = default)
+            => Task.FromResult<string?>("test-permit");
+
+        public Task<bool> TryConsumePermitAsync(string permitToken, CancellationToken cancellationToken = default)
+            => ThrowOnConsume
+                ? Task.FromException<bool>(new InvalidOperationException("Mongo unavailable"))
+                : Task.FromResult(permitToken == "test-permit");
     }
 
     private sealed class FakeChatbotConversationLogService : IChatbotConversationLogService

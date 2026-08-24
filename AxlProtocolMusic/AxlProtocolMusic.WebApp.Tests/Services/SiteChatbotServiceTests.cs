@@ -25,6 +25,31 @@ public sealed class SiteChatbotServiceTests
     }
 
     [Test]
+    public void GenerateReplyAsync_WhenMessageExceedsLimit_ThrowsBeforeCallingDependencies()
+    {
+        var service = CreateService(new FakeHttpMessageHandler(_ => throw new AssertionException("HTTP should not be called.")));
+
+        var exception = Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await service.GenerateReplyAsync(new string('x', 1001)));
+
+        Assert.That(exception!.Message, Does.Contain("Message too long"));
+    }
+
+    [Test]
+    public void GenerateReplyAsync_WhenHistoryExceedsLimit_ThrowsBeforeCallingDependencies()
+    {
+        var service = CreateService(new FakeHttpMessageHandler(_ => throw new AssertionException("HTTP should not be called.")));
+        var history = Enumerable.Range(0, 41)
+            .Select(index => new ChatbotConversationMessage { Role = "user", Content = $"Message {index}" })
+            .ToList();
+
+        var exception = Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await service.GenerateReplyAsync("Question", history));
+
+        Assert.That(exception!.Message, Does.Contain("History too long"));
+    }
+
+    [Test]
     public async Task GenerateReplyAsync_WhenApiKeyIsMissing_ReturnsConfigurationMessageWithoutCallingOpenAi()
     {
         var contextBuilder = new FakeContextBuilder();
