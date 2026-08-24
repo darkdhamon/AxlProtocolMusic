@@ -124,7 +124,7 @@ Problem:
 
 Verified workaround:
 1. Check the deployed production setting for `Chatbot:Enabled` or the environment override `Chatbot__Enabled`.
-2. If the admin dashboard says the chatbot is enabled but the launcher is missing site-wide, verify the production host is not inheriting `appsettings.json` with `"Chatbot": { "Enabled": false }`.
+2. If the admin dashboard says the chatbot is enabled but the launcher is missing site-wide, verify the deployed host is not inheriting `appsettings.json` with `"Chatbot": { "Enabled": false }`.
 3. Keep the admin UI aligned with the render gate by exposing the config flag in the dashboard when investigating live issues.
 
 Working files:
