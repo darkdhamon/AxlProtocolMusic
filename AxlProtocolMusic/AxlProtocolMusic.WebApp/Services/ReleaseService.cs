@@ -117,7 +117,10 @@ public sealed class ReleaseService : IReleaseService
             ? (await _releaseRepository.GetAllAsync(cancellationToken))
                 .OrderByDescending(release => release.ReleaseDateUtc)
                 .ToList()
-            : await GetPublishedReleasesAsync(cancellationToken);
+            : (await _releaseRepository.GetAllAsync(cancellationToken))
+                .Where(release => release.IsPublished)
+                .OrderByDescending(release => release.ReleaseDateUtc)
+                .ToList();
 
         var release = releases
             .FirstOrDefault(item => string.Equals(item.Slug, slug, StringComparison.OrdinalIgnoreCase));
