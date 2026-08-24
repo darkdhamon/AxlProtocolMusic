@@ -93,6 +93,25 @@ public sealed class ReleaseServiceTests
     }
 
     [Test]
+    public async Task GetPagedReleasesAsync_WhenIncludeUnpublishedIsFalse_OnlyReturnsPublishedReleasesWithPastDates()
+    {
+        var repository = new InMemoryReleaseRepository(
+        [
+            CreateRelease("future",  -10, true),
+            CreateRelease("past", 1, true),
+            CreateRelease("draft", 1, false)
+        ]);
+
+        var service = new ReleaseService(repository);
+
+        var result = await service.GetPagedReleasesAsync(searchTerm: null, pageNumber: 1, pageSize: 10);
+
+        Assert.That(result.TotalCount, Is.EqualTo(1));
+        Assert.That(result.Items.Select(item => item.Slug), Is.EqualTo(new[] { "past" }));
+        Assert.That(result.Items[0].IsPublished, Is.True);
+    }
+
+    [Test]
     public async Task GetReleaseBySlugAsync_WhenLegacyLyricsExist_MigratesLyricsIntoSingleTrackAndUpdatesRepository()
     {
         var release = CreateRelease("legacy-release", 3, true, title: "Legacy Release");

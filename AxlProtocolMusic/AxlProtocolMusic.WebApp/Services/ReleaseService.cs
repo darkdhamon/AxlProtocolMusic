@@ -117,7 +117,10 @@ public sealed class ReleaseService : IReleaseService
             ? (await _releaseRepository.GetAllAsync(cancellationToken))
                 .OrderByDescending(release => release.ReleaseDateUtc)
                 .ToList()
-            : await GetPublishedReleasesAsync(cancellationToken);
+            : (await _releaseRepository.GetAllAsync(cancellationToken))
+                .Where(release => release.IsPublished)
+                .OrderByDescending(release => release.ReleaseDateUtc)
+                .ToList();
 
         var release = releases
             .FirstOrDefault(item => string.Equals(item.Slug, slug, StringComparison.OrdinalIgnoreCase));
@@ -447,8 +450,9 @@ public sealed class ReleaseService : IReleaseService
 
     private async Task<List<Release>> GetPublishedReleasesAsync(CancellationToken cancellationToken)
     {
+        var now = DateTimeOffset.UtcNow;
         return (await _releaseRepository.GetAllAsync(cancellationToken))
-            .Where(release => release.IsPublished)
+            .Where(release => release.IsPublished && release.ReleaseDateUtc <= now)
             .OrderByDescending(release => release.ReleaseDateUtc)
             .ToList();
     }
