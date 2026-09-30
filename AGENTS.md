@@ -365,3 +365,8 @@ gh project edit 8 --owner darkdhamon --title "Axl Protocol Music Website"
 
 - Changing an issue to `OPEN` does not move it out of `Backlog`; update the project card separately.
 - The GitHub project for this repo is user-owned, not organization-owned. Use `https://github.com/users/darkdhamon/projects/8` when opening the board in a browser; `https://github.com/orgs/darkdhamon/projects/8` returns `404`.
+
+### Avoiding bUnit Async Editor Test Deadlocks
+
+- In `NewsPageTests`, configure an upload gate only after any initial upload that must complete synchronously; otherwise the test blocks before it reaches the cancellation scenario.
+- Reflection helpers that invoke private asynchronous component handlers must call `cut.Render()` after awaiting the handler so assertions observe the state change that Blazor normally renders after an event callback.

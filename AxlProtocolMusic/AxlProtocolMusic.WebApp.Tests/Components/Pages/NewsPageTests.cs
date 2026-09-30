@@ -619,8 +619,6 @@ public sealed class NewsPageTests
         imageStorageService.ManagedImageUrls.Add("https://testaccount.blob.core.windows.net/media/news/launch-story.png");
         imageStorageService.UploadedImageUrls.Enqueue("managed://cancel-upload-1");
         imageStorageService.UploadedImageUrls.Enqueue("managed://cancel-upload-2");
-        imageStorageService.SaveReleaseImageStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        imageStorageService.SaveReleaseImageGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         imageStorageService.HoldDeleteCallNumber = 1;
         imageStorageService.DeleteStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         imageStorageService.DeleteGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -642,6 +640,9 @@ public sealed class NewsPageTests
         });
 
         UploadArticleImage(cut, "cancel-upload-1.png", "managed://cancel-upload-1");
+
+        imageStorageService.SaveReleaseImageStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        imageStorageService.SaveReleaseImageGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var uploadTask = InvokeHandleArticleImageSelectedAsync(
             cut,
@@ -1369,7 +1370,7 @@ public sealed class NewsPageTests
         cut.Render();
     }
 
-    private static Task InvokeSaveEditedArticleAsync(IRenderedComponent<News> cut)
+    private static async Task InvokeSaveEditedArticleAsync(IRenderedComponent<News> cut)
     {
         var method = typeof(News).GetMethod(
             "SaveEditedArticle",
@@ -1377,7 +1378,8 @@ public sealed class NewsPageTests
 
         Assert.That(method, Is.Not.Null);
 
-        return cut.InvokeAsync(() => (Task)method!.Invoke(cut.Instance, null)!);
+        await cut.InvokeAsync(() => (Task)method!.Invoke(cut.Instance, null)!);
+        cut.Render();
     }
 
     private sealed class ConfigurableNavigationManager : NavigationManager

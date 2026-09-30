@@ -575,10 +575,14 @@
         RemoveEditorQueryParameter();
     }
 
-    private async Task CancelEditArticleAsync()
+    private Task CancelEditArticleAsync()
     {
         var sessionUploadedImageUrlsToDelete = CloseEditArticleAndCaptureSessionUploadedImages();
-        await DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete);
+
+        // Let the event callback complete so the closed editor can render before storage cleanup
+        // can block on a late-upload delete.
+        _ = DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete);
+        return Task.CompletedTask;
     }
 
     private void CloseDeleteArticle()
