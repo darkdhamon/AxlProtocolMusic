@@ -1242,6 +1242,7 @@
         editableArticle = null;
         originalEditableImageUrl = null;
         sessionUploadedImageUrls = [];
+        pendingEditCleanupTasks.Add(DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete));
 
         if (pendingEditCleanupTasks.Count > 0)
         {
@@ -1253,8 +1254,6 @@
             {
             }
         }
-
-        await DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete);
 
         featuredCarouselRotationCancellationTokenSource?.Cancel();
         featuredCarouselRotationCancellationTokenSource?.Dispose();
