@@ -65,6 +65,45 @@ public sealed class SiteChatbotTests
     }
 
     [Test]
+    public void SiteChatbot_HidesLauncherWhenStoredBrowserLockoutIsStillActive()
+    {
+        using var context = CreateContext(out _, out _, out _, out _);
+        context.JSInterop.Setup<string>("axlChatbotStorage.getState").SetResult($$"""
+            {"BrowserDisabledUntilUtc":"{{DateTimeOffset.UtcNow.AddMinutes(5):O}}","ConsecutiveNoCount":2}
+            """);
+
+        var cut = context.Render<SiteChatbot>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.FindAll(".chatbot-launcher"), Is.Empty);
+        });
+    }
+
+    [Test]
+    public void SiteChatbot_ShowsLauncherWhenStoredBrowserLockoutHasExpired()
+    {
+        using var context = CreateContext(out _, out _, out _, out _);
+        context.JSInterop.Setup<string>("axlChatbotStorage.getState").SetResult($$"""
+            {"BrowserDisabledUntilUtc":"{{DateTimeOffset.UtcNow.AddMinutes(-5):O}}","ConsecutiveNoCount":2,"Messages":[{"Role":"assistant","Content":"Stored after lockout"}]}
+            """);
+
+        var cut = context.Render<SiteChatbot>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.FindAll(".chatbot-launcher"), Has.Count.EqualTo(1));
+        });
+
+        cut.Find(".chatbot-launcher").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Stored after lockout"));
+        });
+    }
+
+    [Test]
     public void SiteChatbot_WhenSuggestionIsUsed_SendsMessageAndDisplaysReply()
     {
         using var context = CreateContext(out _, out _, out var chatbotService, out _);

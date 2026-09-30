@@ -44,7 +44,8 @@ public sealed class ServiceCollectionExtensionsIntegrationTests
 
         Assert.That(returnedServices, Is.SameAs(services));
         Assert.That(services.Any(descriptor =>
-            descriptor.ServiceType == typeof(AdminIdentitySeeder)
+            descriptor.ServiceType == typeof(IAdminIdentitySeeder)
+            && descriptor.ImplementationType == typeof(AdminIdentitySeeder)
             && descriptor.Lifetime == ServiceLifetime.Scoped));
         Assert.That(services.Any(descriptor =>
             descriptor.ServiceType == typeof(NewsArticleSeedService)

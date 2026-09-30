@@ -2,6 +2,12 @@
 
 Repository guidance for Codex-style agents working in `C:\GitHub\AxlProtocolMusic`.
 
+## Shared Parent Guidance
+
+- Default to the shared agent file at `C:\Github\AGENTS.md`.
+- Apply this repository file together with the shared parent file.
+- If this repository file conflicts with the shared parent file, this repository file overrides it for work in this repository.
+
 ## Operating Notes
 
 - When you discover a non-obvious workaround that materially speeds up future work in this repo, add it to this file before ending the task.
@@ -13,9 +19,24 @@ Repository guidance for Codex-style agents working in `C:\GitHub\AxlProtocolMusi
 - New project items start in `Backlog`.
 - Analysis-only work should move an item to `Ready` and keep it there until coding begins.
 - If an item is selected directly from `Backlog` or already sitting in `Ready`, move it to `In Progress` only when implementation or coding has actually started.
+- For issue implementation work, treat opening the feature PR and marking it `Ready for review` as part of the implementation step. Do not stop at local code/test completion while the issue still lacks its PR.
 - Creating a pull request moves the item to `In Review`.
-- After the pull request is approved and the work has been moved into the `dev` branch, move the item to `Ready for Release`.
-- After the work has been moved into the `main` branch, move the item to `Done` and then close the item.
+- After the pull request is approved and the work has been moved into the `dev` branch, move the item to `Done`.
+- After the work has been moved into the `main` branch, move the item to `Released`.
+- `Backlog` means the issue exists but has not yet been analyzed, marked ready, or approved to be worked on.
+- `Ready` means the issue is ready to be worked on.
+- `In Progress` means Codex, the user, or another developer is actively working on it.
+- `In Review` means the issue has an active pull request targeting `dev`.
+- `Done` means the work has been merged into `dev`.
+- `Released` means the work has been merged into `main`.
+
+## Pull Request Review Workflow For `DarkDhamon`
+
+- When creating or preparing to merge a PR in a repo owned by GitHub user `DarkDhamon`, explicitly request a Codex review on the PR with `@codex review`.
+- Poll for Codex review activity every 5 minutes until the review is complete because the bot may respond asynchronously.
+- If the ChatGPT Codex Connector bot reacts with a thumbs-up emoji or the Codex review says it did not find any issues, merge the PR into its target branch (`dev`, `main`, or the configured destination branch).
+- If Codex reports issues and they appear valid, implement the fixes, push the updates, and request another Codex review before merging.
+- If Codex reports an issue but the correct fix is unclear or needs product guidance, pause and ask the user how to proceed before making more changes.
 
 ## Workarounds
 
@@ -67,6 +88,7 @@ $package = $coverage.coverage.packages.package | Where-Object { $_.name -eq 'Axl
 Notes:
 - This is currently the reliable path for forcing a fresh persisted coverage snapshot that matches GitHub's threshold calculation in this repo.
 - Keep the fast `dotnet test` flow for ordinary verification, and use this Release build plus Release test flow when the task specifically requires refreshed saved coverage numbers that match CI.
+- When comparing against ReSharper/dotCover, treat the app package entry as the comparable scope. dotCover usually shows app-only statement coverage, while Cobertura reports line coverage.
 - If a local `dotnet-coverage` run reports a much higher percentage than GitHub Actions, trust the Coverlet-generated `coverage.cobertura.xml` from the Release test run.
 
 ### Avoiding Static Web Asset Compression File Locks
@@ -122,7 +144,165 @@ C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\Components\P
 Notes:
 - `SiteChatbot.razor` only renders when `ChatbotOptions.Value.Enabled` is true and the manual disable flag is false.
 - `appsettings.Development.json` enables the chatbot, but the repo default in `appsettings.json` disables it, so production must override it explicitly.
-- When comparing against ReSharper/dotCover, treat the app package entry as the comparable scope. dotCover usually shows app-only statement coverage, while Cobertura reports line coverage.
+
+### Running Tests While The Web App Is Already Running
+
+Problem:
+- If `AxlProtocolMusic.WebApp` is already running from `AxlProtocolMusic.WebApp\bin\Debug\net10.0`, a normal `dotnet test` can fail with `MSB3021` or `MSB3027` because the build tries to overwrite the locked app host or DLL in the default output folder.
+- Pointing `BaseIntermediateOutputPath` at one shared temp folder for the test project and the referenced web app can also create duplicate generated-file errors because both projects write `AssemblyInfo` and other generated files into the same directory.
+
+Verified workaround:
+1. Run the test command with `--artifacts-path` and point it to a temp directory outside the repo.
+2. Keep that path outside `C:\GitHub\AxlProtocolMusic` so generated build output does not mix with source.
+3. Let `dotnet` isolate each project's build output under the artifacts root instead of manually overriding `BaseIntermediateOutputPath`.
+
+Working command:
+
+```powershell
+dotnet test C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.Tests\AxlProtocolMusic.WebApp.Tests.csproj --artifacts-path C:\Users\Bronze\AppData\Local\Temp\AxlProtocolMusicIssue11Artifacts -p:CollectCoverage=false
+```
+
+Notes:
+- This is the reliable way to run focused tests while the site is still open locally.
+- `--artifacts-path` avoids both the locked `bin\Debug` outputs and the shared-generated-file collision that happened when `BaseIntermediateOutputPath` was forced to a single folder.
+
+### Keeping `Microsoft.NET.Test.Sdk 18.5.1` And `NUnit3TestAdapter 6.2.0` Compatible With The Existing Coverage Workflow
+
+Problem:
+- Updating the test projects to `Microsoft.NET.Test.Sdk 18.5.1` and `NUnit3TestAdapter 6.2.0` while keeping the NUnit runner opt-in (`EnableNUnitRunner` / `TestingPlatformDotnetTestSupport`) causes `dotnet test` to fail on the .NET 10 SDK with `Testing with VSTest target is no longer supported by Microsoft.Testing.Platform on .NET 10 SDK and later`.
+- Opting the repo into native MTP with `global.json` allows the test host to start, but the repo's current Coverlet-based workflow no longer emits `AxlProtocolMusic\TestResults\Coverage\coverage.cobertura.xml`, which breaks the existing GitHub Actions coverage parsing and threshold checks.
+
+Verified workaround:
+1. Keep the package bumps, but remove the NUnit runner / MTP opt-in properties from both test project files instead of adding `global.json`.
+2. Leave the repo on the existing VSTest-style `dotnet test` path so Coverlet keeps generating `coverage.json` and `coverage.cobertura.xml` in `AxlProtocolMusic\TestResults\Coverage`.
+3. Validate with the same Release build + Release test flow that GitHub Actions uses.
+
+Working commands:
+
+```powershell
+dotnet build "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.Tests\AxlProtocolMusic.WebApp.Tests.csproj" --configuration Release --no-restore
+```
+
+```powershell
+dotnet test "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.Tests\AxlProtocolMusic.WebApp.Tests.csproj" --configuration Release --no-build
+```
+
+```powershell
+dotnet build "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.IntegrationTests\AxlProtocolMusic.WebApp.IntegrationTests.csproj" --configuration Release --no-restore
+```
+
+```powershell
+dotnet test "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp.IntegrationTests\AxlProtocolMusic.WebApp.IntegrationTests.csproj" --configuration Release --no-build
+```
+
+Notes:
+- This kept the repo compatible with `Microsoft.NET.Test.Sdk 18.5.1` and `NUnit3TestAdapter 6.2.0` without changing the current GitHub Actions coverage logic.
+- If a future issue wants native Microsoft Testing Platform (`global.json` with `"runner": "Microsoft.Testing.Platform"`), treat that as a separate workflow migration because the repo's current Coverlet settings and failure parsing are VSTest-shaped.
+
+### Verifying Hosted Azure Cosmos Mongo Compatibility Before Driver Bumps
+
+Problem:
+- MongoDB's official C# driver upgrade guide says driver `3.5` and later drop support for MongoDB Server `4.0` and earlier.
+- This repo's production connection string is stored as `mongodb+srv://...mongocluster.cosmos.azure.com`, but a direct `mongosh` attempt can fail at the SRV bootstrap step with `queryTxt ECONNREFUSED ...`.
+- That SRV bootstrap failure can make it look like the hosted server version is unknown even when the deployment itself is reachable.
+
+Verified workaround:
+1. Resolve `_mongodb._tcp.axlprotocolmusic-prod-mongo.mongocluster.cosmos.azure.com` to get the direct Azure Cosmos Mongo node host and port.
+2. Reuse the credentials and query-string options from `AxlProtocolMusic.WebApp\appsecrets.json`, but connect with a direct `mongodb://` URI to the resolved host on port `10260`.
+3. Run read-only `hello`, `isMaster`, or `buildInfo` commands from `mongosh` against that direct URI.
+4. Use the reported server version as the release gate for MongoDB driver upgrades instead of assuming the SRV bootstrap result reflects driver compatibility.
+
+Working files:
+
+```text
+C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\appsecrets.json
+```
+
+```text
+C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\AxlProtocolMusic.WebApp.csproj
+```
+
+Notes:
+- Verified on `2026-07-06`: the production Azure Cosmos Mongo endpoint reported `buildInfo.version = 8.0.0` and `hello.maxWireVersion = 25`.
+- That is well above the C# driver `3.5+` minimum server requirement of `4.2`, so issue `#17` can keep `MongoDB.Driver 3.8.1`.
+- Keep the version probe read-only. Do not use this workflow for schema resets, login tests, or any destructive validation against Azure.
+
+### Keeping PR Testing Off The Azure Mongo Database
+
+Problem:
+- `appsecrets.json` can override `appsettings.Development.json` and point a local app run at the shared Azure-backed Mongo database instead of `mongodb://localhost:27017`.
+- In that state, login testing or the `Reset Dev DB` button can modify the shared bootstrap admin account and make live admin access harder to recover.
+
+Verified workaround:
+1. For PR validation, browser demos, or any local testing that could change auth or content state, override MongoDB settings only for that local process.
+2. Point the app at `mongodb://localhost:27017` and give each test run a fresh database name so the app seeds a disposable local admin/content snapshot.
+3. Keep `appsecrets.json` unchanged and let the override die with the PowerShell session.
+4. If local MongoDB is unavailable, stop and ask the user before testing against Azure. Do not use `Reset Dev DB` while the app is connected to Azure.
+
+Working commands:
+
+```powershell
+$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$env:MongoDb__ConnectionString = "mongodb://localhost:27017"
+$env:MongoDb__DatabaseName = "AxlProtocolMusicPrTest-$stamp"
+dotnet run --project "C:\GitHub\AxlProtocolMusic\AxlProtocolMusic\AxlProtocolMusic.WebApp\AxlProtocolMusic.WebApp.csproj" --launch-profile http
+Remove-Item Env:MongoDb__ConnectionString
+Remove-Item Env:MongoDb__DatabaseName
+```
+
+Notes:
+- Environment variables override both `appsettings.Development.json` and `appsecrets.json`, so this is the safest way to keep PR testing local without editing secrets files.
+- A fresh local database name forces clean content seeding and restores the expected dev bootstrap login for that run.
+- Use this pattern by default whenever local testing needs admin login, destructive content changes, or the browser-based `Reset Dev DB` flow.
+- If no local MongoDB service is installed, a disposable fallback that worked here was `mongodb-memory-server` in a temp folder. The first startup downloaded MongoDB `8.2.6` (about `781 MB`), then exposed `mongodb://127.0.0.1:27017/` for the app process.
+
+### Logging Into The Local PR-Test Site In The Codex Browser
+
+Problem:
+- On this repo's local login page in the Codex in-app browser, Playwright `fill`, Playwright `type`, and `dom_cua.type` can fail with `Browser Use virtual clipboard is not installed`.
+- A successful seeded-admin login does not land on the requested page immediately. It redirects first to `/account/edit?forcePasswordChange=true` because the bootstrap account still uses the default password.
+
+Verified workaround:
+1. Start the app against a fresh local PR-test database using the previous section.
+2. In the in-app browser, call `tab.dom_cua.get_visible_dom()` after each reload or navigation and capture fresh `node_id` values for the username, password, and submit controls.
+3. Use `tab.dom_cua.click(...)` plus `tab.dom_cua.keypress(...)` for each character instead of `fill` or `type`.
+4. Log in with the seeded local admin credentials from `appsettings.Development.json`: username `admin`, password `ChangeThisDevPassword123!`.
+5. After the forced-password-change redirect, navigate to `/timeline` and use the top-row `Add Timeline Event` action to open `/timeline?editor=new`.
+
+Working browser snippet:
+
+```js
+const loginDom = await tab.dom_cua.get_visible_dom();
+const usernameNodeId = loginDom.match(/<input node_id=(\d+) name=\"UserNameOrEmail\"/)?.[1];
+const passwordNodeId = loginDom.match(/<input node_id=(\d+) name=\"Password\"/)?.[1];
+const loginButtonNodeId = loginDom.match(/<button node_id=(\d+) type=\"submit\">Log In<\/button>/)?.[1];
+
+const keypressesFor = (text) => Array.from(text).map((char) => {
+  if (char >= "a" && char <= "z") return [char];
+  if (char >= "A" && char <= "Z") return ["Shift", char.toLowerCase()];
+  if (char >= "0" && char <= "9") return [char];
+  if (char === "!") return ["Shift", "1"];
+  throw new Error(`Unsupported character: ${char}`);
+});
+
+await tab.dom_cua.click({ node_id: usernameNodeId });
+for (const combo of keypressesFor("admin")) {
+  await tab.dom_cua.keypress({ keys: combo });
+}
+
+await tab.dom_cua.click({ node_id: passwordNodeId });
+for (const combo of keypressesFor("ChangeThisDevPassword123!")) {
+  await tab.dom_cua.keypress({ keys: combo });
+}
+
+await tab.playwright.expectNavigation(
+  () => tab.dom_cua.click({ node_id: loginButtonNodeId }),
+  { timeoutMs: 15000, waitUntil: "load" });
+```
+
+Notes:
+- This reliably produced `/account/edit?forcePasswordChange=true`, which confirmed the seeded local admin login succeeded.
+- On the timeline page, the successful end state is the visible top-right `Add Timeline Event` control and the create modal at `/timeline?editor=new`.
 
 ### Managing GitHub Project Status For Repo Issues
 
@@ -168,6 +348,7 @@ Status option ids on this board:
 - `In progress` = `47fc9ee4`
 - `In review` = `df73e18b`
 - `Done` = `98236657`
+- `Released` = `68b70198`
 
 Working example:
 
@@ -183,4 +364,9 @@ gh project edit 8 --owner darkdhamon --title "Axl Protocol Music Website"
 ```
 
 - Changing an issue to `OPEN` does not move it out of `Backlog`; update the project card separately.
+- The GitHub project for this repo is user-owned, not organization-owned. Use `https://github.com/users/darkdhamon/projects/8` when opening the board in a browser; `https://github.com/orgs/darkdhamon/projects/8` returns `404`.
 
+### Avoiding bUnit Async Editor Test Deadlocks
+
+- In `NewsPageTests`, configure an upload gate only after any initial upload that must complete synchronously; otherwise the test blocks before it reaches the cancellation scenario.
+- Reflection helpers that invoke private asynchronous component handlers must call `cut.Render()` after awaiting the handler so assertions observe the state change that Blazor normally renders after an event callback.

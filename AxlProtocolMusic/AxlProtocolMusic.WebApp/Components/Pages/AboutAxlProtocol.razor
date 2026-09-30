@@ -177,13 +177,15 @@ else
 
                         @if (!string.IsNullOrWhiteSpace(errorMessage))
                         {
-                            <div class="alert alert-danger" role="alert">@errorMessage</div>
+                            <div class="alert alert-danger" role="alert" aria-atomic="true">@errorMessage</div>
                         }
 
-                        @if (!string.IsNullOrWhiteSpace(statusMessage))
-                        {
-                            <div class="alert alert-success" role="alert">@statusMessage</div>
-                        }
+                        <div role="status" aria-live="polite" aria-atomic="true">
+                            @if (!string.IsNullOrWhiteSpace(statusMessage))
+                            {
+                                <span class="alert alert-success d-block">@statusMessage</span>
+                            }
+                        </div>
 
                         <div class="admin-edit-form">
                             <div class="mb-3">
@@ -381,13 +383,23 @@ else
                 return;
             }
 
-            statusMessage = "Saving changes...";
-            await InvokeAsync(StateHasChanged);
+            await InvokeAsync(() =>
+            {
+                statusMessage = "Saving changes...";
+                StateHasChanged();
+            });
 
             await AboutPageService.UpdateAsync(editableContent);
             content = Clone(editableContent);
             lastSavedVersion = version;
-            statusMessage = "All changes saved.";
+            if (version == Interlocked.Read(ref autosaveVersion))
+            {
+                await InvokeAsync(() =>
+                {
+                    statusMessage = "All changes saved.";
+                    StateHasChanged();
+                });
+            }
         }
         catch (OperationCanceledException)
         {

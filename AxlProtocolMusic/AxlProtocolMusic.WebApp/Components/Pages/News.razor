@@ -413,6 +413,7 @@
     private string? editStatusMessage;
     private string? originalEditableImageUrl;
     private List<string> sessionUploadedImageUrls = [];
+    private readonly List<Task> pendingEditCleanupTasks = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -575,10 +576,14 @@
         RemoveEditorQueryParameter();
     }
 
-    private async Task CancelEditArticleAsync()
+    private Task CancelEditArticleAsync()
     {
         var sessionUploadedImageUrlsToDelete = CloseEditArticleAndCaptureSessionUploadedImages();
-        await DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete);
+
+        // Let the event callback complete so the closed editor can render before storage cleanup
+        // can block on a late-upload delete, while retaining every task for component disposal.
+        pendingEditCleanupTasks.Add(DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete));
+        return Task.CompletedTask;
     }
 
     private void CloseDeleteArticle()
@@ -1237,8 +1242,18 @@
         editableArticle = null;
         originalEditableImageUrl = null;
         sessionUploadedImageUrls = [];
+        pendingEditCleanupTasks.Add(DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete));
 
-        await DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete);
+        if (pendingEditCleanupTasks.Count > 0)
+        {
+            try
+            {
+                await Task.WhenAll(pendingEditCleanupTasks);
+            }
+            catch
+            {
+            }
+        }
 
         featuredCarouselRotationCancellationTokenSource?.Cancel();
         featuredCarouselRotationCancellationTokenSource?.Dispose();

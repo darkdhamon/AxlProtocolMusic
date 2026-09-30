@@ -20,7 +20,8 @@ public sealed class AboutPageContentTests
                 "NarrativeHighlights": [],
                 "OriginMarkdown": "Origin",
                 "Pillars": [],
-                "SocialLinks": [{ "Platform": "Website", "Url": "https://example.test" }]
+                "SocialLinks": [],
+                "FutureAdminSetting": "introduced by a newer deployment"
             }
             """;
 
@@ -31,8 +32,11 @@ public sealed class AboutPageContentTests
         {
             Assert.That(result.Id, Is.EqualTo(AboutPageContent.SingletonId));
             Assert.That(result.HeroLead, Is.EqualTo("Existing lead"));
-            Assert.That(result.ExtraElements["SocialLinks"].AsBsonArray, Has.Count.EqualTo(1));
-            Assert.That(roundTripped["SocialLinks"].AsBsonArray, Has.Count.EqualTo(1));
+            Assert.That(result.SocialLinks, Is.Empty);
+            Assert.That(result.ExtraElements["FutureAdminSetting"].AsString,
+                Is.EqualTo("introduced by a newer deployment"));
+            Assert.That(roundTripped["FutureAdminSetting"].AsString,
+                Is.EqualTo("introduced by a newer deployment"));
             Assert.That(roundTripped.Contains(nameof(AboutPageContent.ExtraElements)), Is.False);
         });
     }

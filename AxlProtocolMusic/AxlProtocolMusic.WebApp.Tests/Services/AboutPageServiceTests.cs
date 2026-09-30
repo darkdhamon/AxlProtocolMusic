@@ -165,14 +165,7 @@ public sealed class AboutPageServiceTests
         {
             Id = AboutPageContent.SingletonId,
             HeroLead = "Existing",
-            ExtraElements = new BsonDocument("SocialLinks", new BsonArray
-            {
-                new BsonDocument
-                {
-                    ["Platform"] = "Website",
-                    ["Url"] = "https://example.test"
-                }
-            })
+            ExtraElements = new BsonDocument("FutureAdminSetting", "keep me")
         };
         var repository = new InMemoryRepository<AboutPageContent>([existing]);
         var service = new AboutPageService(repository);
@@ -183,7 +176,7 @@ public sealed class AboutPageServiceTests
         Assert.Multiple(() =>
         {
             Assert.That(updated.HeroLead, Is.EqualTo("Updated"));
-            Assert.That(updated.ExtraElements["SocialLinks"].AsBsonArray, Has.Count.EqualTo(1));
+            Assert.That(updated.ExtraElements["FutureAdminSetting"].AsString, Is.EqualTo("keep me"));
             Assert.That(updated.ExtraElements, Is.Not.SameAs(existing.ExtraElements));
         });
     }

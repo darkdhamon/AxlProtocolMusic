@@ -80,6 +80,13 @@ public sealed class AboutPageService : IAboutPageService
         };
     }
 
+    private static BsonDocument CloneExtraElements(BsonDocument? extraElements)
+    {
+        return extraElements is null
+            ? new BsonDocument()
+            : extraElements.DeepClone().AsBsonDocument;
+    }
+
     private static AboutSocialLink? NormalizeSocialLink(AboutSocialLink link)
     {
         var platform = link.Platform.Trim();
@@ -101,13 +108,6 @@ public sealed class AboutPageService : IAboutPageService
             Platform = platform,
             Url = url
         };
-    }
-
-    private static BsonDocument CloneExtraElements(BsonDocument? extraElements)
-    {
-        return extraElements is null
-            ? new BsonDocument()
-            : extraElements.DeepClone().AsBsonDocument;
     }
 
     private static AboutPageContent CreateDefaultContent()
