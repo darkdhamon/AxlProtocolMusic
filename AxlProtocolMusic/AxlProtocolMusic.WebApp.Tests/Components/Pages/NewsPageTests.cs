@@ -369,8 +369,9 @@ public sealed class NewsPageTests
         });
     }
 
-    [Test]
-    public void News_WhenCreateArticleTitleIsBlank_ShowsValidationErrorWithoutCallingCreate()
+    [TestCase("")]
+    [TestCase("   ")]
+    public void News_WhenCreateArticleTitleIsBlank_ShowsValidationErrorWithoutCallingCreate(string blankTitle)
     {
         using var context = CreateContext(out var newsService);
         var authorization = context.AddAuthorization();
@@ -386,6 +387,8 @@ public sealed class NewsPageTests
             Assert.That(cut.Markup, Does.Contain("Create Article"));
         });
 
+        cut.Find("#news-title").Input("Temporary title");
+        cut.Find("#news-title").Input(blankTitle);
         cut.Find("textarea#news-content").Input("Body copy");
         cut.Find("button.btn.btn-primary").Click();
 
@@ -414,7 +417,7 @@ public sealed class NewsPageTests
             Assert.That(cut.Markup, Does.Contain("Create Article"));
         });
 
-        cut.Find("#news-title").Change("New Story");
+        cut.Find("#news-title").Input("New Story");
         cut.Find("button.btn.btn-primary").Click();
 
         cut.WaitForAssertion(() =>
@@ -423,6 +426,46 @@ public sealed class NewsPageTests
         });
 
         Assert.That(newsService.CreateRequests, Is.Empty);
+    }
+
+    [Test]
+    public void News_WhenDraftFieldsReceiveInputEvents_CreatesPrivateArticleWithoutBlur()
+    {
+        using var context = CreateContext(out var newsService);
+        var authorization = context.AddAuthorization();
+        authorization.SetAuthorized("admin");
+        authorization.SetRoles("Admin");
+        var navigation = context.Services.GetRequiredService<NavigationManager>();
+        navigation.NavigateTo("/news?editor=new");
+
+        var cut = context.Render<News>();
+        cut.WaitForAssertion(() => Assert.That(cut.FindAll("#news-title"), Has.Count.EqualTo(1)));
+
+        cut.Find("#news-title").Input("Private studio update");
+        cut.Find("textarea#news-content").Input("Neutral draft body.");
+        cut.Find("#news-image-url").Input("https://cdn.example/draft.png");
+        cut.Find(".admin-edit-actions .btn-primary").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(newsService.CreateRequests, Has.Count.EqualTo(1));
+            Assert.That(cut.FindAll("#news-title"), Is.Empty);
+            Assert.That(navigation.Uri, Does.EndWith("/news"));
+        });
+        var request = newsService.CreateRequests.Single();
+        Assert.Multiple(() =>
+        {
+            Assert.That(request.Title, Is.EqualTo("Private studio update"));
+            Assert.That(request.Content, Is.EqualTo("Neutral draft body."));
+            Assert.That(request.ImageUrl, Is.EqualTo("https://cdn.example/draft.png"));
+            Assert.That(request.IsPublished, Is.False);
+            Assert.That(request.IsFeatured, Is.False);
+            Assert.That(newsService.Articles.Single().IsPublished, Is.False);
+        });
+
+        authorization.SetNotAuthorized();
+        var publicPage = context.Render<News>();
+        publicPage.WaitForAssertion(() => Assert.That(publicPage.Markup, Does.Not.Contain("Private studio update")));
     }
 
     [Test]
@@ -442,9 +485,9 @@ public sealed class NewsPageTests
             Assert.That(cut.Markup, Does.Contain("Create Article"));
         });
 
-        cut.Find("#news-title").Change("New Story");
+        cut.Find("#news-title").Input("New Story");
         cut.Find("textarea#news-content").Input("Freshly published content.");
-        cut.Find("input#news-image-url").Change("https://cdn.example/new-story.jpg");
+        cut.Find("input#news-image-url").Input("https://cdn.example/new-story.jpg");
         cut.Find("input#news-publication-date").Change("2026-03-15");
         cut.FindAll("input.form-check-input")[0].Change(true);
         cut.FindAll("input.form-check-input")[1].Change(true);
@@ -858,7 +901,7 @@ public sealed class NewsPageTests
         });
 
         UploadArticleImage(cut, "save-owned-upload.png", "managed://save-owned-upload");
-        cut.Find("#news-title").Change("Launch Story Saved");
+        cut.Find("#news-title").Input("Launch Story Saved");
 
         var saveTask = InvokeSaveEditedArticleAsync(cut);
         await newsService.GetArticlesStarted!.Task;
@@ -924,7 +967,7 @@ public sealed class NewsPageTests
         });
 
         UploadArticleImage(cut, "dispose-owned-upload.png", "managed://dispose-owned-upload");
-        cut.Find("#news-title").Change("Launch Story Saved");
+        cut.Find("#news-title").Input("Launch Story Saved");
 
         var saveTask = InvokeSaveEditedArticleAsync(cut);
         await newsService.GetArticlesStarted!.Task;
@@ -1087,7 +1130,7 @@ public sealed class NewsPageTests
         UploadArticleImage(cut, "create-upload-1.png", "managed://create-upload-1");
         UploadArticleImage(cut, "create-upload-2.png", "managed://create-upload-2");
 
-        cut.Find("#news-title").Change("New Story");
+        cut.Find("#news-title").Input("New Story");
         cut.Find("textarea#news-content").Input("Freshly published content.");
         cut.Find("input#news-publication-date").Change("2026-03-15");
         cut.FindAll("input.form-check-input")[0].Change(true);
@@ -1151,7 +1194,7 @@ public sealed class NewsPageTests
         UploadArticleImage(cut, "edit-save-upload-1.png", "managed://edit-save-upload-1");
         UploadArticleImage(cut, "edit-save-upload-2.png", "managed://edit-save-upload-2");
 
-        cut.Find("#news-title").Change("Launch Story Updated");
+        cut.Find("#news-title").Input("Launch Story Updated");
         cut.Find("textarea#news-content").Input("Updated article body.");
         cut.Find("button.btn.btn-primary").Click();
 
@@ -1213,9 +1256,9 @@ public sealed class NewsPageTests
             Assert.That(cut.Markup, Does.Contain("Edit Article"));
         });
 
-        cut.Find("#news-title").Change("Launch Story Updated");
+        cut.Find("#news-title").Input("Launch Story Updated");
         cut.Find("textarea#news-content").Input("Updated article body.");
-        cut.Find("input#news-image-url").Change("https://cdn.example/updated-story.jpg");
+        cut.Find("input#news-image-url").Input("https://cdn.example/updated-story.jpg");
         cut.Find("button.btn.btn-primary").Click();
 
         cut.WaitForAssertion(() =>
