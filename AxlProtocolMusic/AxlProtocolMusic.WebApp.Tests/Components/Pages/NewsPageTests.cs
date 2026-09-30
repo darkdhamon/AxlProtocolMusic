@@ -619,8 +619,6 @@ public sealed class NewsPageTests
         imageStorageService.ManagedImageUrls.Add("https://testaccount.blob.core.windows.net/media/news/launch-story.png");
         imageStorageService.UploadedImageUrls.Enqueue("managed://cancel-upload-1");
         imageStorageService.UploadedImageUrls.Enqueue("managed://cancel-upload-2");
-        imageStorageService.SaveReleaseImageStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        imageStorageService.SaveReleaseImageGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         imageStorageService.HoldDeleteCallNumber = 1;
         imageStorageService.DeleteStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         imageStorageService.DeleteGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -643,6 +641,9 @@ public sealed class NewsPageTests
 
         UploadArticleImage(cut, "cancel-upload-1.png", "managed://cancel-upload-1");
 
+        imageStorageService.SaveReleaseImageStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        imageStorageService.SaveReleaseImageGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         var uploadTask = InvokeHandleArticleImageSelectedAsync(
             cut,
             new FakeBrowserFile("cancel-upload-2.png", "image/png"));
@@ -657,11 +658,33 @@ public sealed class NewsPageTests
             Assert.That(cut.Markup, Does.Not.Contain("Database-backed news editor"));
         });
 
+        cut.FindAll("button.btn.btn-outline-light")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Edit Article", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit Article"));
+        });
+
+        var secondCancelTask = InvokeCancelEditArticleAsync(cut);
+        await secondCancelTask;
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Not.Contain("Database-backed news editor"));
+        });
+
+        var disposeTask = cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
+        Assert.That(disposeTask.IsCompleted, Is.False);
+
         imageStorageService.SaveReleaseImageGate.SetResult(true);
         imageStorageService.DeleteGate.SetResult(true);
 
         await uploadTask;
         await cancelTask;
+        await secondCancelTask;
+        await disposeTask;
 
         Assert.That(newsService.UpdateRequests, Is.Empty);
         Assert.That(imageStorageService.DeletedStoragePaths, Is.EquivalentTo(
@@ -1369,7 +1392,7 @@ public sealed class NewsPageTests
         cut.Render();
     }
 
-    private static Task InvokeSaveEditedArticleAsync(IRenderedComponent<News> cut)
+    private static async Task InvokeSaveEditedArticleAsync(IRenderedComponent<News> cut)
     {
         var method = typeof(News).GetMethod(
             "SaveEditedArticle",
@@ -1377,7 +1400,8 @@ public sealed class NewsPageTests
 
         Assert.That(method, Is.Not.Null);
 
-        return cut.InvokeAsync(() => (Task)method!.Invoke(cut.Instance, null)!);
+        await cut.InvokeAsync(() => (Task)method!.Invoke(cut.Instance, null)!);
+        cut.Render();
     }
 
     private sealed class ConfigurableNavigationManager : NavigationManager
