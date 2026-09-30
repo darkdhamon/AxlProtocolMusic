@@ -291,12 +291,12 @@
                 <div class="admin-edit-form">
                     <div class="mb-3">
                         <label class="form-label" for="news-title">Title</label>
-                        <input class="form-control" id="news-title" @bind="editableArticle.Title" />
+                        <input class="form-control" id="news-title" @bind="editableArticle.Title" @bind:event="oninput" />
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label" for="news-image-url">Image Url</label>
-                        <input class="form-control" id="news-image-url" @bind="editableArticle.ImageUrl" />
+                        <input class="form-control" id="news-image-url" @bind="editableArticle.ImageUrl" @bind:event="oninput" />
                         <div class="form-text">Paste an existing image URL or upload a new image below.</div>
                     </div>
 
