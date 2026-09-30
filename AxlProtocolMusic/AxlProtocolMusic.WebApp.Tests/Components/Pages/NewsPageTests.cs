@@ -658,11 +658,15 @@ public sealed class NewsPageTests
             Assert.That(cut.Markup, Does.Not.Contain("Database-backed news editor"));
         });
 
+        var disposeTask = cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
+        Assert.That(disposeTask.IsCompleted, Is.False);
+
         imageStorageService.SaveReleaseImageGate.SetResult(true);
         imageStorageService.DeleteGate.SetResult(true);
 
         await uploadTask;
         await cancelTask;
+        await disposeTask;
 
         Assert.That(newsService.UpdateRequests, Is.Empty);
         Assert.That(imageStorageService.DeletedStoragePaths, Is.EquivalentTo(
