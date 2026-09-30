@@ -413,7 +413,7 @@
     private string? editStatusMessage;
     private string? originalEditableImageUrl;
     private List<string> sessionUploadedImageUrls = [];
-    private Task? pendingEditCleanupTask;
+    private readonly List<Task> pendingEditCleanupTasks = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -581,8 +581,8 @@
         var sessionUploadedImageUrlsToDelete = CloseEditArticleAndCaptureSessionUploadedImages();
 
         // Let the event callback complete so the closed editor can render before storage cleanup
-        // can block on a late-upload delete, while retaining the task for component disposal.
-        pendingEditCleanupTask = DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete);
+        // can block on a late-upload delete, while retaining every task for component disposal.
+        pendingEditCleanupTasks.Add(DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete));
         return Task.CompletedTask;
     }
 
@@ -1243,9 +1243,15 @@
         originalEditableImageUrl = null;
         sessionUploadedImageUrls = [];
 
-        if (pendingEditCleanupTask is not null)
+        if (pendingEditCleanupTasks.Count > 0)
         {
-            await pendingEditCleanupTask;
+            try
+            {
+                await Task.WhenAll(pendingEditCleanupTasks);
+            }
+            catch
+            {
+            }
         }
 
         await DeleteManagedImagesBestEffortAsync(sessionUploadedImageUrlsToDelete);

@@ -658,6 +658,23 @@ public sealed class NewsPageTests
             Assert.That(cut.Markup, Does.Not.Contain("Database-backed news editor"));
         });
 
+        cut.FindAll("button.btn.btn-outline-light")
+            .Single(button => string.Equals(button.TextContent.Trim(), "Edit Article", StringComparison.Ordinal))
+            .Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Contain("Edit Article"));
+        });
+
+        var secondCancelTask = InvokeCancelEditArticleAsync(cut);
+        await secondCancelTask;
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.That(cut.Markup, Does.Not.Contain("Database-backed news editor"));
+        });
+
         var disposeTask = cut.InvokeAsync(() => cut.Instance.DisposeAsync().AsTask());
         Assert.That(disposeTask.IsCompleted, Is.False);
 
@@ -666,6 +683,7 @@ public sealed class NewsPageTests
 
         await uploadTask;
         await cancelTask;
+        await secondCancelTask;
         await disposeTask;
 
         Assert.That(newsService.UpdateRequests, Is.Empty);
